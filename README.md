@@ -1,6 +1,6 @@
 # M30TestApp.V2
 
-新版 M30 测试上位机（WPF .NET 8 + MVVM）。从原 WinForms 程序剥离出测试逻辑与设备指令，重写整套 UI；测试流程改为 ASLab 风格的 `TestTaskPoint` 脚本驱动。
+新版 M30 测试上位机（WPF .NET 8 + MVVM）。从原 WinForms 程序剥离出测试逻辑与设备指令，重写整套 UI
 
 ## 解决方案结构
 
