@@ -1,0 +1,123 @@
+﻿<Window x:Class="M30TestApp.Wpf.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:M30TestApp.Wpf.ViewModels"
+        d:DataContext="{d:DesignInstance vm:MainViewModel}"
+        mc:Ignorable="d"
+        Title="M30 测试上位机"
+        Height="800" Width="1400"
+        Background="{StaticResource BgGradientBrush}"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanMinimize">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="60"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="30"/>
+        </Grid.RowDefinitions>
+
+        <!-- ────────── Top bar (frosted glass feel) ────────── -->
+        <Border Grid.Row="0" Background="{StaticResource TopBarBrush}"
+                BorderBrush="Transparent" BorderThickness="0"
+                Effect="{StaticResource CardShadow}">
+            <Grid Margin="0,0,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" Margin="24,0">
+                    <Border Width="36" Height="36" CornerRadius="10"
+                            Background="{StaticResource AccentBrush}"
+                            Effect="{StaticResource CardShadow}"
+                            VerticalAlignment="Center">
+                        <TextBlock Text="M" Foreground="White" FontWeight="Bold" FontSize="18"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding StationTitle}" FontWeight="SemiBold" FontSize="15"/>
+                        <TextBlock Text="{Binding PlanTitle}" Foreground="{StaticResource MutedBrush}" FontSize="11"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Device status indicators (pill badges) -->
+                <ItemsControl Grid.Column="1" ItemsSource="{Binding Devices}"
+                              HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="#F0F4F8" CornerRadius="16"
+                                    Padding="12,5" Margin="3,0"
+                                    BorderBrush="#E8ECF0" BorderThickness="1">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="8" Height="8" Fill="{Binding DotBrush}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Title}" Margin="6,0,0,0" FontWeight="SemiBold" FontSize="12"/>
+                                    <TextBlock Text="·" Margin="4,0" Foreground="{StaticResource MutedBrush}" FontSize="12"/>
+                                    <TextBlock Text="{Binding StateText}" Foreground="{StaticResource MutedBrush}" FontSize="12"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,20,0">
+                    <Button x:Name="ToggleMaxBtn" Content="全屏" Style="{StaticResource GhostButton}"
+                            Padding="12,5" Click="OnToggleMaximize"
+                            ToolTip="全屏 / 还原 (F11)"/>
+                    <TextBlock Text="{Binding TestRun.Status}" VerticalAlignment="Center"
+                               Margin="14,0,0,0" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ────────── Body: nav + content ────────── -->
+        <Grid Grid.Row="1" Margin="0,4,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="180"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Sidebar (floating card) -->
+            <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}"
+                    CornerRadius="0,16,16,0" Margin="0,8,0,8"
+                    Effect="{StaticResource NavShadow}">
+                <StackPanel Margin="10,16,10,10">
+                    <TextBlock Text="导航" Foreground="{StaticResource MutedBrush}" Margin="8,0,0,10"
+                               FontSize="11" FontWeight="SemiBold" Opacity="0.7"/>
+                    <RadioButton Style="{StaticResource NavButton}" IsChecked="True"
+                                 GroupName="MainNav" Content="  实时测试"
+                                 Command="{Binding ShowTestRunCommand}"/>
+                    <RadioButton Style="{StaticResource NavButton}"
+                                 GroupName="MainNav" Content="  手动调试"
+                                 Command="{Binding ShowManualCommand}"/>
+                    <RadioButton Style="{StaticResource NavButton}"
+                                 GroupName="MainNav" Content="  配置"
+                                 Command="{Binding ShowConfigCommand}"/>
+                    <RadioButton Style="{StaticResource NavButton}"
+                                 GroupName="MainNav" Content="  日志"
+                                 Command="{Binding ShowLogCommand}"/>
+                </StackPanel>
+            </Border>
+
+            <ContentControl Grid.Column="1" Content="{Binding CurrentView}" Margin="8,8,8,8"/>
+        </Grid>
+
+        <!-- ────────── Bottom status bar (subtle) ────────── -->
+        <Border Grid.Row="2" Background="#08000000" CornerRadius="0">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Left" Text="就绪" Margin="20,0"
+                           VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" FontSize="11"/>
+                <TextBlock DockPanel.Dock="Right" Text="{Binding TestRun.CurrentStep}"
+                           VerticalAlignment="Center" Margin="20,0"
+                           Foreground="{StaticResource MutedBrush}" FontSize="11"
+                           HorizontalAlignment="Right"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>
