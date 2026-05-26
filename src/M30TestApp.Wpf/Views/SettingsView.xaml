@@ -1,0 +1,200 @@
+<UserControl x:Class="M30TestApp.Wpf.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:M30TestApp.Wpf.ViewModels"
+             xmlns:local="clr-namespace:M30TestApp.Wpf.Views"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             d:DataContext="{d:DesignInstance vm:SettingsViewModel}"
+             mc:Ignorable="d">
+
+    <Grid Margin="24,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Title -->
+        <TextBlock Text="{DynamicResource Settings.Title}"
+                   FontSize="22" FontWeight="Bold" Foreground="{StaticResource AccentBrush}"
+                   Margin="4,0,0,16"/>
+
+        <!-- Tab control -->
+        <TabControl Grid.Row="1">
+            <!-- ═══════ 通用 ═══════ -->
+            <TabItem Header="{DynamicResource Settings.Tab.General}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,8">
+                    <StackPanel Margin="0,8,0,0">
+
+                        <!-- Section: General -->
+                        <Border BorderBrush="{StaticResource AccentBrush}" BorderThickness="3,0,0,0"
+                                Padding="12,0" Margin="0,0,0,16">
+                            <TextBlock Text="{DynamicResource Settings.Tab.General}"
+                                       FontSize="15" FontWeight="SemiBold"/>
+                        </Border>
+
+                        <!-- Language -->
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,2" Padding="20,16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="{DynamicResource Settings.Language}"
+                                               FontWeight="SemiBold" FontSize="14"/>
+                                    <TextBlock Text="{DynamicResource Settings.Language.Desc}"
+                                               Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="0,3,0,0"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="1" Width="160"
+                                          SelectedValue="{Binding Language}" SelectedValuePath="Tag"
+                                          VerticalAlignment="Center">
+                                    <ComboBoxItem Content="简体中文" Tag="zh-CN"/>
+                                    <ComboBoxItem Content="English" Tag="en-US"/>
+                                </ComboBox>
+                            </Grid>
+                        </Border>
+
+                        <!-- Theme -->
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,2" Padding="20,16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="{DynamicResource Settings.Theme}"
+                                               FontWeight="SemiBold" FontSize="14"/>
+                                    <TextBlock Text="{DynamicResource Settings.Theme.Desc}"
+                                               Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="0,3,0,0"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="1" Width="160"
+                                          SelectedValue="{Binding Theme}" SelectedValuePath="Tag"
+                                          VerticalAlignment="Center">
+                                    <ComboBoxItem Content="浅色 / Light" Tag="Light"/>
+                                </ComboBox>
+                            </Grid>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ═══════ 关于 ═══════ -->
+            <TabItem Header="{DynamicResource Settings.Tab.About}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel HorizontalAlignment="Center" Margin="0,32,0,0" MaxWidth="600">
+
+                        <!-- Logo -->
+                        <Border Width="72" Height="72" CornerRadius="18"
+                                HorizontalAlignment="Center" Margin="0,0,0,12">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#FF38BDF8" Offset="0"/>
+                                    <GradientStop Color="#FF3B82F6" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="16" ShadowDepth="4"
+                                                  Direction="270" Color="#4038BDF8" Opacity="0.5"/>
+                            </Border.Effect>
+                            <TextBlock Text="M" Foreground="White" FontWeight="Bold" FontSize="32"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+
+                        <!-- App name -->
+                        <TextBlock Text="M30 TestApp" FontSize="22" FontWeight="Bold"
+                                   HorizontalAlignment="Center"/>
+                        <TextBlock Text="{DynamicResource Settings.About.Desc}"
+                                   Foreground="{StaticResource MutedBrush}" FontSize="12"
+                                   HorizontalAlignment="Center" Margin="0,6,0,16"/>
+
+                        <!-- Version + Check update -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,20">
+                            <Border Background="{StaticResource HeaderBgBrush}" CornerRadius="12"
+                                    Padding="12,5" Margin="4,0">
+                                <TextBlock FontSize="12">
+                                    <Run Text="v"/><Run Text="{Binding AppVersion, Mode=OneWay}"/>
+                                </TextBlock>
+                            </Border>
+                            <Button Style="{StaticResource GhostButton}" Padding="12,5"
+                                    Command="{Binding CheckUpdateCommand}"
+                                    IsEnabled="{Binding IsCheckingUpdate, Converter={x:Static local:InverseBoolConverter.Instance}}">
+                                <TextBlock FontSize="12">
+                                    <Run Text="↻ "/><Run Text="{DynamicResource Settings.CheckUpdate}"/>
+                                </TextBlock>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- Update status -->
+                        <TextBlock Text="{Binding UpdateStatus}" FontSize="12"
+                                   Foreground="{StaticResource AccentBrush}"
+                                   HorizontalAlignment="Center" Margin="0,0,0,24"
+                                   Visibility="{Binding UpdateStatus, Converter={x:Static local:NonEmptyToVisibleConverter.Instance}}"/>
+
+                        <!-- Info cards (2x2 grid) -->
+                        <UniformGrid Columns="2" Margin="0,0,0,24">
+                            <!-- Author -->
+                            <Border Style="{StaticResource Card}" Margin="4" Padding="20,18"
+                                    HorizontalAlignment="Stretch">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock Text="👤" FontSize="24" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="{DynamicResource Settings.Author}"
+                                               FontWeight="SemiBold" FontSize="14"
+                                               HorizontalAlignment="Center" Margin="0,6,0,2"/>
+                                    <TextBlock Text="a534686350" Foreground="{StaticResource MutedBrush}"
+                                               FontSize="12" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Repo -->
+                            <Border Style="{StaticResource Card}" Margin="4" Padding="20,18"
+                                    HorizontalAlignment="Stretch" Cursor="Hand"
+                                    MouseLeftButtonUp="OnOpenRepo">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock Text="📦" FontSize="24" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="{DynamicResource Settings.Repo}"
+                                               FontWeight="SemiBold" FontSize="14"
+                                               HorizontalAlignment="Center" Margin="0,6,0,2"/>
+                                    <TextBlock Text="M30TestApp" Foreground="{StaticResource AccentBrush}"
+                                               FontSize="12" HorizontalAlignment="Center"
+                                               TextDecorations="Underline"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Feedback -->
+                            <Border Style="{StaticResource Card}" Margin="4" Padding="20,18"
+                                    HorizontalAlignment="Stretch" Cursor="Hand"
+                                    MouseLeftButtonUp="OnOpenIssues">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock Text="💬" FontSize="24" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="{DynamicResource Settings.Feedback}"
+                                               FontWeight="SemiBold" FontSize="14"
+                                               HorizontalAlignment="Center" Margin="0,6,0,2"/>
+                                    <TextBlock Text="{DynamicResource Settings.Feedback.Desc}"
+                                               Foreground="{StaticResource MutedBrush}"
+                                               FontSize="12" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- GitHub link display -->
+                            <Border Style="{StaticResource Card}" Margin="4" Padding="20,18"
+                                    HorizontalAlignment="Stretch">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock Text="🔗" FontSize="24" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="GitHub" FontWeight="SemiBold" FontSize="14"
+                                               HorizontalAlignment="Center" Margin="0,6,0,2"/>
+                                    <TextBlock Text="{x:Static vm:SettingsViewModel.RepoUrl}"
+                                               Foreground="{StaticResource MutedBrush}"
+                                               FontSize="11" HorizontalAlignment="Center"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+                        </UniformGrid>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>

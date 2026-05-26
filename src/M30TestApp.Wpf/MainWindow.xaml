@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:M30TestApp.Wpf.ViewModels"
+        xmlns:views="clr-namespace:M30TestApp.Wpf.Views"
         d:DataContext="{d:DesignInstance vm:MainViewModel}"
         mc:Ignorable="d"
         Title="M30 测试上位机"
@@ -102,6 +103,12 @@
                     <RadioButton Style="{StaticResource NavButton}"
                                  GroupName="MainNav" Content="  日志"
                                  Command="{Binding ShowLogCommand}"/>
+
+                    <Border Height="1" Background="{StaticResource BorderBrush}" Margin="8,10"/>
+
+                    <RadioButton Style="{StaticResource NavButton}"
+                                 GroupName="MainNav" Content="  设置"
+                                 Command="{Binding ShowSettingsCommand}"/>
                 </StackPanel>
             </Border>
 

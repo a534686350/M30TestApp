@@ -1,0 +1,41 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- Navigation -->
+    <sys:String x:Key="Nav.TestRun">实时测试</sys:String>
+    <sys:String x:Key="Nav.Manual">手动调试</sys:String>
+    <sys:String x:Key="Nav.Config">配置</sys:String>
+    <sys:String x:Key="Nav.Log">日志</sys:String>
+    <sys:String x:Key="Nav.Settings">设置</sys:String>
+    <sys:String x:Key="Nav.Label">导航</sys:String>
+
+    <!-- Settings page -->
+    <sys:String x:Key="Settings.Title">应用设置</sys:String>
+    <sys:String x:Key="Settings.Tab.General">通用</sys:String>
+    <sys:String x:Key="Settings.Tab.About">关于</sys:String>
+
+    <sys:String x:Key="Settings.Language">显示语言</sys:String>
+    <sys:String x:Key="Settings.Language.Desc">选择界面的显示语言</sys:String>
+    <sys:String x:Key="Settings.Theme">应用主题</sys:String>
+    <sys:String x:Key="Settings.Theme.Desc">切换深色或浅色模式</sys:String>
+
+    <sys:String x:Key="Settings.About.Desc">M30 传感器性能测试上位机</sys:String>
+    <sys:String x:Key="Settings.CheckUpdate">检查更新</sys:String>
+    <sys:String x:Key="Settings.Author">作者</sys:String>
+    <sys:String x:Key="Settings.Repo">开源仓库</sys:String>
+    <sys:String x:Key="Settings.Feedback">意见反馈</sys:String>
+    <sys:String x:Key="Settings.Feedback.Desc">报告问题或提交建议</sys:String>
+
+    <!-- Device status -->
+    <sys:String x:Key="Device.Online">在线</sys:String>
+    <sys:String x:Key="Device.Offline">离线</sys:String>
+    <sys:String x:Key="Device.Connecting">连接中</sys:String>
+    <sys:String x:Key="Device.Faulted">故障</sys:String>
+
+    <!-- Common -->
+    <sys:String x:Key="Common.Ready">就绪</sys:String>
+    <sys:String x:Key="Common.Fullscreen">全屏</sys:String>
+    <sys:String x:Key="Common.Version">版本</sys:String>
+
+</ResourceDictionary>

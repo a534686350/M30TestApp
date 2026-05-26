@@ -19,14 +19,16 @@ public sealed class MainViewModel : ViewModelBase
     public ManualViewModel Manual { get; }
     public ConfigViewModel Config { get; }
     public LogViewModel Log { get; }
+    public SettingsViewModel Settings { get; }
 
     private object _currentView;
     public object CurrentView { get => _currentView; set => SetField(ref _currentView, value); }
 
-    public RelayCommand ShowTestRunCommand { get; }
-    public RelayCommand ShowManualCommand  { get; }
-    public RelayCommand ShowConfigCommand  { get; }
-    public RelayCommand ShowLogCommand     { get; }
+    public RelayCommand ShowTestRunCommand  { get; }
+    public RelayCommand ShowManualCommand   { get; }
+    public RelayCommand ShowConfigCommand   { get; }
+    public RelayCommand ShowLogCommand      { get; }
+    public RelayCommand ShowSettingsCommand { get; }
 
     public string StationTitle { get; }
     public string PlanTitle => $"测试方案 · {Session.Plan.Name}";
@@ -49,13 +51,15 @@ public sealed class MainViewModel : ViewModelBase
         Manual = new ManualViewModel(session, ovenStatus, dacStatus);
         Config = new ConfigViewModel(session);
         Log = new LogViewModel();
+        Settings = new SettingsViewModel(session);
 
         _currentView = TestRun;
 
-        ShowTestRunCommand = new RelayCommand(_ => CurrentView = TestRun);
-        ShowManualCommand  = new RelayCommand(_ => CurrentView = Manual);
-        ShowConfigCommand  = new RelayCommand(_ => CurrentView = Config);
-        ShowLogCommand     = new RelayCommand(_ => CurrentView = Log);
+        ShowTestRunCommand  = new RelayCommand(_ => CurrentView = TestRun);
+        ShowManualCommand   = new RelayCommand(_ => CurrentView = Manual);
+        ShowConfigCommand   = new RelayCommand(_ => CurrentView = Config);
+        ShowLogCommand      = new RelayCommand(_ => CurrentView = Log);
+        ShowSettingsCommand = new RelayCommand(_ => CurrentView = Settings);
 
         session.Reconfigured += (_, _) =>
         {

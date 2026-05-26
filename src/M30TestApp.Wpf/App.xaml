@@ -8,6 +8,7 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Themes/Light.xaml"/>
+                <ResourceDictionary Source="Strings/zh-CN.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
             <DataTemplate DataType="{x:Type vm:TestRunViewModel}">
@@ -21,6 +22,9 @@
             </DataTemplate>
             <DataTemplate DataType="{x:Type vm:LogViewModel}">
                 <views:LogView/>
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
+                <views:SettingsView/>
             </DataTemplate>
         </ResourceDictionary>
     </Application.Resources>

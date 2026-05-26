@@ -1,0 +1,41 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- Navigation -->
+    <sys:String x:Key="Nav.TestRun">Live Test</sys:String>
+    <sys:String x:Key="Nav.Manual">Manual</sys:String>
+    <sys:String x:Key="Nav.Config">Config</sys:String>
+    <sys:String x:Key="Nav.Log">Log</sys:String>
+    <sys:String x:Key="Nav.Settings">Settings</sys:String>
+    <sys:String x:Key="Nav.Label">Navigation</sys:String>
+
+    <!-- Settings page -->
+    <sys:String x:Key="Settings.Title">App Settings</sys:String>
+    <sys:String x:Key="Settings.Tab.General">General</sys:String>
+    <sys:String x:Key="Settings.Tab.About">About</sys:String>
+
+    <sys:String x:Key="Settings.Language">Display Language</sys:String>
+    <sys:String x:Key="Settings.Language.Desc">Choose the interface language</sys:String>
+    <sys:String x:Key="Settings.Theme">App Theme</sys:String>
+    <sys:String x:Key="Settings.Theme.Desc">Switch between light and dark mode</sys:String>
+
+    <sys:String x:Key="Settings.About.Desc">M30 Sensor Performance Test System</sys:String>
+    <sys:String x:Key="Settings.CheckUpdate">Check for Updates</sys:String>
+    <sys:String x:Key="Settings.Author">Author</sys:String>
+    <sys:String x:Key="Settings.Repo">Repository</sys:String>
+    <sys:String x:Key="Settings.Feedback">Feedback</sys:String>
+    <sys:String x:Key="Settings.Feedback.Desc">Report issues or submit suggestions</sys:String>
+
+    <!-- Device status -->
+    <sys:String x:Key="Device.Online">Online</sys:String>
+    <sys:String x:Key="Device.Offline">Offline</sys:String>
+    <sys:String x:Key="Device.Connecting">Connecting</sys:String>
+    <sys:String x:Key="Device.Faulted">Faulted</sys:String>
+
+    <!-- Common -->
+    <sys:String x:Key="Common.Ready">Ready</sys:String>
+    <sys:String x:Key="Common.Fullscreen">Fullscreen</sys:String>
+    <sys:String x:Key="Common.Version">Version</sys:String>
+
+</ResourceDictionary>
