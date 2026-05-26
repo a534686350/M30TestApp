@@ -18,7 +18,11 @@ public sealed record SlotEntry(
     string PressureController,
     string Dmm,
     string Channel,
-    string ValveAddr);
+    string ValveAddr)
+{
+    /// <summary>Allow barcode scanner to update SerialNo after construction.</summary>
+    public string SerialNo { get; set; } = SerialNo;
+}
 
 /// <summary>
 /// Reads `工位对应表.csv`. The file is a UTF-8 CSV with header in Chinese:

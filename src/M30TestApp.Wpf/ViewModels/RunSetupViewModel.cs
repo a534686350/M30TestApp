@@ -147,7 +147,7 @@ public sealed class RunSetupViewModel : ViewModelBase
     private bool _useOven = true;
     public bool UseOven { get => _useOven; set => SetField(ref _useOven, value); }
 
-    private bool _useLeakCheck = true;
+    private bool _useLeakCheck = false;
     public bool UseLeakCheck { get => _useLeakCheck; set => SetField(ref _useLeakCheck, value); }
 
     public ObservableCollection<SlotEntry> PreviewSlots { get; } = new();

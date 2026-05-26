@@ -30,8 +30,9 @@ public sealed class TestRunViewModel : ViewModelBase
 
     public string Status { get => _status; set => SetField(ref _status, value); }
     public string CurrentStep { get => _currentStep; set => SetField(ref _currentStep, value); }
-    public int ProgressIndex { get => _progressIndex; set => SetField(ref _progressIndex, value); }
-    public int ProgressTotal { get => _progressTotal; set => SetField(ref _progressTotal, value); }
+    public int ProgressIndex { get => _progressIndex; set { if (SetField(ref _progressIndex, value)) OnPropertyChanged(nameof(ProgressPercentValue)); } }
+    public int ProgressTotal { get => _progressTotal; set { if (SetField(ref _progressTotal, value)) OnPropertyChanged(nameof(ProgressPercentValue)); } }
+    public double ProgressPercentValue => ProgressTotal <= 0 ? 0 : Math.Clamp((double)ProgressIndex / ProgressTotal * 100.0, 0, 100);
     public double OkCount { get => _okCount; set { if (SetField(ref _okCount, value)) OnPropertyChanged(nameof(OkPercent)); } }
     public double WarnCount { get => _warnCount; set { if (SetField(ref _warnCount, value)) OnPropertyChanged(nameof(WarnPercent)); } }
     public double ErrCount { get => _errCount; set { if (SetField(ref _errCount, value)) OnPropertyChanged(nameof(ErrPercent)); } }
@@ -229,6 +230,8 @@ public sealed class TestRunViewModel : ViewModelBase
             return;
         }
 
+        ClearLog();
+
         _cts = new CancellationTokenSource();
         _startedAt = DateTime.Now;
 
@@ -253,7 +256,6 @@ public sealed class TestRunViewModel : ViewModelBase
 
         try
         {
-            ClearLog();
             Status = "运行中…";
             OkCount = WarnCount = ErrCount = 0;
             await _session.RunAsync(_cts.Token);

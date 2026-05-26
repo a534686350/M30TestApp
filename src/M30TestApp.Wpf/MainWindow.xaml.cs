@@ -25,26 +25,12 @@ public partial class MainWindow : Window
         {
             if (e.Key == Key.F11)
             {
-                ToggleMaximize();
+                WindowState = WindowState == WindowState.Maximized
+                    ? WindowState.Normal
+                    : WindowState.Maximized;
                 e.Handled = true;
             }
         };
-        StateChanged += (_, _) => UpdateToggleLabel();
-        Loaded += (_, _) => UpdateToggleLabel();
     }
 
-    private void OnToggleMaximize(object sender, RoutedEventArgs e) => ToggleMaximize();
-
-    private void ToggleMaximize()
-    {
-        WindowState = WindowState == WindowState.Maximized
-            ? WindowState.Normal
-            : WindowState.Maximized;
-    }
-
-    private void UpdateToggleLabel()
-    {
-        if (ToggleMaxBtn is null) return;
-        ToggleMaxBtn.Content = WindowState == WindowState.Maximized ? "🗗 还原" : "🗖 全屏";
-    }
 }

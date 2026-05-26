@@ -72,16 +72,33 @@ public sealed class DataMatrix
         _rows.Clear();
     }
 
-    public void ExportCsv(string path, IEnumerable<string> orderedColumns)
+    /// <summary>Extract numeric suffix for natural sorting: "Slot2" → (Slot, 2).</summary>
+    private static (string prefix, int number) NaturalSortKey(string s)
+    {
+        var i = s.Length;
+        while (i > 0 && char.IsDigit(s[i - 1])) i--;
+        var prefix = s[..i];
+        var number = i < s.Length && int.TryParse(s[i..], out var n) ? n : 0;
+        return (prefix, number);
+    }
+
+    public void ExportCsv(string path, IEnumerable<string> orderedColumns,
+        IReadOnlyDictionary<string, string>? slotSerialMap = null)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var cols = orderedColumns.ToArray();
         using var sw = new StreamWriter(path, false, Encoding.UTF8);
-        sw.WriteLine("slot," + string.Join(",", cols));
-        foreach (var slot in _rows.Keys.OrderBy(k => k))
+        var header = slotSerialMap != null ? "slot,SerialNo," : "slot,";
+        sw.WriteLine(header + string.Join(",", cols));
+        foreach (var slot in _rows.Keys.OrderBy(k => NaturalSortKey(k)))
         {
             var row = _rows[slot];
             var sb = new StringBuilder(slot);
+            if (slotSerialMap != null)
+            {
+                sb.Append(',');
+                if (slotSerialMap.TryGetValue(slot, out var sn)) sb.Append(sn);
+            }
             foreach (var col in cols)
             {
                 sb.Append(',');

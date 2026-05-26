@@ -20,7 +20,7 @@
     <sys:String x:Key="Settings.Theme">App Theme</sys:String>
     <sys:String x:Key="Settings.Theme.Desc">Switch between light and dark mode</sys:String>
 
-    <sys:String x:Key="Settings.About.Desc">M30 Sensor Performance Test System</sys:String>
+    <sys:String x:Key="Settings.About.Desc">M30 Test System</sys:String>
     <sys:String x:Key="Settings.CheckUpdate">Check for Updates</sys:String>
     <sys:String x:Key="Settings.Author">Author</sys:String>
     <sys:String x:Key="Settings.Repo">Repository</sys:String>

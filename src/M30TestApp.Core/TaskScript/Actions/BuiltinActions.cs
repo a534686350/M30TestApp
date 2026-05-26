@@ -338,7 +338,7 @@ public sealed class RunPerformanceTestAction : IAction
         for (var ti = 0; ti < ctx.Plan.TempPoints.Count; ti++)
         {
             var tp = ctx.Plan.TempPoints[ti];
-            ctx.CurrentTemp = $"当前温度点：{tp.Name}";
+            ctx.CurrentTemp = $"{tp.Name}: {tp.Celsius}℃";
             ctx.CurrentPressure = "";
             AppLog.Info("Run", $"当前温度点：{tp.Name} ({ti + 1}/{ctx.Plan.TempPoints.Count})");
 
@@ -352,17 +352,34 @@ public sealed class RunPerformanceTestAction : IAction
             await SoakWithLogAsync(ctx, soakMinutes, tp.Name, ct);
             AppLog.Info("Run", "保持温度完成");
 
-            // UT 每个温度点只采集一次
-            AppLog.Info("Run", $"开始采集 {tp.Name} 的 UT");
+            // 保温完成后恢复简洁显示
+            ctx.CurrentTemp = $"{tp.Name}: {tp.Celsius}℃";
+
+            // ── 每温度点采集一次的项：UT、USC、ISC（先一项所有工位，再下一项） ──
+
+            // UT — 需要切换 34970A 通道（按板卡分组）
+            AppLog.Info("Run", $"开始采集 {tp.Name} UT（全部工位）");
             await ReadUtForTempAsync(ctx, tp, ct);
             AppLog.Info("Run", $"{tp.Name} UT 采集完成");
 
-            // 逐压力点
+            // USC — 通过板卡采集，不需要切换 34970A
+            AppLog.Info("Run", $"开始采集 {tp.Name} USC（全部工位）");
+            await ReadAllSlotsSingleItem(ctx, tp, "USC",
+                async (dac, s, c) => await dac.ReadUsourceAsync(0, tp.Celsius, 5, s.BoardSlotNo, s.FixtureSlotNo, c), ct);
+            AppLog.Info("Run", $"{tp.Name} USC 采集完成");
+
+            // ISC — 通过板卡采集，不需要切换 34970A
+            AppLog.Info("Run", $"开始采集 {tp.Name} ISC（全部工位）");
+            await ReadAllSlotsSingleItem(ctx, tp, "ISC",
+                async (dac, s, c) => await dac.ReadIsourceAsync(0, tp.Celsius, 5, s.BoardSlotNo, s.FixtureSlotNo, c), ct);
+            AppLog.Info("Run", $"{tp.Name} ISC 采集完成");
+
+            // ── 逐压力点：只有 USG 每个压力点都要采集 ──
             for (var pi = 0; pi < ctx.Plan.PressurePoints.Count; pi++)
             {
                 var pp = ctx.Plan.PressurePoints[pi];
-                ctx.CurrentPressure = $"{pp.Name} ({pp.Value} {ctx.Plan.PressureUnit})";
-                AppLog.Info("Run", $"开始测量当前温度点第{pi + 1}压力点：{tp.Name}:{tp.Celsius}; {pp.Name}:{pp.Value}; V5:5; F:USC,ISC,USG");
+                ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit}";
+                AppLog.Info("Run", $"开始测量当前温度点第{pi + 1}压力点：{tp.Name}:{tp.Celsius}; {pp.Name}:{pp.Value}; V5:5; F:USG");
 
                 // 设置压力并等待稳定
                 if (ctx.Pressure is not null)
@@ -370,14 +387,20 @@ public sealed class RunPerformanceTestAction : IAction
 
                 // 保压
                 var holdMs = GetDelayMs(ctx, "PressureAfterMs", 60000);
-                AppLog.Info("Run", $"{pp.Value}{ctx.Plan.PressureUnit} 阀门全开，压力稳定中");
+                AppLog.Info("Run", $"{pp.Value}{ctx.Plan.PressureUnit} 压力稳定中");
                 await Task.Delay(Math.Max(0, holdMs), ct);
 
-                // 开阀、采集每个 slot
-                AppLog.Info("Run", $"开始采集数据 {tp.Name}-{pp.Name}：USC,ISC,USG");
-                await ReadPointWithValveAsync(ctx, tp, pp, ct);
-                AppLog.Info("Run", $"采集完成 {tp.Name}-{pp.Name}");
+                // 恢复简洁压力显示
+                ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit}";
+
+                // USG — 通过板卡采集，不需要切换 34970A
+                AppLog.Info("Run", $"开始采集 {tp.Name}-{pp.Name} USG（全部工位）");
+                await ReadAllSlotsUsig(ctx, tp, pp, ct);
+                AppLog.Info("Run", $"采集完成 {tp.Name}-{pp.Name} USG");
             }
+
+            // ── 该温度点所有采集完成后，读取一次烘箱实际温度，写入所有工位 ──
+            await ReadOvenTempForAllSlots(ctx, tp, ct);
         }
 
         AppLog.Info("Run", "完成采集");
@@ -393,19 +416,51 @@ public sealed class RunPerformanceTestAction : IAction
     {
         var col = $"{tp.Name}_UT";
         if (!ctx.Columns.Contains(col)) ctx.Columns.Add(col);
-        foreach (var slot in ctx.Slots.Entries)
+        var switchMs = GetDelayMs(ctx, "ValveSwitchMs", 500);
+
+        // 按采集板编号分组：1号板→Card1(301)，2号板→Card2(302)，... 16号板→Card16(316)
+        var groups = ctx.Slots.Entries
+            .GroupBy(s => s.Board)
+            .Where(g => !string.IsNullOrWhiteSpace(g.Key))
+            .OrderBy(g => int.TryParse(g.Key, out var n) ? n : 999)
+            .ToList();
+
+        foreach (var group in groups)
         {
-            ct.ThrowIfCancellationRequested();
-            try
+            // 确定该板卡对应的切换单元卡通道
+            var boardNo = int.TryParse(group.Key, out var bn) ? bn : 1;
+            var cardChannel = ctx.Settings.Get("SwitchUnitCards", $"Card{boardNo}", (300 + boardNo).ToString());
+
+            // 切换 34970A 到该板卡通道
+            if (ctx.Dmm is not null)
             {
-                var value = ctx.Dac is null ? double.NaN : await ctx.Dac.ReadUtAsync(0, tp.Celsius, 5, slot.BoardSlotNo, slot.FixtureSlotNo, ct);
-                ctx.Matrix.Set(slot.Slot, col, value, CellStatus.Ok);
-                AppLog.Info("Read", $"{slot.Slot} {col}={value:G6}");
+                AppLog.Info("Read", $"切换信号源到 {group.Key}号采集板 UT（通道 {cardChannel}）");
+                await ctx.Dmm.CloseRelayAsync(cardChannel, ct);
+                await Task.Delay(switchMs, ct);
             }
-            catch (Exception ex)
+
+            // 采集该板卡下所有工位的 UT
+            foreach (var slot in group)
             {
-                ctx.Matrix.Set(slot.Slot, col, double.NaN, CellStatus.Error);
-                AppLog.Error("Read", $"{slot.Slot} {col} failed: {ex.Message}");
+                ct.ThrowIfCancellationRequested();
+                try
+                {
+                    var value = ctx.Dac is null ? double.NaN : await ctx.Dac.ReadUtAsync(0, tp.Celsius, 5, slot.BoardSlotNo, slot.FixtureSlotNo, ct);
+                    ctx.Matrix.Set(slot.Slot, col, value, CellStatus.Ok);
+                    AppLog.Info("Read", $"{slot.Slot} {col}={value:G6}");
+                }
+                catch (Exception ex)
+                {
+                    ctx.Matrix.Set(slot.Slot, col, double.NaN, CellStatus.Error);
+                    AppLog.Error("Read", $"{slot.Slot} {col} failed: {ex.Message}");
+                }
+            }
+
+            // 该板卡采完，断开通道
+            if (ctx.Dmm is not null)
+            {
+                await ctx.Dmm.OpenRelayAsync(cardChannel, ct);
+                AppLog.Info("Read", $"{group.Key}号采集板通道 {cardChannel} 已断开");
             }
         }
     }
@@ -692,64 +747,84 @@ public sealed class RunPerformanceTestAction : IAction
         {
             ct.ThrowIfCancellationRequested();
             var current = await ctx.Pressure.ReadPressureAsync(ct);
-            ctx.CurrentPressure = $"{pp.Name} {current:G6}/{pp.Value:G6} {ctx.Plan.PressureUnit}";
+            ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit}";
             if (Math.Abs(current - pp.Value) <= ctx.Plan.Precision) break;
             await Task.Delay(500, ct);
         }
     }
 
-    // ── 逐slot采集，按气路分组开阀 ──────────────────────────────────────
-    private static async Task ReadPointWithValveAsync(TaskContext ctx, TempPoint tp, PressurePoint pp, CancellationToken ct)
+    // ── 采集某一项（USC/ISC）：遍历所有工位，通过板卡直接读取 ──────────────
+    private static async Task ReadAllSlotsSingleItem(TaskContext ctx, TempPoint tp, string measure,
+        Func<IDac, SlotEntry, CancellationToken, Task<float>> read, CancellationToken ct)
     {
-        var switchMs = GetDelayMs(ctx, "ValveSwitchMs", 500);
-        var groupedByValve = ctx.Slots.Entries
-            .GroupBy(s => string.IsNullOrWhiteSpace(s.ValveAddr) ? s.Valve : s.ValveAddr)
-            .Where(g => !string.IsNullOrWhiteSpace(g.Key))
-            .ToList();
+        var col = $"{tp.Name}_{measure}";
+        if (!ctx.Columns.Contains(col)) ctx.Columns.Add(col);
 
-        foreach (var group in groupedByValve)
+        foreach (var slot in ctx.Slots.Entries)
         {
-            // 开阀
-            if (ctx.Dmm is not null)
+            ct.ThrowIfCancellationRequested();
+            try
             {
-                AppLog.Info("Run", $"开启阀 {group.Key}");
-                await ctx.Dmm.CloseRelayAsync(group.Key, ct);
-                await Task.Delay(switchMs, ct);
+                var value = ctx.Dac is null ? double.NaN : await read(ctx.Dac, slot, ct);
+                ctx.Matrix.Set(slot.Slot, col, value, CellStatus.Ok);
+                AppLog.Info("Read", $"{slot.Slot} {col}={value:G7}");
             }
-
-            foreach (var slot in group)
+            catch (Exception ex)
             {
-                ct.ThrowIfCancellationRequested();
-                // USC
-                await ReadSingleMeasure(ctx, tp, pp, slot, "USC",
-                    async (dac, s, c) => await dac.ReadUsourceAsync(pp.Value, tp.Celsius, 5, s.BoardSlotNo, s.FixtureSlotNo, c), ct);
-                // ISC
-                await ReadSingleMeasure(ctx, tp, pp, slot, "ISC",
-                    async (dac, s, c) => await dac.ReadIsourceAsync(pp.Value, tp.Celsius, 5, s.BoardSlotNo, s.FixtureSlotNo, c), ct);
-                // USG
-                await ReadSingleMeasure(ctx, tp, pp, slot, "USG",
-                    async (dac, s, c) => await dac.ReadUsigAsync(pp.Value, tp.Celsius, 5, s.BoardSlotNo, s.FixtureSlotNo, c), ct);
+                ctx.Matrix.Set(slot.Slot, col, double.NaN, CellStatus.Error);
+                AppLog.Error("Read", $"{slot.Slot} {col} failed: {ex.Message}");
             }
         }
     }
 
-    private static async Task ReadSingleMeasure(TaskContext ctx, TempPoint tp, PressurePoint pp, SlotEntry slot,
-        string measure, Func<IDac, SlotEntry, CancellationToken, Task<float>> read, CancellationToken ct)
+    // ── 采集 USG：遍历所有工位，通过板卡直接读取（每个压力点调一次）──────────
+    private static async Task ReadAllSlotsUsig(TaskContext ctx, TempPoint tp, PressurePoint pp, CancellationToken ct)
     {
-        var col = $"{tp.Name}{pp.Name}_{measure}";
+        var col = $"{tp.Name}{pp.Name}_USG";
         if (!ctx.Columns.Contains(col)) ctx.Columns.Add(col);
-        var label = $"当前正在进行工位：{slot.Slot}； 压力：{pp.Value}； 温度：{tp.Celsius}°C； 电压：5V； 测量：{measure}； 测量点：{pp.Name}_{tp.Name}_V5";
-        AppLog.Info("Read", label);
-        try
+
+        foreach (var slot in ctx.Slots.Entries)
         {
-            var value = ctx.Dac is null ? double.NaN : await read(ctx.Dac, slot, ct);
-            ctx.Matrix.Set(slot.Slot, col, value, CellStatus.Ok);
-            AppLog.Info("Read", $"{label}； 测量值：{value:G7}");
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                var value = ctx.Dac is null ? double.NaN
+                    : await ctx.Dac.ReadUsigAsync(pp.Value, tp.Celsius, 5, slot.BoardSlotNo, slot.FixtureSlotNo, ct);
+                ctx.Matrix.Set(slot.Slot, col, value, CellStatus.Ok);
+                AppLog.Info("Read", $"{slot.Slot} {col}={value:G7}");
+            }
+            catch (Exception ex)
+            {
+                ctx.Matrix.Set(slot.Slot, col, double.NaN, CellStatus.Error);
+                AppLog.Error("Read", $"{slot.Slot} {col} failed: {ex.Message}");
+            }
         }
-        catch (Exception ex)
+    }
+
+    // ── 读取烘箱实际温度，写入所有工位（每温度点采集完成后调用一次）─────────
+    private static async Task ReadOvenTempForAllSlots(TaskContext ctx, TempPoint tp, CancellationToken ct)
+    {
+        var col = $"{tp.Name}_OvenTemp";
+        if (!ctx.Columns.Contains(col)) ctx.Columns.Add(col);
+
+        double ovenTemp = double.NaN;
+        if (ctx.Oven is not null)
         {
-            ctx.Matrix.Set(slot.Slot, col, double.NaN, CellStatus.Error);
-            AppLog.Error("Read", $"{slot.Slot} {col} failed: {ex.Message}");
+            try
+            {
+                ovenTemp = await ctx.Oven.ReadTempAsync(ct);
+                AppLog.Info("Read", $"{tp.Name} 烘箱实际温度：{ovenTemp:F5}℃");
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error("Read", $"{tp.Name} 读取烘箱温度失败：{ex.Message}");
+            }
+        }
+
+        // 所有工位写入同一个烘箱温度值
+        foreach (var slot in ctx.Slots.Entries)
+        {
+            ctx.Matrix.Set(slot.Slot, col, ovenTemp, double.IsNaN(ovenTemp) ? CellStatus.Error : CellStatus.Ok);
         }
     }
 
@@ -761,8 +836,19 @@ public sealed class RunPerformanceTestAction : IAction
         var planDir = Path.Combine(AppPaths.DataDir, SafePath(ctx.Plan.Name));
         Directory.CreateDirectory(planDir);
         var sensor = string.IsNullOrWhiteSpace(ctx.Plan.SensorType) ? "传感器" : ctx.Plan.SensorType;
-        var file = Path.Combine(planDir, $"{DateTime.Now:yyyyMMdd}_{SafePath(sensor)}_性能测试.csv");
-        ctx.Matrix.ExportCsv(file, ctx.Columns);
+        var now = DateTime.Now;
+        var dateStr = now.ToString("yyyyMMdd");
+        var timeStr = now.ToString("HHmmss");
+
+        // auto-increment sequence number for today
+        var existing = Directory.GetFiles(planDir, $"{dateStr}*.*");
+        var seq = existing.Length + 1;
+
+        // format: 20260521 142145-02 HRT-HP-K250-G20(性能测试).csv
+        var fileName = $"{dateStr} {timeStr}-{seq:D2} {SafePath(sensor)}(性能测试).csv";
+        var file = Path.Combine(planDir, fileName);
+        var serialMap = ctx.Slots.Entries.ToDictionary(s => s.Slot, s => s.SerialNo);
+        ctx.Matrix.ExportCsv(file, ctx.Columns, serialMap);
         AppLog.Info("Save", $"数据保存到 {file}");
     }
 

@@ -211,6 +211,105 @@
                 </Grid>
             </TabItem>
 
+            <!-- ════════════════════════════════════════════════════════ -->
+            <!-- 指标限值 -->
+            <!-- ════════════════════════════════════════════════════════ -->
+            <TabItem Header="指标限值">
+                <Border Style="{StaticResource Card}" Margin="4">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="8">
+                            <TextBlock Text="性能指标限值（Min ~ Max）" Style="{StaticResource SectionTitle}"/>
+                            <TextBlock Text="留空表示不限。超出范围的单元格在 Excel 报告中将标黄。"
+                                       Foreground="{StaticResource MutedBrush}" Margin="0,0,0,12" FontSize="12"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="24"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- 左列 -->
+                                <StackPanel>
+                                    <TextBlock Text="满量程 Span" Style="{StaticResource FieldLabel}"/>
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <TextBox Text="{Binding Plan.Specs.Span.Min, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Text="~" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Plan.Specs.Span.Max, UpdateSourceTrigger=PropertyChanged}" Grid.Column="2"/>
+                                    </Grid>
+
+                                    <TextBlock Text="线性误差 Linearity" Style="{StaticResource FieldLabel}" Margin="0,10,0,4"/>
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <TextBox Text="{Binding Plan.Specs.Linearity.Min, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Text="~" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Plan.Specs.Linearity.Max, UpdateSourceTrigger=PropertyChanged}" Grid.Column="2"/>
+                                    </Grid>
+
+                                    <TextBlock Text="零点 Offset" Style="{StaticResource FieldLabel}" Margin="0,10,0,4"/>
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <TextBox Text="{Binding Plan.Specs.Offset.Min, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Text="~" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Plan.Specs.Offset.Max, UpdateSourceTrigger=PropertyChanged}" Grid.Column="2"/>
+                                    </Grid>
+
+                                    <TextBlock Text="压力迟滞 Pressure Hysteresis" Style="{StaticResource FieldLabel}" Margin="0,10,0,4"/>
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <TextBox Text="{Binding Plan.Specs.PressureHysteresis.Min, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Text="~" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Plan.Specs.PressureHysteresis.Max, UpdateSourceTrigger=PropertyChanged}" Grid.Column="2"/>
+                                    </Grid>
+
+                                    <TextBlock Text="温度传感器温度系数 CT" Style="{StaticResource FieldLabel}" Margin="0,10,0,4"/>
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <TextBox Text="{Binding Plan.Specs.CT.Min, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Text="~" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Plan.Specs.CT.Max, UpdateSourceTrigger=PropertyChanged}" Grid.Column="2"/>
+                                    </Grid>
+                                </StackPanel>
+
+                                <!-- 右列 -->
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="零点偏移温度系数 TCO" Style="{StaticResource FieldLabel}"/>
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <TextBox Text="{Binding Plan.Specs.TCO.Min, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Text="~" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Plan.Specs.TCO.Max, UpdateSourceTrigger=PropertyChanged}" Grid.Column="2"/>
+                                    </Grid>
+
+                                    <TextBlock Text="满量程温度系数 TCS" Style="{StaticResource FieldLabel}" Margin="0,10,0,4"/>
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <TextBox Text="{Binding Plan.Specs.TCS.Min, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Text="~" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Plan.Specs.TCS.Max, UpdateSourceTrigger=PropertyChanged}" Grid.Column="2"/>
+                                    </Grid>
+
+                                    <TextBlock Text="桥阻温度系数 TCR" Style="{StaticResource FieldLabel}" Margin="0,10,0,4"/>
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <TextBox Text="{Binding Plan.Specs.TCR.Min, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Text="~" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Plan.Specs.TCR.Max, UpdateSourceTrigger=PropertyChanged}" Grid.Column="2"/>
+                                    </Grid>
+
+                                    <TextBlock Text="零点偏移温度迟滞 THO" Style="{StaticResource FieldLabel}" Margin="0,10,0,4"/>
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <TextBox Text="{Binding Plan.Specs.THO.Min, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Text="~" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Plan.Specs.THO.Max, UpdateSourceTrigger=PropertyChanged}" Grid.Column="2"/>
+                                    </Grid>
+
+                                    <TextBlock Text="满量程温度迟滞 THS" Style="{StaticResource FieldLabel}" Margin="0,10,0,4"/>
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <TextBox Text="{Binding Plan.Specs.THS.Min, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Text="~" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Plan.Specs.THS.Max, UpdateSourceTrigger=PropertyChanged}" Grid.Column="2"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+            </TabItem>
+
             <TabItem Header="参数控制">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <Grid Margin="4">
@@ -502,9 +601,28 @@
                                 </StackPanel>
                             </DockPanel>
                         </Border>
-                        <DataGrid ItemsSource="{Binding Slots}" BorderThickness="0"
+                        <!-- 扫码录入区 -->
+                        <Border DockPanel.Dock="Top" Background="{StaticResource HeaderBgBrush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="扫码录入:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0"/>
+                                <TextBlock Text="当前工位" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" Margin="0,0,4,0"/>
+                                <TextBlock x:Name="ScanSlotLabel" Text="-" VerticalAlignment="Center" FontWeight="SemiBold"
+                                           Foreground="{StaticResource AccentBrush}" Margin="0,0,12,0"/>
+                                <TextBox x:Name="BarcodeInput" Width="260" Padding="6,4"
+                                         KeyDown="OnBarcodeKeyDown"
+                                         ToolTip="点击此处，然后用扫码枪扫描条码（回车确认）"/>
+                                <Button Content="确认" Style="{StaticResource GhostButton}" Padding="10,3" Margin="6,0"
+                                        Click="OnBarcodeConfirm"/>
+                                <TextBlock x:Name="ScanStatusText" Text="" VerticalAlignment="Center"
+                                           Foreground="Green" Margin="8,0,0,0" FontSize="12"/>
+                            </StackPanel>
+                        </Border>
+
+                        <DataGrid x:Name="SlotGrid" ItemsSource="{Binding Slots}" BorderThickness="0"
                                   EnableRowVirtualization="True"
-                                  EnableColumnVirtualization="True">
+                                  EnableColumnVirtualization="True"
+                                  SelectionChanged="OnSlotGridSelectionChanged">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="工位"        Binding="{Binding Slot}"           Width="70"/>
                                 <DataGridTextColumn Header="序列号"      Binding="{Binding SerialNo}"       Width="180"/>

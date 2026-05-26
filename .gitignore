@@ -28,5 +28,11 @@ ehthumbs.db
 Desktop.ini
 .DS_Store
 
+# Publish output
+publish/
+
 # Logs and data (runtime)
 *.log
+
+# Release zip (tracked via GitHub Releases, not in repo)
+*.zip

@@ -59,6 +59,7 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel>
                                 <TextBlock Text="测试方案" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
@@ -67,7 +68,18 @@
                                           DisplayMemberPath="Name"
                                           Width="320" HorizontalAlignment="Left"/>
                             </StackPanel>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
+                            <Border Grid.Column="1" Background="{StaticResource HeaderBgBrush}" CornerRadius="6"
+                                    Padding="10,6" Margin="0,0,12,0" VerticalAlignment="Bottom">
+                                <StackPanel>
+                                    <TextBlock Text="设备启用" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,0,0,4"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <CheckBox Content="压力控制器" IsChecked="{Binding UsePressure}" Margin="0,0,10,0"/>
+                                        <CheckBox Content="烘箱" IsChecked="{Binding UseOven}" Margin="0,0,10,0"/>
+                                        <CheckBox Content="探漏" IsChecked="{Binding UseLeakCheck}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Bottom">
                                 <Border Background="{StaticResource AccentBrush}" CornerRadius="4" Padding="10,4" Margin="0,0,8,0">
                                     <StackPanel>
                                         <TextBlock Text="压力点" Foreground="#CCFFFFFF" FontSize="11"/>
@@ -107,14 +119,6 @@
 
                                 <TextBlock Text="压力单位" Foreground="{StaticResource MutedBrush}" Margin="0,10,0,2"/>
                                 <TextBox Text="{Binding PlanPressureUnit, Mode=OneWay}" IsReadOnly="True"/>
-
-                                <TextBlock Text="设备启用" Foreground="{StaticResource MutedBrush}" Margin="0,16,0,4"/>
-                                <CheckBox Content="启用压力控制器" IsChecked="{Binding UsePressure}" Margin="0,2"/>
-                                <CheckBox Content="启用烘箱" IsChecked="{Binding UseOven}" Margin="0,2"/>
-                                <CheckBox Content="启用探漏" IsChecked="{Binding UseLeakCheck}" Margin="0,2"/>
-                                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,4,0,0">
-                                    取消勾选后，本次运行将跳过对应设备相关步骤（如加压/控温），便于在没有该硬件时调试。
-                                </TextBlock>
 
                                 <TextBlock Text="说明" Foreground="{StaticResource MutedBrush}" Margin="0,16,0,4"/>
                                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" FontSize="11">

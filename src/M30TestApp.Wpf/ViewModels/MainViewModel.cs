@@ -33,7 +33,7 @@ public sealed class MainViewModel : ViewModelBase
     public string StationTitle { get; }
     public string PlanTitle => $"测试方案 · {Session.Plan.Name}";
 
-    public MainViewModel(TestSession session, string stationTitle = "M30 测试上位机")
+    public MainViewModel(TestSession session, string stationTitle = "M30测试专用")
     {
         Session = session;
         StationTitle = stationTitle;

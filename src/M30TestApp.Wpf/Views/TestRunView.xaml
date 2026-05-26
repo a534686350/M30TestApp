@@ -115,7 +115,7 @@
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0">
-                    <ProgressBar Minimum="0" Maximum="{Binding ProgressTotal}" Value="{Binding ProgressIndex}"
+                    <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressPercentValue, Mode=OneWay}"
                                  Width="220" Height="8" Foreground="{StaticResource AccentBrush}"
                                  Background="{StaticResource HeaderBgBrush}" BorderThickness="0"/>
                     <TextBlock Margin="10,0,0,0" Foreground="{StaticResource MutedBrush}" FontFamily="Consolas">
@@ -193,7 +193,7 @@
                                Foreground="{StaticResource MutedBrush}"/>
 
                     <TextBlock Text="进度" FontWeight="SemiBold" Margin="0,12,0,4"/>
-                    <ProgressBar Minimum="0" Maximum="{Binding ProgressTotal}" Value="{Binding ProgressIndex}"
+                    <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressPercentValue, Mode=OneWay}"
                                  Height="8" Foreground="{StaticResource AccentBrush}"
                                  Background="{StaticResource HeaderBgBrush}" BorderThickness="0"/>
                     <TextBlock HorizontalAlignment="Right" Margin="0,4,0,0"

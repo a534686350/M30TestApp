@@ -17,6 +17,8 @@ public sealed class TestPlan
     public List<PressurePoint> PressurePoints { get; } = new();
     /// <summary>The task script, pipe-separated commands (ASLab style).</summary>
     public string TaskScript { get; set; } = "";
+    /// <summary>Performance specification limits (Min/Max) for pass/fail judgment.</summary>
+    public SpecLimits Specs { get; set; } = new();
 
     public static TestPlan Load(string path)
     {
@@ -44,6 +46,7 @@ public sealed class TestPlan
             if (float.TryParse(kv.Value, out var v))
                 plan.PressurePoints.Add(new PressurePoint(kv.Key, v));
         }
+        plan.Specs = SpecLimits.LoadFrom(ini);
         return plan;
     }
 
@@ -63,6 +66,7 @@ public sealed class TestPlan
         }
         foreach (var pp in PressurePoints)
             ini.Set("PressurePoints", pp.Name, pp.Value.ToString(CultureInfo.InvariantCulture));
+        Specs.SaveTo(ini);
         ini.Save(path);
     }
 }
@@ -87,4 +91,76 @@ public sealed class PressurePoint
     public PressurePoint(string name, float value) { Name = name; Value = value; }
     public string Name { get; set; } = "";
     public float Value { get; set; }
+}
+
+/// <summary>Min/Max range for a single spec metric. Empty string means no limit.</summary>
+public sealed class SpecRange
+{
+    public string Min { get; set; } = "";
+    public string Max { get; set; } = "";
+    public double? MinVal => double.TryParse(Min, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : null;
+    public double? MaxVal => double.TryParse(Max, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : null;
+    public bool IsInRange(double value)
+    {
+        if (double.IsNaN(value)) return false;
+        if (MinVal.HasValue && value < MinVal.Value) return false;
+        if (MaxVal.HasValue && value > MaxVal.Value) return false;
+        return true;
+    }
+    public bool HasLimits => MinVal.HasValue || MaxVal.HasValue;
+}
+
+/// <summary>Performance specification limits for all metrics.</summary>
+public sealed class SpecLimits
+{
+    public SpecRange Offset { get; set; } = new();
+    public SpecRange Span { get; set; } = new();
+    public SpecRange Linearity { get; set; } = new();
+    public SpecRange TCO { get; set; } = new();
+    public SpecRange TCS { get; set; } = new();
+    public SpecRange TCR { get; set; } = new();
+    public SpecRange THO { get; set; } = new();
+    public SpecRange THS { get; set; } = new();
+    public SpecRange PressureHysteresis { get; set; } = new();
+    public SpecRange CT { get; set; } = new();
+
+    private static readonly string[] Names =
+        { "Offset", "Span", "Linearity", "TCO", "TCS", "TCR", "THO", "THS", "PressureHysteresis", "CT" };
+
+    public SpecRange this[string name] => name switch
+    {
+        "Offset" => Offset,
+        "Span" => Span,
+        "Linearity" => Linearity,
+        "TCO" => TCO,
+        "TCS" => TCS,
+        "TCR" => TCR,
+        "THO" => THO,
+        "THS" => THS,
+        "PressureHysteresis" => PressureHysteresis,
+        "CT" => CT,
+        _ => new SpecRange()
+    };
+
+    public static SpecLimits LoadFrom(IniFile ini)
+    {
+        var s = new SpecLimits();
+        foreach (var n in Names)
+        {
+            var r = s[n];
+            r.Min = ini.Get("Specs", $"{n}.Min");
+            r.Max = ini.Get("Specs", $"{n}.Max");
+        }
+        return s;
+    }
+
+    public void SaveTo(IniFile ini)
+    {
+        foreach (var n in Names)
+        {
+            var r = this[n];
+            if (!string.IsNullOrWhiteSpace(r.Min)) ini.Set("Specs", $"{n}.Min", r.Min);
+            if (!string.IsNullOrWhiteSpace(r.Max)) ini.Set("Specs", $"{n}.Max", r.Max);
+        }
+    }
 }

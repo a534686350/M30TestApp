@@ -188,7 +188,33 @@ public sealed class HwDac : DeviceBase, IDac
     public Task<float> ReadUsourceAsync(float pressure, float tempC, int v, string addr1, string addr2, CancellationToken ct = default) => ReadValueAsync(2, addr1, addr2, ct);
     public Task<float> ReadIsourceAsync(float pressure, float tempC, int v, string addr1, string addr2, CancellationToken ct = default) => ReadValueAsync(3, addr1, addr2, ct);
     public Task<float> ReadUsigAsync(float pressure, float tempC, int v, string addr1, string addr2, CancellationToken ct = default) => ReadValueAsync(4, addr1, addr2, ct);
-    public Task<float> ReadUtAsync(float pressure, float tempC, int v, string addr1, string addr2, CancellationToken ct = default) => ReadValueAsync(5, addr1, addr2, ct);
+    public async Task<float> ReadUtAsync(float pressure, float tempC, int v, string addr1, string addr2, CancellationToken ct = default)
+    {
+        // 先发功能码 06 切换 UT 电源到指定 card+channel
+        await SwitchUtPowerAsync(addr1, addr2, ct).ConfigureAwait(false);
+        // 再发功能码 05 读取 UT 值
+        return await ReadValueAsync(5, addr1, addr2, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 发送功能码 06 [card, 0x06, channel] + CRC，等待 5 字节回声确认。
+    /// </summary>
+    private async Task SwitchUtPowerAsync(string cardAddr, string channelAddr, CancellationToken ct)
+    {
+        EnsureOpen();
+        if (!byte.TryParse(cardAddr, out var card) || !byte.TryParse(channelAddr, out var channel))
+            throw new InvalidOperationException("采集卡地址或通道地址无效");
+
+        var request = AppendCrc(new[] { card, (byte)6, channel });
+        _port!.DiscardInBuffer();
+        _port.DiscardOutBuffer();
+        DeviceBus.Tx(Model, "Send: " + SerialHelpers.ToHex(request));
+        _port.Write(request, 0, request.Length);
+        var response = await ReadExactAsync(5, 1500, ct).ConfigureAwait(false);
+        DeviceBus.Rx(Model, "Get: " + SerialHelpers.ToHex(response));
+        if (response.Length < 5 || !CheckCrc(response))
+            DeviceBus.Info(Model, $"UT power switch echo unexpected: len={response.Length}");
+    }
 
     private void EnsureOpen()
     {
@@ -381,13 +407,13 @@ public sealed class HwDmm : DeviceBase, IDmm
 
     public Task OpenRelayAsync(string channel, CancellationToken ct = default)
     {
-        _visa.Write($"ROUT:CLOSE (@{channel})");
+        _visa.Write($"ROUT:OPEN (@{channel})");
         return Task.CompletedTask;
     }
 
     public Task CloseRelayAsync(string channel, CancellationToken ct = default)
     {
-        _visa.Write($"ROUT:OPEN (@{channel})");
+        _visa.Write($"ROUT:CLOSE (@{channel})");
         return Task.CompletedTask;
     }
 

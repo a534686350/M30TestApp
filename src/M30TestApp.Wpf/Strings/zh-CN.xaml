@@ -20,7 +20,7 @@
     <sys:String x:Key="Settings.Theme">应用主题</sys:String>
     <sys:String x:Key="Settings.Theme.Desc">切换深色或浅色模式</sys:String>
 
-    <sys:String x:Key="Settings.About.Desc">M30 传感器性能测试上位机</sys:String>
+    <sys:String x:Key="Settings.About.Desc">M30测试专用</sys:String>
     <sys:String x:Key="Settings.CheckUpdate">检查更新</sys:String>
     <sys:String x:Key="Settings.Author">作者</sys:String>
     <sys:String x:Key="Settings.Repo">开源仓库</sys:String>

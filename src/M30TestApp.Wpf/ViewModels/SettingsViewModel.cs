@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Net;
 using System.Net.Http;
 using System.Reflection;
 using System.Text.Json;
@@ -126,6 +127,12 @@ public sealed class SettingsViewModel : ViewModelBase
                     : $"Up to date (v{current})";
             }
         }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            UpdateStatus = Language == "zh-CN"
+                ? "当前仓库暂无发布版本，请到 GitHub 查看"
+                : "No published release yet. Please check GitHub.";
+        }
         catch (Exception ex)
         {
             UpdateStatus = Language == "zh-CN"
@@ -143,27 +150,46 @@ public sealed class SettingsViewModel : ViewModelBase
         _session.Context.Settings.Set("App", "Language", lang);
         try { _session.Context.Settings.Save(AppPaths.SettingIni); } catch { }
 
-        var dict = new ResourceDictionary();
-        var uri = lang == "zh-CN"
-            ? new Uri("pack://application:,,,/Strings/zh-CN.xaml")
-            : new Uri("pack://application:,,,/Strings/en-US.xaml");
-        dict.Source = uri;
-
-        var app = Application.Current;
-        // Remove old string dictionaries
-        for (int i = app.Resources.MergedDictionaries.Count - 1; i >= 0; i--)
+        Application.Current.Dispatcher.Invoke(() =>
         {
-            var d = app.Resources.MergedDictionaries[i];
-            if (d.Source?.OriginalString.Contains("/Strings/") == true)
-                app.Resources.MergedDictionaries.RemoveAt(i);
-        }
-        app.Resources.MergedDictionaries.Add(dict);
+            var dict = new ResourceDictionary
+            {
+                Source = lang == "zh-CN"
+                    ? new Uri("pack://application:,,,/Strings/zh-CN.xaml")
+                    : new Uri("pack://application:,,,/Strings/en-US.xaml")
+            };
+
+            var merged = Application.Current.Resources.MergedDictionaries;
+            for (int i = merged.Count - 1; i >= 0; i--)
+            {
+                if (merged[i].Source?.OriginalString.Contains("/Strings/") == true)
+                    merged.RemoveAt(i);
+            }
+            merged.Add(dict);
+        });
     }
 
     private void ApplyTheme(string theme)
     {
         _session.Context.Settings.Set("App", "Theme", theme);
         try { _session.Context.Settings.Save(AppPaths.SettingIni); } catch { }
-        // Currently only Light theme available; Dark theme can be added later
+
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            var dict = new ResourceDictionary
+            {
+                Source = theme == "Dark"
+                    ? new Uri("pack://application:,,,/Themes/Dark.xaml")
+                    : new Uri("pack://application:,,,/Themes/Light.xaml")
+            };
+
+            var merged = Application.Current.Resources.MergedDictionaries;
+            for (int i = merged.Count - 1; i >= 0; i--)
+            {
+                if (merged[i].Source?.OriginalString.Contains("/Themes/") == true)
+                    merged.RemoveAt(i);
+            }
+            merged.Insert(0, dict);
+        });
     }
 }
