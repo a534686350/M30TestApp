@@ -364,6 +364,7 @@ public sealed class ConfigViewModel : ViewModelBase
         SyncMetricsFromPlan();
         Changelog = LoadChangelog();
         RefreshPlanFolders();
+        AutoSelectCurrentPlan();
 
         SaveCommand = new RelayCommand(_ => SaveSettings());
         ReloadCommand = new RelayCommand(_ => ReloadSettings());
@@ -576,14 +577,40 @@ public sealed class ConfigViewModel : ViewModelBase
     private void RefreshPlanFolders()
     {
         PlanFolders.Clear();
-        if (Directory.Exists(AppPaths.TestConfigDir))
+        if (!Directory.Exists(AppPaths.TestConfigDir)) return;
+
+        foreach (var dir in Directory.GetDirectories(AppPaths.TestConfigDir))
+            PlanFolders.Add(Path.GetFileName(dir));
+    }
+
+    /// <summary>启动时自动选中当前方案所在的文件夹和传感器型号。</summary>
+    private void AutoSelectCurrentPlan()
+    {
+        if (PlanFolders.Count == 0) return;
+
+        // 找到包含当前方案的文件夹
+        var planName = Plan.Name;
+        string? matchFolder = null;
+        foreach (var folder in PlanFolders)
         {
-            foreach (var dir in Directory.GetDirectories(AppPaths.TestConfigDir))
-            {
-                var folderName = Path.GetFileName(dir);
-                PlanFolders.Add(folderName);
-            }
+            var path = Path.Combine(AppPaths.TestConfigDir, folder, planName + ".ini");
+            if (File.Exists(path)) { matchFolder = folder; break; }
         }
+        // 没找到就选第一个文件夹
+        matchFolder ??= PlanFolders[0];
+
+        _loadingPlan = true;
+        _selectedPlanFolder = matchFolder;
+        OnPropertyChanged(nameof(SelectedPlanFolder));
+        RefreshSensorModelFiles();
+
+        // 选中型号
+        if (SensorModelFiles.Contains(planName))
+            _selectedSensorModelFile = planName;
+        else if (SensorModelFiles.Count > 0)
+            _selectedSensorModelFile = SensorModelFiles[0];
+        OnPropertyChanged(nameof(SelectedSensorModelFile));
+        _loadingPlan = false;
     }
 
     private void RefreshSensorModelFiles()
@@ -595,10 +622,7 @@ public sealed class ConfigViewModel : ViewModelBase
         if (Directory.Exists(folderPath))
         {
             foreach (var file in Directory.GetFiles(folderPath, "*.ini"))
-            {
-                var fileName = Path.GetFileNameWithoutExtension(file);
-                SensorModelFiles.Add(fileName);
-            }
+                SensorModelFiles.Add(Path.GetFileNameWithoutExtension(file));
         }
     }
 
@@ -612,7 +636,7 @@ public sealed class ConfigViewModel : ViewModelBase
 
         var plan = TestPlan.Load(filePath);
         SetPlan(plan);
-        AppLog.Info("Config", $"���л��������ͺ� {fileName}");
+        AppLog.Info("Config", $"已切换到传感器型号 {fileName}");
     }
 
     private void SetPlan(TestPlan plan)
@@ -635,7 +659,7 @@ public sealed class ConfigViewModel : ViewModelBase
 
     private void SavePlan()
     {
-        // ??UI �༭�ĵ��д??Plan�������������־û��� TestConfig Ŀ¼??        Plan.PressurePoints.Clear();
+        Plan.PressurePoints.Clear();
         foreach (var pp in PressurePoints) Plan.PressurePoints.Add(pp);
         Plan.TempPoints.Clear();
         foreach (var tp in TempPoints) Plan.TempPoints.Add(tp);
@@ -643,15 +667,14 @@ public sealed class ConfigViewModel : ViewModelBase
 
         var name = string.IsNullOrWhiteSpace(Plan.Name) ? "plan" : Plan.Name;
 
-        // Save to root TestConfig directory
-        Directory.CreateDirectory(AppPaths.TestConfigDir);
-        var path = Path.Combine(AppPaths.TestConfigDir, name + ".ini");
+        var folder = string.IsNullOrWhiteSpace(_selectedPlanFolder)
+            ? AppPaths.TestConfigDir
+            : Path.Combine(AppPaths.TestConfigDir, _selectedPlanFolder);
+        Directory.CreateDirectory(folder);
+        var path = Path.Combine(folder, name + ".ini");
         Plan.Save(path);
 
-
-
-
-        AppLog.Info("Config", $"�ѱ��淽�� {name} �� {path}");
+        AppLog.Info("Config", $"已保存方案 {name} 到 {path}");
     }
 
     private void AddSlot()

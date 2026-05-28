@@ -303,11 +303,11 @@
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="4,0,0,0">
                             <TextBlock Text="精度" Style="{StaticResource Lbl}"/>
-                            <TextBox Text="{Binding Precision, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBox Text="{Binding Precision}"/>
                         </StackPanel>
                     </Grid>
                     <TextBlock Text="压力值" Style="{StaticResource Lbl}"/>
-                    <TextBox Text="{Binding TargetPressure, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8"/>
+                    <TextBox Text="{Binding TargetPressure}" Margin="0,0,0,8"/>
 
                     <!-- 操作按钮 (双列) -->
                     <Grid>

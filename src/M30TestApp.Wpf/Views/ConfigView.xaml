@@ -178,7 +178,7 @@
                                           IsReadOnly="False" CanUserAddRows="True" CanUserDeleteRows="True">
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="名称"   Binding="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"  Width="80"/>
-                                        <DataGridTextColumn Header="压力值" Binding="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="80"/>
+                                        <DataGridTextColumn Header="压力值" Binding="{Binding Value, Mode=TwoWay, StringFormat='{}{0:0.###}'}" Width="80"/>
                                         <DataGridTemplateColumn Header="压力类型" Width="*">
                                             <DataGridTemplateColumn.CellTemplate>
                                                 <DataTemplate>

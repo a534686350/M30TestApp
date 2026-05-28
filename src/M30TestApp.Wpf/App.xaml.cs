@@ -57,12 +57,26 @@ public partial class App : Application
             : SlotTable.Load("");
 
         var planFile = Directory.Exists(AppPaths.TestConfigDir)
-            ? Directory.GetFiles(AppPaths.TestConfigDir, "*.ini") : Array.Empty<string>();
+            ? Directory.GetFiles(AppPaths.TestConfigDir, "*.ini", SearchOption.AllDirectories) : Array.Empty<string>();
         TestPlan plan;
         var lastPlanName = AppPreferences.LastPlan(settingIni);
-        var lastPlanPath = string.IsNullOrWhiteSpace(lastPlanName)
-            ? null
-            : Path.Combine(AppPaths.TestConfigDir, lastPlanName + ".ini");
+        // Search in root and all sub-folders for the last plan
+        string? lastPlanPath = null;
+        if (!string.IsNullOrWhiteSpace(lastPlanName))
+        {
+            var candidate = Path.Combine(AppPaths.TestConfigDir, lastPlanName + ".ini");
+            if (File.Exists(candidate))
+                lastPlanPath = candidate;
+            else
+            {
+                // Search sub-folders
+                foreach (var dir in Directory.GetDirectories(AppPaths.TestConfigDir))
+                {
+                    candidate = Path.Combine(dir, lastPlanName + ".ini");
+                    if (File.Exists(candidate)) { lastPlanPath = candidate; break; }
+                }
+            }
+        }
         if (AppPreferences.AutoLoadLastPlan(settingIni) && lastPlanPath is not null && File.Exists(lastPlanPath))
             plan = TestPlan.Load(lastPlanPath);
         else if (planFile.Length > 0)
