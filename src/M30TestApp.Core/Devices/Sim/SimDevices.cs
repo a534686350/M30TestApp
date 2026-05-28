@@ -202,6 +202,11 @@ public sealed class SimDmm : DeviceBase, IDmm
         SimTrace.Rx(Model, "OK");
     }
 
+    public Task<bool> QueryRelayStateAsync(string channel, CancellationToken ct = default)
+    {
+        return Task.FromResult(false); // 模拟：默认断开（阀关）
+    }
+
     public async Task<double> ReadVoltageAsync(string channel, CancellationToken ct = default)
     {
         SimTrace.Tx(_cmds, Model, "SetVol", "@" + channel);

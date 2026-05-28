@@ -315,6 +315,9 @@ public sealed class ManualViewModel : ViewModelBase
         for (int i = 1; i <= 8; i++)
             Valves.Add(new ValveVm(this, i));
 
+        // 异步读取继电器实际状态来刷新阀门 UI
+        _ = RefreshValveStatesAsync();
+
         RefreshComPortsCommand = new RelayCommand(_ => RefreshComPorts());
         RefreshComPorts();
 
@@ -610,11 +613,36 @@ public sealed class ManualViewModel : ViewModelBase
         if (_session.Dmm.State != ConnectionState.Connected)
             await _session.Dmm.OpenAsync();
         if (on)
-            await _session.Dmm.OpenRelayAsync(channel);
+            await _session.Dmm.CloseRelayAsync(channel);   // CloseRelay = 闭合继电器 = 开阀
         else
-            await _session.Dmm.CloseRelayAsync(channel);
+            await _session.Dmm.OpenRelayAsync(channel);     // OpenRelay  = 断开继电器 = 关阀
         await Task.Delay(GetDelaySettingMs("ValveSwitchMs", 500));
         Hist($"{GetValveLabel(index)}({channel}) → {(on ? "开" : "关")}");
+    }
+
+    /// <summary>从DMM读取所有阀门通道(101-109)的实际继电器状态，更新 UI。</summary>
+    public async Task RefreshValveStatesAsync()
+    {
+        try
+        {
+            if (_session.Dmm.State != ConnectionState.Connected)
+                await _session.Dmm.OpenAsync();
+
+            foreach (var valve in Valves)
+            {
+                var channel = GetValveChannel(valve.Index);
+                try
+                {
+                    var isClosed = await _session.Dmm.QueryRelayStateAsync(channel);
+                    valve.SetState(isClosed); // closed = 闭合 = 阀开
+                }
+                catch { /* 单个通道查询失败不影响其他 */ }
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("Valve", $"读取阀门状态失败: {ex.Message}");
+        }
     }
 
     private static string GetValveLabel(int index) => index == 0 ? "总阀" : $"阀{index}";
@@ -1053,6 +1081,14 @@ public sealed class ValveVm : ViewModelBase
     {
         _parent = parent;
         Index = index;
+    }
+
+    /// <summary>从外部设置状态（不触发继电器操作）。</summary>
+    public void SetState(bool on)
+    {
+        _updating = true;
+        IsOn = on;
+        _updating = false;
     }
 
     private async Task ToggleAsync(bool value)

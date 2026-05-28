@@ -451,6 +451,14 @@ public sealed class HwDmm : DeviceBase, IDmm
         return Task.CompletedTask;
     }
 
+    public Task<bool> QueryRelayStateAsync(string channel, CancellationToken ct = default)
+    {
+        // ROUT:OPEN? 返回 "1" = 断开(阀关), "0" = 闭合(阀开)
+        var reply = _visa.QueryString($"ROUT:OPEN? (@{channel})");
+        // 返回 true = 闭合(阀开), false = 断开(阀关)
+        return Task.FromResult(reply.Trim() == "0");
+    }
+
     public Task<double> ReadVoltageAsync(string channel, CancellationToken ct = default)
     {
         try
