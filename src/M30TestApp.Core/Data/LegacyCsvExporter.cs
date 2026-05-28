@@ -209,15 +209,15 @@ public static class LegacyCsvExporter
                 AddMeasurementGroup(cols, pLabel, tLabel, "V5", idx, tp, pressures[pi]);
             }
 
-            // 下行: P50, P0（迟滞测量）
+            // 下行: P50, P0（迟滞测量）—— 使用 _USG_R 回差列
             if (pressures.Length >= 2)
             {
                 pointIndex++;
-                AddMeasurementGroup(cols, "P50", tLabel, "V5", pointIndex, tp, pressures[pressures.Length / 2]);
+                AddMeasurementGroup(cols, "P50", tLabel, "V5", pointIndex, tp, pressures[pressures.Length / 2], "_USG_R");
             }
             {
                 pointIndex++;
-                AddMeasurementGroup(cols, "P0", tLabel, "V5", pointIndex, tp, pressures[0]);
+                AddMeasurementGroup(cols, "P0", tLabel, "V5", pointIndex, tp, pressures[0], "_USG_R");
             }
 
             // T2 24H 稳定性（占位）
@@ -232,7 +232,7 @@ public static class LegacyCsvExporter
 
     private static void AddMeasurementGroup(
         List<ColumnDef> cols, string pLabel, string tLabel, string vLabel, int idx,
-        TempPoint tp, PressurePoint pp)
+        TempPoint tp, PressurePoint pp, string usgSuffix = "_USG")
     {
         // 旧版列名: Usource_P0_T1_V5_1
         // 对应V2矩阵列: T1_USC (无压力时) 或 T1P1_USG (有压力时)
@@ -252,11 +252,11 @@ public static class LegacyCsvExporter
             GetValue = (ctx, s, _, _) => GetCellValue(ctx, s.Slot, $"{tp.Name}_ISC")
         });
 
-        // Usig → V2: {TempName}{PressureName}_USG
+        // Usig → V2: {TempName}{PressureName}{usgSuffix}
         cols.Add(new ColumnDef
         {
             Header = $"Usig_{legacyPrefix}",
-            GetValue = (ctx, s, _, _) => GetCellValue(ctx, s.Slot, $"{tp.Name}{pp.Name}_USG")
+            GetValue = (ctx, s, _, _) => GetCellValue(ctx, s.Slot, $"{tp.Name}{pp.Name}{usgSuffix}")
         });
 
         // T (烘箱温度) → V2: {TempName}_OvenTemp

@@ -65,7 +65,8 @@ public static class MetricsCalculator
             var tcr = Tcr(rb5T2, rb5T3, tempT2, tempT3);
             var tho = Tho(usgP0T3, usgP0T1, usgP100T3);
             var ths = Ths(usgP100T3, usgP0T3, usgP100T1, usgP0T1);
-            var ph = Ph(usgP0T3, usgP0T3, usgP100T3);
+            var usgP0T3R = Get(ctx, slotName, $"{t3.Name}{p0.Name}_USG_R");
+            var ph = Ph(usgP0T3R, usgP0T3, usgP100T3);
             var tct = Tct(utT2, utT3, tempT2, tempT3);
 
             Set(ctx, slotName, "Offset", offset, SpecFor(ctx, "Offset", ctx.Plan.Specs.Offset));

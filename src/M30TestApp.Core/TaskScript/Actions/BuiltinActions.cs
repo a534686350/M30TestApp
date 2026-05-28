@@ -453,6 +453,29 @@ public sealed class RunPerformanceTestAction : IAction
                 TestCheckpoint.Save(ctx, ti, pi + 1, leakDone);
             }
 
+            // ── 回差测量：下行 P100→P50→P0 ──
+            if (!ctx.SkipUsg && ctx.Plan.PressurePoints.Count >= 2)
+            {
+                AppLog.Info("Run", $"开始回差测量（下行）：{tp.Name}");
+                for (var pi = ctx.Plan.PressurePoints.Count - 2; pi >= 0; pi--)
+                {
+                    var pp = ctx.Plan.PressurePoints[pi];
+                    ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit} (回差)";
+                    AppLog.Info("Run", $"回差下行 {tp.Name} {pp.Name}:{pp.Value} [{pp.PressureTypeDisplay}]");
+
+                    if (ctx.Pressure is not null)
+                        await SetAndWaitPressureAsync(ctx, pp, ct);
+
+                    var holdMs = GetDelayMs(ctx, "PressureAfterMs", 60000);
+                    AppLog.Info("Run", $"{pp.Value}{ctx.Plan.PressureUnit} 压力稳定中（回差）");
+                    await Task.Delay(Math.Max(0, holdMs), ct);
+
+                    AppLog.Info("Run", $"开始采集 {tp.Name}-{pp.Name} USG_R（回差，全部工位）");
+                    await DacBatchSampler.SampleAllAsync(ctx, DacMeasureKind.Usig, $"{tp.Name}{pp.Name}_USG_R", pp.Value, tp.Celsius, ct);
+                    AppLog.Info("Run", $"采集完成 {tp.Name}-{pp.Name} USG_R（回差）");
+                }
+            }
+
             await ReadOvenTempForAllSlots(ctx, tp, ct);
             TestCheckpoint.Save(ctx, ti + 1, 0, leakDone);
         }
