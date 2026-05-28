@@ -372,7 +372,7 @@ public sealed class ConfigViewModel : ViewModelBase
         BatchGenerateSlotsCommand = new RelayCommand(_ => BatchGenerateSlots());
         ImportSlotsCommand = new RelayCommand(_ => ImportSlots());
         ExportSlotsCommand = new RelayCommand(_ => ExportSlots());
-        RegenerateSlotsCommand = new RelayCommand(_ => RegenerateSlots());
+        RegenerateSlotsCommand = new RelayCommand(_ => ConfirmAndRegenerateSlots());
         NewPlanFolderCommand = new RelayCommand(_ => NewPlanFolder());
         NewSensorModelCommand = new RelayCommand(_ => NewSensorModel());
         BulkEditPressurePointsCommand = new RelayCommand(_ => BulkEditPressurePoints());
@@ -749,6 +749,17 @@ public sealed class ConfigViewModel : ViewModelBase
         if (changed)
             RegenerateSlots();
         return changed;
+    }
+
+    private void ConfirmAndRegenerateSlots()
+    {
+        var result = System.Windows.MessageBox.Show(
+            "刷新将根据当前参数重新生成工位表，已手动修改的序列号会尽量保留。\n\n确定要刷新吗？",
+            "确认刷新",
+            System.Windows.MessageBoxButton.YesNo,
+            System.Windows.MessageBoxImage.Question);
+        if (result == System.Windows.MessageBoxResult.Yes)
+            RegenerateSlots();
     }
 
     public void RegenerateSlots()

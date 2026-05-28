@@ -983,7 +983,7 @@
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Content="重载" Style="{StaticResource GhostButton}" Padding="14,4"
                             Command="{Binding ReloadCommand}"/>
-                    <Button Content="保存" Style="{StaticResource PrimaryButton}" Padding="14,4" Margin="8,0,0,0"
+                    <Button Content="保存" Style="{StaticResource SaveButton}" Padding="24,6" Margin="8,0,0,0"
                             Command="{Binding SaveCommand}"/>
                 </StackPanel>
             </DockPanel>
