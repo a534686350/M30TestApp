@@ -433,9 +433,7 @@ public sealed class RunPerformanceTestAction : IAction
                 if (ctx.Pressure is not null)
                     await SetAndWaitPressureAsync(ctx, pp, ct);
 
-                var holdMs = GetDelayMs(ctx, "PressureAfterMs", 60000);
-                AppLog.Info("Run", $"{pp.Value}{ctx.Plan.PressureUnit} 压力稳定中");
-                await Task.Delay(Math.Max(0, holdMs), ct);
+                await PressureHoldAsync(ctx, pp, ct);
 
                 ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit}";
 
@@ -466,9 +464,7 @@ public sealed class RunPerformanceTestAction : IAction
                     if (ctx.Pressure is not null)
                         await SetAndWaitPressureAsync(ctx, pp, ct);
 
-                    var holdMs = GetDelayMs(ctx, "PressureAfterMs", 60000);
-                    AppLog.Info("Run", $"{pp.Value}{ctx.Plan.PressureUnit} 压力稳定中（回差）");
-                    await Task.Delay(Math.Max(0, holdMs), ct);
+                    await PressureHoldAsync(ctx, pp, ct);
 
                     AppLog.Info("Run", $"开始采集 {tp.Name}-{pp.Name} USG_R（回差，全部工位）");
                     await DacBatchSampler.SampleAllAsync(ctx, DacMeasureKind.Usig, $"{tp.Name}{pp.Name}_USG_R", pp.Value, tp.Celsius, ct);
@@ -790,10 +786,33 @@ public sealed class RunPerformanceTestAction : IAction
         {
             ct.ThrowIfCancellationRequested();
             var current = await ctx.Pressure.ReadPressureAsync(ct);
-            ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit} [{pp.PressureTypeDisplay}]";
-            if (Math.Abs(current - pp.Value) <= ctx.Plan.Precision) break;
+            var diff = Math.Abs(current - pp.Value);
+            ctx.CurrentPressure = $"{pp.Name} 目标{pp.Value} 当前{current:F4} 差值{diff:F4} {ctx.Plan.PressureUnit}";
+            if (i % 10 == 0)
+                AppLog.Info("Run", $"等待压力稳定：目标={pp.Value} 当前={current:F4} 差值={diff:F4} ({i}/120)");
+            if (diff <= ctx.Plan.Precision)
+            {
+                AppLog.Info("Run", $"压力已稳定：{current:F4}{ctx.Plan.PressureUnit}（目标{pp.Value}，精度{ctx.Plan.Precision}）");
+                break;
+            }
             await Task.Delay(500, ct);
         }
+    }
+
+    /// <summary>压力保持等待，带倒计时日志。</summary>
+    private static async Task PressureHoldAsync(TaskContext ctx, PressurePoint pp, CancellationToken ct)
+    {
+        var holdMs = GetDelayMs(ctx, "PressureAfterMs", 60000);
+        if (holdMs <= 0) return;
+        var holdSec = holdMs / 1000;
+        AppLog.Info("Run", $"{pp.Value}{ctx.Plan.PressureUnit} 开始保压 {holdSec}s");
+        for (var s = 0; s < holdSec; s++)
+        {
+            ct.ThrowIfCancellationRequested();
+            ctx.CurrentPressure = $"{pp.Name} {pp.Value}{ctx.Plan.PressureUnit} 保压中 {s}/{holdSec}s";
+            await Task.Delay(1000, ct);
+        }
+        AppLog.Info("Run", $"{pp.Value}{ctx.Plan.PressureUnit} 保压完成");
     }
 
     // ── 读取烘箱实际温度，写入所有工位（每温度点采集完成后调用一次）─────────
