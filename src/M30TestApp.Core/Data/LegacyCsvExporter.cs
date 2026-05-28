@@ -22,10 +22,12 @@ public static class LegacyCsvExporter
 {
     /// <summary>
     /// 判断当前方案是否属于 M30 标准测试（可使用旧版格式导出）。
-    /// 条件：至少 3 个温度点、3 个压力点。
+    /// 条件：方案文件夹为"M30测试"，且至少 3 个温度点、3 个压力点。
     /// </summary>
     public static bool IsLegacyProfile(TestPlan plan) =>
-        plan.TempPoints.Count >= 3 && plan.PressurePoints.Count >= 3;
+        string.Equals(plan.FolderName, "M30测试", StringComparison.OrdinalIgnoreCase)
+        && plan.TempPoints.Count >= 3
+        && plan.PressurePoints.Count >= 3;
 
     /// <summary>
     /// 导出两份旧版格式 CSV 到桌面。

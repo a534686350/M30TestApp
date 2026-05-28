@@ -17,6 +17,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Resource Include="app.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Ship sample setting/* alongside the exe so first launch has working config. -->
     <Content Include="..\..\samples\setting\**\*.*" Link="setting\%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

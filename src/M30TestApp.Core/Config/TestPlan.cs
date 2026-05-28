@@ -28,6 +28,10 @@ public sealed class TestPlan
     public string PressureUnit { get; set; } = "kPa";
     public float Precision { get; set; } = 0.05f;
     /// <summary>
+    /// 方案所在的文件夹名（如 "M30测试"）。用于判断导出格式。
+    /// </summary>
+    public string FolderName { get; set; } = "";
+    /// <summary>
     /// 方案级默认压力类型。当压力点未单独指定类型时使用此值。
     /// </summary>
     public PressureType DefaultPressureType { get; set; } = PressureType.Gauge;
@@ -52,6 +56,7 @@ public sealed class TestPlan
         var plan = new TestPlan
         {
             Name = System.IO.Path.GetFileNameWithoutExtension(path),
+            FolderName = System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(path) ?? ""),
             SensorType = ini.Get("Plan", "SensorType"),
             PressureUnit = ini.Get("Plan", "PressureUnit", "kPa"),
             Precision = float.TryParse(ini.Get("Plan", "Precision", "0.05"), out var pr) ? pr : 0.05f,
