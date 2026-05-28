@@ -13,7 +13,7 @@
     <UseWPF>true</UseWPF>
     <RootNamespace>M30TestApp.Wpf</RootNamespace>
     <AssemblyName>M30TestApp.V2</AssemblyName>
-    <ApplicationIcon></ApplicationIcon>
+    <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
