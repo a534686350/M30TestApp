@@ -84,9 +84,10 @@ public static class DacBatchSampler
             ctx.Matrix.EnsureSlot(slot.Slot);
             var (card, channel) = SlotDacAddress.Get(slot);
 
-            // 原版逻辑（FormTest.cs:2864-2882）：每个工位切换都要切UT电源，与测量类型无关。
-            // V2 之前限制 measure==UT 才切，导致 USC/ISC/USG 测量时电源停留在最后一个 UT 板卡上。
-            if (int.TryParse(card, NumberStyles.Integer, CultureInfo.InvariantCulture, out var cardNum) &&
+            // 只有测 UT 时才切 UT 电源（同板卡的16个工位共用一次切换）。
+            // USC/ISC/USG 不需要切电源，直接采集。
+            if (measure == DacMeasureKind.UT &&
+                int.TryParse(card, NumberStyles.Integer, CultureInfo.InvariantCulture, out var cardNum) &&
                 cardNum != lastUtCard)
             {
                 await SwitchUtPowerForCardAsync(ctx, cardNum, switchMs, ct).ConfigureAwait(false);
@@ -110,6 +111,23 @@ public static class DacBatchSampler
             if (ioDelay > 0)
                 await Task.Delay(ioDelay, ct).ConfigureAwait(false);
         }
+
+        // UT 采集完成后关闭所有板卡的 UT 电源（USC/ISC/USG 不需要电源）
+        if (measure == DacMeasureKind.UT)
+        {
+            await TurnOffAllUtPowerAsync(ctx, ct).ConfigureAwait(false);
+        }
+    }
+
+    private static async Task TurnOffAllUtPowerAsync(TaskContext ctx, CancellationToken ct)
+    {
+        if (ctx.Dmm is null || ctx.Dmm.State != ConnectionState.Connected) return;
+        for (var i = 1; i <= 16; i++)
+        {
+            var ch = ctx.Settings.Get("SwitchUnitCards", $"Card{i}", (300 + i).ToString());
+            await ctx.Dmm.OpenRelayAsync(ch, ct).ConfigureAwait(false);
+        }
+        AppLog.Info("Read", "UT采集结束，关闭全部板卡UT电源");
     }
 
     private static int GetMeasureDelay(IniFile settings, DacMeasureKind measure) => measure switch
