@@ -3,7 +3,7 @@
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
     <!-- Navigation -->
-    <sys:String x:Key="Nav.TestRun">Live Test</sys:String>
+    <sys:String x:Key="Nav.TestRun">Auto Test</sys:String>
     <sys:String x:Key="Nav.Manual">Manual</sys:String>
     <sys:String x:Key="Nav.Config">Config</sys:String>
     <sys:String x:Key="Nav.Log">Log</sys:String>

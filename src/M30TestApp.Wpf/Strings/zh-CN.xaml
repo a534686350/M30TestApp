@@ -3,7 +3,7 @@
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
     <!-- Navigation -->
-    <sys:String x:Key="Nav.TestRun">实时测试</sys:String>
+    <sys:String x:Key="Nav.TestRun">自动测试</sys:String>
     <sys:String x:Key="Nav.Manual">手动调试</sys:String>
     <sys:String x:Key="Nav.Config">配置</sys:String>
     <sys:String x:Key="Nav.Log">日志</sys:String>

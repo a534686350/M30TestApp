@@ -247,7 +247,7 @@ public sealed class RunSetupViewModel : ViewModelBase
 
         if (Directory.Exists(AppPaths.TestConfigDir))
         {
-            foreach (var p in Directory.GetFiles(AppPaths.TestConfigDir, "*.ini"))
+            foreach (var p in Directory.GetFiles(AppPaths.TestConfigDir, "*.ini", SearchOption.AllDirectories))
             {
                 try
                 {
