@@ -824,6 +824,19 @@ public sealed class RunPerformanceTestAction : IAction
         var serialMap = ctx.Slots.Entries.ToDictionary(s => s.Slot, s => s.SerialNo);
         ctx.Matrix.ExportCsv(file, ctx.Columns, serialMap);
         AppLog.Info("Save", $"数据保存到 {file}");
+
+        // M30方案额外导出旧版格式 CSV 到桌面
+        if (LegacyCsvExporter.IsLegacyProfile(ctx.Plan))
+        {
+            try
+            {
+                LegacyCsvExporter.Export(ctx);
+            }
+            catch (Exception ex)
+            {
+                AppLog.Warn("Save", $"旧版格式CSV导出失败: {ex.Message}");
+            }
+        }
     }
 
     private static string SafePath(string text)
