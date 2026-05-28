@@ -347,6 +347,9 @@ public sealed class RunPerformanceTestAction : IAction
         // ── 0. 初始化设备 ────────────────────────────────────────
         await InitDevicesAsync(ctx, ct);
 
+        // ── 0.5 确保所有阀门关闭（设备初始化可能导致继电器复位） ──
+        await EnsureAllValvesClosedAsync(ctx, ct);
+
         // ── 1. 探漏 ──────────────────────────────────────────────
         if (!leakDone && !ctx.SkipLeakCheck)
             await PerformLeakCheckAsync(ctx, ct);
@@ -571,6 +574,35 @@ public sealed class RunPerformanceTestAction : IAction
         }
 
         AppLog.Info("Init", "设备初始化完成");
+    }
+
+    // ── 确保所有阀门关闭（设备初始化可能导致继电器状态变化） ──────────────
+    private static async Task EnsureAllValvesClosedAsync(TaskContext ctx, CancellationToken ct)
+    {
+        if (ctx.Dmm is null || ctx.Dmm.State != ConnectionState.Connected)
+            return;
+
+        var masterValve = ctx.Settings.Get("ValveSettings", "MasterValve", "");
+        var switchMs = GetDelayMs(ctx, "ValveSwitchMs", 500);
+
+        // 关闭主阀
+        if (!string.IsNullOrWhiteSpace(masterValve))
+        {
+            try { await ctx.Dmm.OpenRelayAsync(masterValve, ct); }
+            catch (Exception ex) { AppLog.Warn("Init", $"关闭主阀失败: {ex.Message}"); }
+        }
+
+        // 关闭所有工位阀
+        for (var i = 1; i <= 8; i++)
+        {
+            var addr = ctx.Settings.Get("ValveSettings", $"Valve{i}", "");
+            if (string.IsNullOrWhiteSpace(addr)) continue;
+            try { await ctx.Dmm.OpenRelayAsync(addr, ct); }
+            catch (Exception ex) { AppLog.Warn("Init", $"关闭阀门{i}失败: {ex.Message}"); }
+        }
+
+        await Task.Delay(switchMs, ct);
+        AppLog.Info("Init", "已确保所有阀门关闭");
     }
 
     // ── 探漏：逐阀加压检查泄漏率 ─────────────────────────────────────────
