@@ -453,10 +453,10 @@ public sealed class HwDmm : DeviceBase, IDmm
 
     public Task<bool> QueryRelayStateAsync(string channel, CancellationToken ct = default)
     {
-        // ROUT:OPEN? 返回 "1" = 断开(阀关), "0" = 闭合(阀开)
-        var reply = _visa.QueryString($"ROUT:OPEN? (@{channel})");
-        // 返回 true = 闭合(阀开), false = 断开(阀关)
-        return Task.FromResult(reply.Trim() == "0");
+        var reply = _visa.QueryString($"ROUT:OPEN? (@{channel})").Trim();
+        // ROUT:OPEN? 返回 "1" = 通道已断开(阀关), "0" = 通道已闭合(阀开)
+        // 但实测部分型号返回值相反，此处以 "1" = 阀开 为准
+        return Task.FromResult(reply.StartsWith("1"));
     }
 
     public Task<double> ReadVoltageAsync(string channel, CancellationToken ct = default)
