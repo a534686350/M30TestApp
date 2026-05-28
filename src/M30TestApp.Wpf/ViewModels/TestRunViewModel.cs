@@ -7,6 +7,8 @@ using System.Windows;
 using M30TestApp.Core;
 using M30TestApp.Core.Common;
 using M30TestApp.Core.Data;
+using TestCheckpoint = M30TestApp.Core.Data.TestCheckpoint;
+using M30TestApp.Core.TaskScript.Actions;
 using M30TestApp.Wpf.Mvvm;
 
 namespace M30TestApp.Wpf.ViewModels;
@@ -215,6 +217,50 @@ public sealed class TestRunViewModel : ViewModelBase
         ProgressTotal = 0;
     }
 
+    private async Task ShutdownGracefullyAsync(bool saveData)
+    {
+        var noCt = CancellationToken.None;
+        if (saveData)
+        {
+            try
+            {
+                AppLog.Info("Run", "保存测试数据…");
+                RunPerformanceTestAction.SaveMatrix(_session.Context);
+            }
+            catch (Exception ex) { AppLog.Error("Run", $"保存数据失败: {ex.Message}"); }
+        }
+
+        try
+        {
+            if (_session.Context.Oven is not null)
+            {
+                AppLog.Info("Run", "关闭烘箱…");
+                await _session.Context.Oven.StopAsync(noCt);
+            }
+        }
+        catch (Exception ex) { AppLog.Error("Run", $"关闭烘箱失败: {ex.Message}"); }
+
+        try
+        {
+            if (_session.Context.Pressure is not null)
+            {
+                AppLog.Info("Run", "泄压…");
+                await _session.Context.Pressure.VentAsync(noCt);
+            }
+        }
+        catch (Exception ex) { AppLog.Error("Run", $"泄压失败: {ex.Message}"); }
+
+        try
+        {
+            if (_session.Context.Power is not null)
+            {
+                AppLog.Info("Run", "关闭电源…");
+                await _session.Context.Power.OutputOffAsync(noCt);
+            }
+        }
+        catch (Exception ex) { AppLog.Error("Run", $"关闭电源失败: {ex.Message}"); }
+    }
+
     private async Task RunAsync()
     {
         // 先弹出"选择运行方案 + 工位"对话框；取消则直接放弃本次运行。
@@ -238,6 +284,12 @@ public sealed class TestRunViewModel : ViewModelBase
         var savedPressure = _session.Context.Pressure;
         var savedOven = _session.Context.Oven;
         var savedSkipLeak = _session.Context.SkipLeakCheck;
+        var savedSkipUt = _session.Context.SkipUt;
+        var savedSkipUsc = _session.Context.SkipUsc;
+        var savedSkipIsc = _session.Context.SkipIsc;
+        var savedSkipUsg = _session.Context.SkipUsg;
+        var savedSkipOvenTemp = _session.Context.SkipOvenTemp;
+
         if (!setupVm.UsePressure)
         {
             _session.Context.Pressure = null;
@@ -254,20 +306,64 @@ public sealed class TestRunViewModel : ViewModelBase
             AppLog.Info("Run", "已跳过探漏");
         }
 
+        // Set data acquisition skip flags
+        _session.Context.SkipUt = !setupVm.CollectUt;
+        _session.Context.SkipUsc = !setupVm.CollectUsc;
+        _session.Context.SkipIsc = !setupVm.CollectIsc;
+        _session.Context.SkipUsg = !setupVm.CollectUsg;
+        _session.Context.SkipOvenTemp = !setupVm.CollectOvenTemp;
+
+        if (!setupVm.CollectUt) AppLog.Info("Run", "已跳过UT采集");
+        if (!setupVm.CollectUsc) AppLog.Info("Run", "已跳过USC采集");
+        if (!setupVm.CollectIsc) AppLog.Info("Run", "已跳过ISC采集");
+        if (!setupVm.CollectUsg) AppLog.Info("Run", "已跳过USG采集");
+        if (!setupVm.CollectOvenTemp) AppLog.Info("Run", "已跳过烘箱温度采集");
+
+        _session.Context.ResumeCheckpoint = null;
+        if (setupVm.ResumeFromCheckpoint && setupVm.CanResumeCheckpoint)
+        {
+            var ck = TestCheckpoint.Load();
+            if (ck is not null && ck.MatchesPlan(_session.Plan.Name))
+            {
+                _session.Context.ResumeCheckpoint = ck;
+                AppLog.Info("Run", $"续测：{setupVm.CheckpointSummary}");
+            }
+        }
+
         try
         {
             Status = "运行中…";
             OkCount = WarnCount = ErrCount = 0;
             await _session.RunAsync(_cts.Token);
+            Status = "正在关闭设备…";
+            await ShutdownGracefullyAsync(saveData: false);
             Status = "完成";
         }
-        catch (OperationCanceledException) { Status = "已取消"; }
-        catch (Exception ex) { Status = "失败: " + ex.Message; AppLog.Error("UI", ex.ToString()); }
+        catch (OperationCanceledException)
+        {
+            Status = "正在保存并关闭设备…";
+            await ShutdownGracefullyAsync(saveData: true);
+            Status = AppPreferences.SaveCheckpointOnAbort(_session.Context.Settings)
+                ? "已取消（数据已保存，可续测）"
+                : "已取消（数据已保存）";
+        }
+        catch (Exception ex)
+        {
+            Status = "失败: " + ex.Message;
+            AppLog.Error("UI", ex.ToString());
+            try { await ShutdownGracefullyAsync(saveData: true); }
+            catch (Exception ex2) { AppLog.Error("Run", $"异常后关闭设备失败: {ex2.Message}"); }
+        }
         finally
         {
             _session.Context.Pressure = savedPressure;
             _session.Context.Oven = savedOven;
             _session.Context.SkipLeakCheck = savedSkipLeak;
+            _session.Context.SkipUt = savedSkipUt;
+            _session.Context.SkipUsc = savedSkipUsc;
+            _session.Context.SkipIsc = savedSkipIsc;
+            _session.Context.SkipUsg = savedSkipUsg;
+            _session.Context.SkipOvenTemp = savedSkipOvenTemp;
             _cts?.Dispose();
             _cts = null;
             _startedAt = null;

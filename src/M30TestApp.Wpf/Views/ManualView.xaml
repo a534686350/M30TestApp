@@ -175,7 +175,7 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Margin="0,0,4,0">
                             <TextBlock Text="工位" Style="{StaticResource Lbl}"/>
-                            <ComboBox ItemsSource="{Binding SlotNames}" SelectedItem="{Binding SelectedSlot}"/>
+                            <TextBox Text="{Binding SelectedSlot, UpdateSourceTrigger=PropertyChanged}"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="4,0,4,0">
                             <TextBlock Text="采集卡地址" Style="{StaticResource Lbl}"/>
@@ -457,49 +457,76 @@
             <!-- 多点采集 (右) -->
             <Border Style="{StaticResource Card}" Grid.Column="2" Grid.ColumnSpan="2" Margin="0">
                 <StackPanel>
-                    <TextBlock Text="多类型采集 (写入矩阵)" Style="{StaticResource GroupTitle}"/>
+                    <TextBlock Text="批量采集" Style="{StaticResource GroupTitle}"/>
                     <Grid Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Margin="0,0,4,0">
-                            <TextBlock Text="采集类型" Style="{StaticResource Lbl}"/>
-                            <ComboBox ItemsSource="{Binding MeasureKinds}" SelectedItem="{Binding SelectedMeasure}"/>
+                            <TextBlock Text="起始工位" Style="{StaticResource Lbl}"/>
+                            <TextBox Text="{Binding BatchStartSlot, UpdateSourceTrigger=PropertyChanged}"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="4,0,4,0">
-                            <TextBlock Text="目标工位" Style="{StaticResource Lbl}"/>
-                            <ComboBox ItemsSource="{Binding SlotNames}" SelectedItem="{Binding SelectedSlot}"/>
+                            <TextBlock Text="结束工位" Style="{StaticResource Lbl}"/>
+                            <TextBox Text="{Binding BatchEndSlot, UpdateSourceTrigger=PropertyChanged}"/>
                         </StackPanel>
-                        <StackPanel Grid.Column="2" Margin="4,0,0,0">
+                        <StackPanel Grid.Column="2" Margin="4,0,4,0">
+                            <TextBlock Text="采集类型" Style="{StaticResource Lbl}"/>
+                            <StackPanel Orientation="Horizontal">
+                                <CheckBox Content="Usig" IsChecked="{Binding CollectUsig}" Margin="0,0,6,0"/>
+                                <CheckBox Content="UT" IsChecked="{Binding CollectUt}" Margin="0,0,6,0"/>
+                                <CheckBox Content="Usource" IsChecked="{Binding CollectUsource}" Margin="0,0,6,0"/>
+                                <CheckBox Content="Isource" IsChecked="{Binding CollectIsource}"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Grid.Column="3" Margin="4,0,0,0">
                             <TextBlock Text="标签 (列名前缀)" Style="{StaticResource Lbl}"/>
                             <TextBox Text="{Binding ManualLabel, UpdateSourceTrigger=PropertyChanged}"/>
                         </StackPanel>
                     </Grid>
-                    <Grid>
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                            <TextBlock Text="采集间隔" Style="{StaticResource Lbl}"/>
+                            <TextBox Text="{Binding CollectionInterval, UpdateSourceTrigger=PropertyChanged}" Width="80"/>
+                        </StackPanel>
+                        <TextBlock Grid.Column="1" Text="ms" VerticalAlignment="Bottom" Margin="0,0,0,4" Foreground="{StaticResource MutedBrush}"/>
+                    </Grid>
+                    <Grid Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <Button Content="▶ 采集 (当前工位)" Style="{StaticResource ActionButton}" Margin="0,0,4,0"
-                                Command="{Binding SampleSlotCommand}"/>
-                        <Button Grid.Column="1" Content="▶▶ 采集 (全部工位)" Style="{StaticResource MutedActionButton}" Margin="4,0,0,0"
-                                Command="{Binding SampleAllCommand}"/>
+                        <Button Content="▶ 批量采集" Style="{StaticResource ActionButton}"
+                                Command="{Binding BatchSampleCommand}" Margin="0,0,4,0"/>
+                        <Button Grid.Column="1" Content="⏹ 停止" Style="{StaticResource MutedActionButton}"
+                                Command="{Binding StopBatchSampleCommand}" Margin="4,0,4,0"/>
+                        <Button Grid.Column="2" Content="📥 导出" Style="{StaticResource MutedActionButton}"
+                                Command="{Binding ExportBatchResultsCommand}" Margin="0,0,0,0"/>
                     </Grid>
-                    <Border Background="{StaticResource HeaderBgBrush}" CornerRadius="4" Padding="10" Margin="0,12,0,0">
-                        <StackPanel>
-                            <TextBlock Text="说明" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" FontSize="12">
-                                采集结果列名 = <Run Text="{Binding ManualLabel, Mode=OneWay}"/>_采集类型，写入实时矩阵，
-                                与脚本驱动数据共享同一矩阵和 CSV 导出。
-                            </TextBlock>
-                            <TextBlock Margin="0,6,0,0" Foreground="{StaticResource MutedBrush}" FontSize="11">
-                                所有"读取数据 / 阀门 / 加压 / 自检"等动作的真实指令收发都会同时显示在下方
-                                <Run Text="数据I/O" FontWeight="SemiBold"/> 面板，并按 TX / RX / Info 分色。
-                            </TextBlock>
-                        </StackPanel>
-                    </Border>
+                    <DataGrid ItemsSource="{Binding BatchResults}" AutoGenerateColumns="False"
+                              BorderThickness="0" Background="{StaticResource SurfaceBrush}"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                              CanUserAddRows="False" CanUserDeleteRows="False"
+                              RowBackground="Transparent" AlternatingRowBackground="{StaticResource HeaderBgBrush}"
+                              Padding="0" MaxHeight="200"
+                              ClipboardCopyMode="IncludeHeader">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="时间" Binding="{Binding Time}" Width="80"/>
+                            <DataGridTextColumn Header="工位" Binding="{Binding Slot}" Width="60"/>
+                            <DataGridTextColumn Header="Usig" Binding="{Binding UsigValue}" Width="80"/>
+                            <DataGridTextColumn Header="UT" Binding="{Binding UtValue}" Width="80"/>
+                            <DataGridTextColumn Header="Usource" Binding="{Binding UsourceValue}" Width="80"/>
+                            <DataGridTextColumn Header="Isource" Binding="{Binding IsourceValue}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
                 </StackPanel>
             </Border>
         </Grid>

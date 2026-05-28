@@ -4,6 +4,7 @@ using System.Windows;
 using M30TestApp.Core;
 using M30TestApp.Core.Common;
 using M30TestApp.Core.Config;
+using M30TestApp.Wpf.Themes;
 using M30TestApp.Wpf.ViewModels;
 
 namespace M30TestApp.Wpf;
@@ -47,6 +48,8 @@ public partial class App : Application
         var settingIni = File.Exists(AppPaths.SettingIni)
             ? IniFile.Load(AppPaths.SettingIni)
             : new IniFile();
+        ThemeHelper.ApplyFromSettings(settingIni);
+        AppPreferences.PruneOldLogs(settingIni);
         var station = StationProfile.Load(settingIni);
 
         var slots = File.Exists(AppPaths.SlotCsv)
@@ -55,14 +58,24 @@ public partial class App : Application
 
         var planFile = Directory.Exists(AppPaths.TestConfigDir)
             ? Directory.GetFiles(AppPaths.TestConfigDir, "*.ini") : Array.Empty<string>();
-        var plan = planFile.Length > 0 ? TestPlan.Load(planFile[0]) : new TestPlan
+        TestPlan plan;
+        var lastPlanName = AppPreferences.LastPlan(settingIni);
+        var lastPlanPath = string.IsNullOrWhiteSpace(lastPlanName)
+            ? null
+            : Path.Combine(AppPaths.TestConfigDir, lastPlanName + ".ini");
+        if (AppPreferences.AutoLoadLastPlan(settingIni) && lastPlanPath is not null && File.Exists(lastPlanPath))
+            plan = TestPlan.Load(lastPlanPath);
+        else if (planFile.Length > 0)
+            plan = TestPlan.Load(planFile[0]);
+        else
+            plan = new TestPlan
         {
             Name = "demo",
             SensorType = "M30-DEMO",
             PressureUnit = "kPa",
             Precision = 0.05f,
             TaskScript = "Initial:Pressure|Initial:Board|Initial:CommuTest|DAQ:ClearData|DAQ:TestType,测试|Read:Usource|Read:Isource|Read:Usign|Read:UT|TP:SetPressurePoint,1,TEST|Read:Usign|TP:SetPressurePoint,2,TEST|Read:Usign|TP:SetPressurePoint,3,TEST|Read:Usign|TP:Vent|Save:TestData|Cal:Test|DAQ:Down",
-        };
+            };
         if (plan.PressurePoints.Count == 0)
         {
             plan.PressurePoints.Add(new PressurePoint("P1", 0));

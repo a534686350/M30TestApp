@@ -107,4 +107,47 @@ public sealed class DataMatrix
             sw.WriteLine(sb);
         }
     }
+
+    /// <summary>Load matrix cells from a CSV previously written by <see cref="ExportCsv"/>.</summary>
+    public void ImportCsv(string path, out IReadOnlyList<string> columns)
+    {
+        _rows.Clear();
+        var colList = new List<string>();
+        columns = colList;
+        if (!File.Exists(path)) return;
+
+        var lines = File.ReadAllLines(path, Encoding.UTF8);
+        if (lines.Length < 2) return;
+
+        var headerParts = lines[0].Split(',');
+        var dataStart = 1;
+        if (headerParts.Length > 1 && headerParts[1].Equals("SerialNo", StringComparison.OrdinalIgnoreCase))
+            dataStart = 2;
+
+        for (var i = dataStart; i < headerParts.Length; i++)
+        {
+            var key = SanitizeKey(headerParts[i].Trim());
+            if (!string.IsNullOrEmpty(key)) colList.Add(key);
+        }
+
+        foreach (var line in lines.Skip(1))
+        {
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            var parts = line.Split(',');
+            if (parts.Length < dataStart + 1) continue;
+            var slot = parts[0].Trim();
+            EnsureSlot(slot);
+            for (var ci = 0; ci < colList.Count; ci++)
+            {
+                var colIndex = dataStart + ci;
+                if (colIndex >= parts.Length) break;
+                var raw = parts[colIndex].Trim();
+                if (string.IsNullOrEmpty(raw)) continue;
+                var status = double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var v)
+                    ? (double.IsNaN(v) ? CellStatus.Error : CellStatus.Ok)
+                    : CellStatus.Empty;
+                Set(slot, colList[ci], double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var num) ? num : double.NaN, status);
+            }
+        }
+    }
 }

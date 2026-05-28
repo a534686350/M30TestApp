@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using M30TestApp.Core.Config;
 using M30TestApp.Core.Data;
 using M30TestApp.Core.Devices;
+using TestCheckpointState = M30TestApp.Core.Data.TestCheckpoint;
 
 namespace M30TestApp.Core.TaskScript;
 
@@ -34,6 +35,24 @@ public sealed class TaskContext
     /// <summary>When true, skip the leak check phase.</summary>
     public bool SkipLeakCheck { get; set; }
 
+    /// <summary>When true, skip UT data collection.</summary>
+    public bool SkipUt { get; set; }
+
+    /// <summary>When true, skip USC data collection.</summary>
+    public bool SkipUsc { get; set; }
+
+    /// <summary>When true, skip ISC data collection.</summary>
+    public bool SkipIsc { get; set; }
+
+    /// <summary>When true, skip USG data collection.</summary>
+    public bool SkipUsg { get; set; }
+
+    /// <summary>When true, skip oven temperature data collection.</summary>
+    public bool SkipOvenTemp { get; set; }
+
     /// <summary>The current ordered column list (TnPm_* keys).</summary>
     public List<string> Columns { get; } = new();
+
+    /// <summary>When set, <see cref="RunPerformanceTestAction"/> resumes from this checkpoint.</summary>
+    public TestCheckpointState? ResumeCheckpoint { get; set; }
 }

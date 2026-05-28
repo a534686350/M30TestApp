@@ -4,6 +4,20 @@ using System.Globalization;
 namespace M30TestApp.Core.Config;
 
 /// <summary>
+/// 压力类型：绝压（Absolute）、表压（Gauge）、差压（Differential）。
+/// 对应压力控制器的 SetAbs / SetGaug / SetDiff 命令。
+/// </summary>
+public enum PressureType
+{
+    /// <summary>表压（Gauge）—— 相对大气压，默认值。</summary>
+    Gauge,
+    /// <summary>绝压（Absolute）—— 相对真空零点。</summary>
+    Absolute,
+    /// <summary>差压（Differential）—— 两路压力之差。</summary>
+    Differential,
+}
+
+/// <summary>
 /// A test plan loaded from setting/TestConfig/*.ini.
 /// Mirrors ASLab semantics: a TestTaskPoint script plus temperature & pressure points.
 /// </summary>
@@ -13,6 +27,10 @@ public sealed class TestPlan
     public string SensorType { get; set; } = "";
     public string PressureUnit { get; set; } = "kPa";
     public float Precision { get; set; } = 0.05f;
+    /// <summary>
+    /// 方案级默认压力类型。当压力点未单独指定类型时使用此值。
+    /// </summary>
+    public PressureType DefaultPressureType { get; set; } = PressureType.Gauge;
     public List<TempPoint> TempPoints { get; } = new();
     public List<PressurePoint> PressurePoints { get; } = new();
     /// <summary>The task script, pipe-separated commands (ASLab style).</summary>
@@ -20,15 +38,24 @@ public sealed class TestPlan
     /// <summary>Performance specification limits (Min/Max) for pass/fail judgment.</summary>
     public SpecLimits Specs { get; set; } = new();
 
+    /// <summary>Metric codes enabled for pass/fail judgment (empty = all enabled).</summary>
+    public Dictionary<string, bool> EnabledMetrics { get; } = new(StringComparer.OrdinalIgnoreCase);
+
     public static TestPlan Load(string path)
     {
         var ini = IniFile.Load(path);
+
+        // 解析方案级默认压力类型
+        var defaultPtText = ini.Get("Plan", "PressureType", "Gauge");
+        var defaultPt = ParsePressureType(defaultPtText);
+
         var plan = new TestPlan
         {
             Name = System.IO.Path.GetFileNameWithoutExtension(path),
             SensorType = ini.Get("Plan", "SensorType"),
             PressureUnit = ini.Get("Plan", "PressureUnit", "kPa"),
             Precision = float.TryParse(ini.Get("Plan", "Precision", "0.05"), out var pr) ? pr : 0.05f,
+            DefaultPressureType = defaultPt,
             TaskScript = ini.Get("Plan", "TaskScript"),
         };
 
@@ -44,9 +71,20 @@ public sealed class TestPlan
         foreach (var kv in ini["PressurePoints"])
         {
             if (float.TryParse(kv.Value, out var v))
-                plan.PressurePoints.Add(new PressurePoint(kv.Key, v));
+            {
+                // 读取每个压力点的独立类型，未指定则继承方案默认值
+                var ptText = ini.Get("PressurePointTypes", kv.Key, "");
+                var pt = string.IsNullOrWhiteSpace(ptText) ? defaultPt : ParsePressureType(ptText);
+                plan.PressurePoints.Add(new PressurePoint(kv.Key, v, pt));
+            }
         }
         plan.Specs = SpecLimits.LoadFrom(ini);
+        plan.EnabledMetrics.Clear();
+        foreach (var kv in ini["Metrics"])
+        {
+            var on = kv.Value is "1" or "true" or "True" or "yes";
+            plan.EnabledMetrics[kv.Key] = on;
+        }
         return plan;
     }
 
@@ -57,6 +95,7 @@ public sealed class TestPlan
         ini.Set("Plan", "SensorType", SensorType);
         ini.Set("Plan", "PressureUnit", PressureUnit);
         ini.Set("Plan", "Precision", Precision.ToString(CultureInfo.InvariantCulture));
+        ini.Set("Plan", "PressureType", DefaultPressureType.ToString());
         ini.Set("Plan", "TaskScript", TaskScript);
         foreach (var tp in TempPoints)
         {
@@ -65,10 +104,31 @@ public sealed class TestPlan
                 ini.Set("TempPointSoakMinutes", tp.Name, tp.SoakMinutes.Value.ToString(CultureInfo.InvariantCulture));
         }
         foreach (var pp in PressurePoints)
+        {
             ini.Set("PressurePoints", pp.Name, pp.Value.ToString(CultureInfo.InvariantCulture));
+            // 只有当压力点类型与方案默认值不同时才单独保存，减少冗余
+            if (pp.PressureType != DefaultPressureType)
+                ini.Set("PressurePointTypes", pp.Name, pp.PressureType.ToString());
+        }
         Specs.SaveTo(ini);
+        foreach (var kv in EnabledMetrics)
+            ini.Set("Metrics", kv.Key, kv.Value ? "1" : "0");
         ini.Save(path);
     }
+
+    public bool IsMetricEnabled(string code)
+    {
+        if (EnabledMetrics.Count == 0) return true;
+        return EnabledMetrics.TryGetValue(code, out var on) && on;
+    }
+
+    /// <summary>将字符串（英文或中文）解析为 <see cref="PressureType"/>，无法识别时返回 Gauge。</summary>
+    public static PressureType ParsePressureType(string text) => text.Trim() switch
+    {
+        "Absolute" or "absolute" or "ABS" or "abs" or "绝压" => PressureType.Absolute,
+        "Differential" or "differential" or "DIFF" or "diff" or "差压" => PressureType.Differential,
+        _ => PressureType.Gauge,
+    };
 }
 
 public sealed class TempPoint
@@ -88,9 +148,34 @@ public sealed class TempPoint
 public sealed class PressurePoint
 {
     public PressurePoint() { }
-    public PressurePoint(string name, float value) { Name = name; Value = value; }
+    public PressurePoint(string name, float value, PressureType pressureType = PressureType.Gauge)
+    {
+        Name = name;
+        Value = value;
+        PressureType = pressureType;
+    }
     public string Name { get; set; } = "";
     public float Value { get; set; }
+    /// <summary>此压力点的压力类型（绝压/表压/差压）。</summary>
+    public PressureType PressureType { get; set; } = PressureType.Gauge;
+
+    /// <summary>压力类型的中文显示名称，用于 UI 绑定。</summary>
+    public string PressureTypeDisplay
+    {
+        get => PressureType switch
+        {
+            PressureType.Absolute     => "绝压",
+            PressureType.Gauge        => "表压",
+            PressureType.Differential => "差压",
+            _                         => "表压",
+        };
+        set => PressureType = value switch
+        {
+            "绝压" => PressureType.Absolute,
+            "差压" => PressureType.Differential,
+            _      => PressureType.Gauge,
+        };
+    }
 }
 
 /// <summary>Min/Max range for a single spec metric. Empty string means no limit.</summary>

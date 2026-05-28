@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using M30TestApp.Core;
 using M30TestApp.Core.Common;
 using M30TestApp.Core.Config;
+using M30TestApp.Core.Data;
 using M30TestApp.Wpf.Mvvm;
 
 namespace M30TestApp.Wpf.ViewModels;
@@ -19,6 +20,7 @@ namespace M30TestApp.Wpf.ViewModels;
 public sealed class RunSetupViewModel : ViewModelBase
 {
     private readonly TestSession _session;
+    private Dictionary<string, string> _configSerials = new(StringComparer.OrdinalIgnoreCase);
 
     // ─── Plan selection ────────────────────────────────────────────────────
     public ObservableCollection<TestPlan> Plans { get; } = new();
@@ -36,6 +38,7 @@ public sealed class RunSetupViewModel : ViewModelBase
                 OnPropertyChanged(nameof(PlanPrecision));
                 OnPropertyChanged(nameof(PlanPressureCount));
                 OnPropertyChanged(nameof(PlanTempCount));
+                OnPropertyChanged(nameof(PlanDefaultPressureType));
                 OnPropertyChanged(nameof(PlanTaskPreview));
             }
         }
@@ -46,6 +49,12 @@ public sealed class RunSetupViewModel : ViewModelBase
     public string PlanPrecision     => _selectedPlan is null ? "—" : $"{_selectedPlan.Precision}";
     public int    PlanPressureCount => _selectedPlan?.PressurePoints.Count ?? 0;
     public int    PlanTempCount     => _selectedPlan?.TempPoints.Count ?? 0;
+    public string PlanDefaultPressureType => _selectedPlan is null ? "—" : _selectedPlan.DefaultPressureType switch
+    {
+        Core.Config.PressureType.Absolute     => "绝压",
+        Core.Config.PressureType.Differential => "差压",
+        _                                     => "表压",
+    };
     public string PlanTaskPreview
     {
         get
@@ -55,13 +64,10 @@ public sealed class RunSetupViewModel : ViewModelBase
             var s = plan.TaskScript ?? "";
             if (s.Length == 0) return "";
 
-            // If the script is the single Run:PerformanceTest command,
-            // expand it into a human-readable step list based on the plan.
             var cmds = s.Split('|', StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
             if (cmds.Count == 1 && cmds[0].Equals("Run:PerformanceTest", StringComparison.OrdinalIgnoreCase))
                 return ExpandPerformancePreview(plan);
 
-            // Pretty-print one command per line.
             return string.Join(Environment.NewLine, cmds);
         }
     }
@@ -87,8 +93,8 @@ public sealed class RunSetupViewModel : ViewModelBase
             for (var pi = 0; pi < plan.PressurePoints.Count; pi++)
             {
                 var pp = plan.PressurePoints[pi];
-                lines.Add($"    ── 压力点 {pp.Name} = {pp.Value} {plan.PressureUnit}");
-                lines.Add($"       设置压力 → 稳定 → 保压");
+                lines.Add($"    ── 压力点 {pp.Name} = {pp.Value} {plan.PressureUnit} [{pp.PressureTypeDisplay}]");
+                lines.Add($"       切换压力类型 → {pp.PressureTypeDisplay} → 设置压力 → 稳定 → 保压");
                 lines.Add($"       逐工位采集 USC, ISC, USG");
             }
             lines.Add("");
@@ -99,7 +105,7 @@ public sealed class RunSetupViewModel : ViewModelBase
     }
 
     // ─── Slot layout inputs ────────────────────────────────────────────────
-    public const int SlotMax = 256;
+    public const int SlotMax = SlotLayoutHelper.SlotMax;
 
     private int _slotCount = 16;
     public int SlotCount
@@ -150,10 +156,34 @@ public sealed class RunSetupViewModel : ViewModelBase
     private bool _useLeakCheck = false;
     public bool UseLeakCheck { get => _useLeakCheck; set => SetField(ref _useLeakCheck, value); }
 
+    private bool _collectUt = true;
+    public bool CollectUt { get => _collectUt; set => SetField(ref _collectUt, value); }
+
+    private bool _collectUsc = true;
+    public bool CollectUsc { get => _collectUsc; set => SetField(ref _collectUsc, value); }
+
+    private bool _collectIsc = true;
+    public bool CollectIsc { get => _collectIsc; set => SetField(ref _collectIsc, value); }
+
+    private bool _collectUsg = true;
+    public bool CollectUsg { get => _collectUsg; set => SetField(ref _collectUsg, value); }
+
+    private bool _collectOvenTemp = true;
+    public bool CollectOvenTemp { get => _collectOvenTemp; set => SetField(ref _collectOvenTemp, value); }
+
+    public bool CanResumeCheckpoint { get; private set; }
+    public string CheckpointSummary { get; private set; } = "";
+
+    private bool _resumeFromCheckpoint;
+    public bool ResumeFromCheckpoint
+    {
+        get => _resumeFromCheckpoint;
+        set => SetField(ref _resumeFromCheckpoint, value);
+    }
+
     public ObservableCollection<SlotEntry> PreviewSlots { get; } = new();
     public int PreviewCount => PreviewSlots.Count;
 
-    // ─── Commands ──────────────────────────────────────────────────────────
     public RelayCommand RegenerateCommand { get; }
     public RelayCommand ApplyCommand { get; }
     public RelayCommand CancelCommand { get; }
@@ -167,11 +197,20 @@ public sealed class RunSetupViewModel : ViewModelBase
 
         LoadPlans(session.Plan);
         SeedFromCurrentSlots(session.Slots);
+        DetectCheckpoint(session);
         Regenerate();
 
         RegenerateCommand = new RelayCommand(_ => Regenerate());
         ApplyCommand      = new RelayCommand(_ => Apply(),  _ => SelectedPlan is not null && PreviewSlots.Count > 0);
         CancelCommand     = new RelayCommand(_ => { DialogResult = false; RequestClose?.Invoke(this, EventArgs.Empty); });
+    }
+
+    /// <summary>扫码录入需要下一行时扩展，不预生成占位行。</summary>
+    public void EnsureSlotCount(int count)
+    {
+        var target = Math.Clamp(count, 1, SlotMax);
+        if (target <= PreviewSlots.Count) return;
+        SlotCount = target;
     }
 
     private bool SetLayoutField<T>(ref T storage, T value, [CallerMemberName] string? name = null)
@@ -182,10 +221,28 @@ public sealed class RunSetupViewModel : ViewModelBase
         return changed;
     }
 
+    private void DetectCheckpoint(TestSession session)
+    {
+        CanResumeCheckpoint = false;
+        CheckpointSummary = "";
+        ResumeFromCheckpoint = false;
+
+        if (!AppPreferences.SaveCheckpointOnAbort(session.Context.Settings) || !TestCheckpoint.Exists())
+            return;
+
+        var ck = TestCheckpoint.Load();
+        if (ck is null || !ck.MatchesPlan(session.Plan.Name)) return;
+
+        CanResumeCheckpoint = true;
+        ResumeFromCheckpoint = true;
+        CheckpointSummary =
+            $"方案 {ck.PlanName}：温度点 {ck.TempIndex + 1}，压力点 {ck.PressureIndex + 1}，保存于 {ck.SavedAt:yyyy-MM-dd HH:mm}";
+        OnPropertyChanged(nameof(CanResumeCheckpoint));
+        OnPropertyChanged(nameof(CheckpointSummary));
+    }
+
     private void LoadPlans(TestPlan current)
     {
-        // Always include the currently-loaded plan so the dialog is usable even
-        // without TestConfig\*.ini files.
         Plans.Add(current);
 
         if (Directory.Exists(AppPaths.TestConfigDir))
@@ -208,8 +265,6 @@ public sealed class RunSetupViewModel : ViewModelBase
     private void SeedFromCurrentSlots(SlotTable slots)
     {
         var ini = _session.Context.Settings;
-
-        // 从 Setting.ini 恢复上次 Apply 保存的布局参数
         var hasUserSaved = !string.IsNullOrWhiteSpace(ini.Get("Slots", "LastPlan", ""));
 
         if (int.TryParse(ini.Get("Slots", "Count", ""), out var savedCount) && savedCount > 0)
@@ -225,10 +280,25 @@ public sealed class RunSetupViewModel : ViewModelBase
         if (int.TryParse(ini.Get("Slots", "FixtureCount", ""), out var fc) && fc > 0) _fixtureCount = fc;
         if (int.TryParse(ini.Get("Slots", "StartChannel", ""), out var sc)) _startChannel = sc;
         if (int.TryParse(ini.Get("Slots", "StartSerial", ""), out var ss)) _startSerial = ss;
+        if (bool.TryParse(ini.Get("Slots", "AutoNumber", ""), out var an)) _autoNumber = an;
 
-        // 只有在 ini 中没有用户保存的配置时，才用 session.Slots 覆盖
-        // （session.Slots 可能来自 App 启动时的默认初始化，不一定是用户想要的）
-        if (!hasUserSaved && slots.Entries.Count > 0)
+        if (bool.TryParse(ini.Get("Slots", "UsePressure", ""), out var up)) _usePressure = up;
+        if (bool.TryParse(ini.Get("Slots", "UseOven", ""), out var uo)) _useOven = uo;
+        if (bool.TryParse(ini.Get("Slots", "UseLeakCheck", ""), out var ul)) _useLeakCheck = ul;
+        if (bool.TryParse(ini.Get("Slots", "CollectUt", ""), out var cut)) _collectUt = cut;
+        if (bool.TryParse(ini.Get("Slots", "CollectUsc", ""), out var cusc)) _collectUsc = cusc;
+        if (bool.TryParse(ini.Get("Slots", "CollectIsc", ""), out var cisc)) _collectIsc = cisc;
+        if (bool.TryParse(ini.Get("Slots", "CollectUsg", ""), out var cusg)) _collectUsg = cusg;
+        if (bool.TryParse(ini.Get("Slots", "CollectOvenTemp", ""), out var cot)) _collectOvenTemp = cot;
+
+        _configSerials = SlotLayoutHelper.CollectSerialMap(slots.Entries);
+        var filledCount = SlotLayoutHelper.CountFilledSlots(slots.Entries);
+        if (filledCount > 0)
+        {
+            // 优先采用配置页已扫码录入的工位数
+            _slotCount = Math.Clamp(filledCount, 1, SlotMax);
+        }
+        else if (!hasUserSaved && slots.Entries.Count > 0)
         {
             _slotCount = Math.Min(slots.Entries.Count, SlotMax);
             var first = slots.Entries[0].SerialNo;
@@ -237,53 +307,30 @@ public sealed class RunSetupViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Regenerate <see cref="PreviewSlots"/> from the layout inputs.</summary>
+    private SlotLayoutOptions BuildSlotLayoutOptions() => new(
+        SlotCount: _slotCount,
+        BatchNo: _batchNo,
+        StartIndex: _startIndex,
+        StartBoard: _startBoard,
+        StartBoardSlot: _startBoardSlot,
+        BoardSlotCapacity: _boardSlotCapacity,
+        StartValve: _startValve,
+        FixtureSlotCapacity: _fixtureSlotCapacity,
+        FixtureCount: _fixtureCount,
+        StartChannel: _startChannel,
+        StartSerial: _startSerial,
+        AutoNumber: _autoNumber);
+
     public void Regenerate()
     {
+        var preserved = SlotLayoutHelper.CollectSerialMap(PreviewSlots);
+        SlotLayoutHelper.MergeSerialMaps(preserved, _configSerials);
+
+        var generated = SlotLayoutHelper.Generate(BuildSlotLayoutOptions());
+        SlotLayoutHelper.ApplyPreservedSerials(generated, preserved);
+
         PreviewSlots.Clear();
-
-        int board = StartBoard;
-        int boardSlot = StartBoardSlot;
-        int valve = StartValve;
-        int fixtureSlot = 1;
-        int fixture = 1;
-        int layer = 1;
-        int channel = StartChannel;
-        int serial = StartSerial;
-
-        for (int i = 0; i < SlotCount; i++)
-        {
-            string slotName = $"Slot{i + 1}";
-            string serialNo = AutoNumber
-                ? $"{BatchNo}#{serial}"
-                : $"{BatchNo}#{i + StartIndex}";
-
-            PreviewSlots.Add(new SlotEntry(
-                Slot: slotName,
-                SerialNo: serialNo,
-                Valve: valve.ToString(),
-                Board: board.ToString(),
-                BoardSlotNo: boardSlot.ToString(),
-                Layer: layer.ToString(),
-                Fixture: fixture.ToString(),
-                FixtureSlotNo: fixtureSlot.ToString(),
-                PressureController: "1",
-                Dmm: "-",
-                Channel: channel.ToString(),
-                ValveAddr: "-"));
-
-            // Advance counters with rollover semantics matching ASLab's layout sheet.
-            // 1 valve = 32 slots, 2 valves per layer, 4 layers total
-            serial++;
-            boardSlot++;
-            if (boardSlot > BoardSlotCapacity) { boardSlot = 1; board++; }
-            fixtureSlot++;
-            if (fixtureSlot > FixtureSlotCapacity) { fixtureSlot = 1; fixture++; }
-            if (fixture > FixtureCount) { fixture = 1; layer++; }
-            channel++;
-            // Valve advances every 32 slots
-            if ((i + 1) % 32 == 0) valve++;
-        }
+        foreach (var s in generated) PreviewSlots.Add(s);
 
         OnPropertyChanged(nameof(PreviewCount));
     }
@@ -292,11 +339,10 @@ public sealed class RunSetupViewModel : ViewModelBase
     {
         if (SelectedPlan is null) return;
 
-        Regenerate();
-        var newSlots = new SlotTable(PreviewSlots.ToList());
+        var list = SlotLayoutHelper.TrimTrailingPlaceholders(PreviewSlots.ToList());
+        var newSlots = new SlotTable(list);
         _session.ApplyRunConfig(SelectedPlan, newSlots);
 
-        // 保存布局参数到 Setting.ini，下次打开可恢复
         try
         {
             var ini = _session.Context.Settings;
@@ -311,7 +357,16 @@ public sealed class RunSetupViewModel : ViewModelBase
             ini.Set("Slots", "FixtureCount", FixtureCount.ToString());
             ini.Set("Slots", "StartChannel", StartChannel.ToString());
             ini.Set("Slots", "StartSerial", StartSerial.ToString());
+            ini.Set("Slots", "AutoNumber", AutoNumber.ToString());
             ini.Set("Slots", "LastPlan", SelectedPlan.Name);
+            ini.Set("Slots", "UsePressure", UsePressure.ToString());
+            ini.Set("Slots", "UseOven", UseOven.ToString());
+            ini.Set("Slots", "UseLeakCheck", UseLeakCheck.ToString());
+            ini.Set("Slots", "CollectUt", CollectUt.ToString());
+            ini.Set("Slots", "CollectUsc", CollectUsc.ToString());
+            ini.Set("Slots", "CollectIsc", CollectIsc.ToString());
+            ini.Set("Slots", "CollectUsg", CollectUsg.ToString());
+            ini.Set("Slots", "CollectOvenTemp", CollectOvenTemp.ToString());
             ini.Save(AppPaths.SettingIni);
         }
         catch (Exception ex) { AppLog.Warn("RunSetup", $"保存布局参数失败: {ex.Message}"); }

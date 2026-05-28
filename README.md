@@ -66,22 +66,27 @@ TP:SetPressurePoint,3,TEST|Read:Usign|
 TP:Vent|Save:TestData|Cal:Test|DAQ:Down
 ```
 
-## 当前进度（MVP）
+## 当前进度
 
 - ✅ 解决方案与项目搭建
 - ✅ 配置加载层（INI/CSV）
-- ✅ 设备抽象层 + 全部 SIM 后端
+- ✅ 设备抽象层 + SIM 后端 + HW 真实驱动（VISA/串口）
 - ✅ TestTaskPoint 解释器 + Initial/DAQ/TP/Read/Save/Cal 内置 Action
 - ✅ `DataMatrix` 实时更新事件 + CSV 导出
 - ✅ WPF 亮色主题、左侧导航、设备状态条、实时矩阵表（动态列）、统计、实时日志
-- ✅ 手动调试页（读压/泄压/加压/读温/设温/单工位 Usig 采样）
-- ✅ 配置只读视图（设备 / 工位 / 方案）
+- ✅ 手动调试页（读压/泄压/加压/读温/设温/单工位采集、UT 电源切换）
+- ✅ 配置编辑视图（方案 / 温压点 / 设备 / 指令 / 工位 / 流程 / 计算 / 系统设置）
+- ✅ 设置页面（语言切换、主题、关于、GitHub 更新检测）
+- ✅ UT 采集：DAQ973A 通道切换 + M30-DAC 功能码 06→05 协议
+- ✅ 运行前方案与工位确认、扫码枪录入序列号、手动停止保存数据并关闭设备
+- ✅ 自动测试异常自动重试，持续异常时停止并保存
+- ✅ 应用名称统一为"M30测试专用"
+- ✅ 指标计算 `MetricsCalculator`：Offset/Span/NL/TCO/TCS/TCR/THO/THS/PH/TCT（`Cal:Test`）
+- ✅ 配置页：指标开关、系统行为、主题与方案/工位持久化
+- ✅ 深色主题（设置页 + 配置页，启动时恢复）
+- ✅ 续测/断点恢复（`Run:PerformanceTest`，需开启「异常退出时保留断点」）
 
-## 待办（下次迭代）
+## 待办
 
-- [ ] 真实 SCPI 驱动：基于 `Command.ini` 模板的 `ScpiPressureController` / `ScpiOven` / `ScpiDmm` / `ScpiPower`
-- [ ] 串口 / VISA 传输层（System.IO.Ports + Ivi.Visa.Interop）
-- [ ] 配置编辑：方案温压点 CRUD、保存 INI、Slot.csv 编辑
-- [ ] 指标计算 `MetricsCalculator`：Offset/Span/NL/TCO/TCS/TCR/THO/THS/PH/TCT
-- [ ] XLSX 导出（ClosedXML）
-- [ ] 续测/断点恢复
+- [ ] 配置编辑：方案页流程开关与设备参数模板完整绑定
+- [ ] 指令模板编辑写回 `Command.ini`

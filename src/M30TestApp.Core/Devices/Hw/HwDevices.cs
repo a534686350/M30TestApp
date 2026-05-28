@@ -192,9 +192,13 @@ public sealed class HwDac : DeviceBase, IDac
     {
         // 先发功能码 06 切换 UT 电源到指定 card+channel
         await SwitchUtPowerAsync(addr1, addr2, ct).ConfigureAwait(false);
+        // 板卡内部继电器切换后需要稳定时间,否则下一次 05 读取会得到空回复触发重试
+        await Task.Delay(UtSettleMs, ct).ConfigureAwait(false);
         // 再发功能码 05 读取 UT 值
         return await ReadValueAsync(5, addr1, addr2, ct).ConfigureAwait(false);
     }
+
+    private static int UtSettleMs => 500;
 
     /// <summary>
     /// 发送功能码 06 [card, 0x06, channel] + CRC，等待 5 字节回声确认。
@@ -206,14 +210,31 @@ public sealed class HwDac : DeviceBase, IDac
             throw new InvalidOperationException("采集卡地址或通道地址无效");
 
         var request = AppendCrc(new[] { card, (byte)6, channel });
-        _port!.DiscardInBuffer();
-        _port.DiscardOutBuffer();
-        DeviceBus.Tx(Model, "Send: " + SerialHelpers.ToHex(request));
-        _port.Write(request, 0, request.Length);
-        var response = await ReadExactAsync(5, 1500, ct).ConfigureAwait(false);
-        DeviceBus.Rx(Model, "Get: " + SerialHelpers.ToHex(response));
-        if (response.Length < 5 || !CheckCrc(response))
-            DeviceBus.Info(Model, $"UT power switch echo unexpected: len={response.Length}");
+        
+        // 重试机制：确保回声正确
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            _port!.DiscardInBuffer();
+            _port.DiscardOutBuffer();
+            DeviceBus.Tx(Model, "Send: " + SerialHelpers.ToHex(request));
+            _port.Write(request, 0, request.Length);
+            var response = await ReadExactAsync(5, 1500, ct).ConfigureAwait(false);
+            DeviceBus.Rx(Model, "Get: " + SerialHelpers.ToHex(response));
+            
+            if (response.Length >= 5 && CheckCrc(response))
+            {
+                // 回声正确，验证是否为发送命令的回声
+                if (response[0] == card && response[1] == 6 && response[2] == channel)
+                {
+                    return; // 回声正确，成功
+                }
+            }
+            
+            DeviceBus.Info(Model, $"UT power switch retry {attempt}: echo invalid len={response.Length}");
+            await Task.Delay(100, ct).ConfigureAwait(false);
+        }
+        
+        DeviceBus.Info(Model, "UT power switch echo failed after retries, continuing anyway");
     }
 
     private void EnsureOpen()
@@ -240,7 +261,7 @@ public sealed class HwDac : DeviceBase, IDac
 
         var request = AppendCrc(new[] { card, function, channel });
         byte[] response = Array.Empty<byte>();
-        for (var attempt = 1; attempt <= 2; attempt++)
+        for (var attempt = 1; attempt <= 3; attempt++)
         {
             _port!.DiscardInBuffer();
             _port.DiscardOutBuffer();
@@ -252,7 +273,8 @@ public sealed class HwDac : DeviceBase, IDac
                 return BitConverter.ToSingle(response.Skip(3).Take(4).ToArray(), 0);
 
             DeviceBus.Info(Model, $"Read retry {attempt}: invalid response length={response.Length}");
-            await Task.Delay(80, ct).ConfigureAwait(false);
+            // 空回复多半是板卡尚未稳定,加长间隔再试
+            await Task.Delay(response.Length == 0 ? 300 : 100, ct).ConfigureAwait(false);
         }
 
         throw new InvalidOperationException("采集板返回 CRC 校验失败或数据长度不足");
@@ -380,6 +402,20 @@ public sealed class HwPressureController : DeviceBase, IPressureController
     {
         _visa.Write("*CLS");
         return Task.FromResult(_visa.QueryString(_commands.Raw(Model, "ReadStatus", ":STAT:OPER:COND?")));
+    }
+
+    public Task SetPressureTypeAsync(Config.PressureType pressureType, CancellationToken ct = default)
+    {
+        var (action, fallback) = pressureType switch
+        {
+            Config.PressureType.Absolute     => ("SetAbs",  "*CLS;SENSE:MODE ABS"),
+            Config.PressureType.Differential => ("SetDiff", "*CLS;SENSE:MODE DIFF"),
+            _                                => ("SetGaug", "*CLS;SENSE:MODE GAUG"),
+        };
+        var cmd = _commands.Raw(Model, action, fallback);
+        if (!string.IsNullOrWhiteSpace(cmd))
+            _visa.Write(cmd);
+        return Task.CompletedTask;
     }
 
     public override Task<bool> SelfTestAsync(CancellationToken ct = default) => Task.FromResult(_visa.QueryString(_commands.Raw(Model, "SelfTest", "*TST?")).StartsWith("0", StringComparison.OrdinalIgnoreCase));

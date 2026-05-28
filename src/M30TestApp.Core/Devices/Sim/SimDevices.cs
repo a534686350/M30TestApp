@@ -109,6 +109,19 @@ public sealed class SimPressureController : DeviceBase, IPressureController
         SimTrace.Rx(Model, s);
         return s;
     }
+
+    public async Task SetPressureTypeAsync(Config.PressureType pressureType, CancellationToken ct = default)
+    {
+        var action = pressureType switch
+        {
+            Config.PressureType.Absolute     => "SetAbs",
+            Config.PressureType.Differential => "SetDiff",
+            _                                => "SetGaug",
+        };
+        SimTrace.Tx(_cmds, Model, action);
+        await Task.Delay(10, ct);
+        SimTrace.Rx(Model, "OK");
+    }
 }
 
 public sealed class SimOven : DeviceBase, IOven

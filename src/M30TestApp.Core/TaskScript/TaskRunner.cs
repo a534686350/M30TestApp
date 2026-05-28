@@ -26,6 +26,9 @@ public sealed class TaskRunner
 
     public bool ThrowOnUnknown { get; set; } = false;
 
+    /// <summary>Max consecutive errors before giving up (0 = never retry).</summary>
+    public int MaxConsecutiveErrors { get; set; } = 3;
+
     public event EventHandler<TaskProgress>? Progress;
 
     public TaskRunner Register(IAction action)
@@ -64,6 +67,7 @@ public sealed class TaskRunner
     public async Task RunAsync(TaskScript script, TaskContext ctx, CancellationToken ct)
     {
         var total = script.Commands.Count;
+        var consecutiveErrors = 0;
         for (int i = 0; i < total; i++)
         {
             ct.ThrowIfCancellationRequested();
@@ -83,13 +87,22 @@ public sealed class TaskRunner
             {
                 await action.ExecuteAsync(ctx, cmd, ct).ConfigureAwait(false);
                 Progress?.Invoke(this, new TaskProgress { Index = i, Total = total, Command = cmd, Phase = "Done" });
+                consecutiveErrors = 0; // reset on success
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
-                AppLog.Error("Runner", $"{cmd}: {ex.Message}");
+                consecutiveErrors++;
+                AppLog.Error("Runner", $"{cmd}: {ex.Message} (连续错误 {consecutiveErrors}/{MaxConsecutiveErrors})");
                 Progress?.Invoke(this, new TaskProgress { Index = i, Total = total, Command = cmd, Phase = "Error", Error = ex.Message });
-                throw;
+
+                if (MaxConsecutiveErrors > 0 && consecutiveErrors >= MaxConsecutiveErrors)
+                {
+                    AppLog.Error("Runner", $"连续 {consecutiveErrors} 次错误，停止测试");
+                    throw;
+                }
+
+                AppLog.Warn("Runner", $"自动恢复，继续执行下一步…");
             }
         }
     }

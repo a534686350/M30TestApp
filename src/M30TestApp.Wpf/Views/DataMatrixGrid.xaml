@@ -16,6 +16,6 @@
               VirtualizingPanel.VirtualizationMode="Recycling"
               VirtualizingPanel.IsVirtualizing="True"
               ScrollViewer.CanContentScroll="True"
-              VerticalScrollBarVisibility="Auto"
-              HorizontalScrollBarVisibility="Auto"/>
+              ScrollViewer.HorizontalScrollBarVisibility="Auto"
+              ScrollViewer.VerticalScrollBarVisibility="Auto"/>
 </UserControl>

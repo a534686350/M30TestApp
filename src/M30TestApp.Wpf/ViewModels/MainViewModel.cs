@@ -27,6 +27,8 @@ public sealed class MainViewModel : ViewModelBase
     public RelayCommand ShowTestRunCommand  { get; }
     public RelayCommand ShowManualCommand   { get; }
     public RelayCommand ShowConfigCommand   { get; }
+    public RelayCommand ShowConfigPlanCommand { get; }
+    public RelayCommand ShowConfigSlotsCommand { get; }
     public RelayCommand ShowLogCommand      { get; }
     public RelayCommand ShowSettingsCommand { get; }
 
@@ -58,6 +60,8 @@ public sealed class MainViewModel : ViewModelBase
         ShowTestRunCommand  = new RelayCommand(_ => CurrentView = TestRun);
         ShowManualCommand   = new RelayCommand(_ => CurrentView = Manual);
         ShowConfigCommand   = new RelayCommand(_ => CurrentView = Config);
+        ShowConfigPlanCommand = new RelayCommand(_ => { Config.SelectedSection = "方案"; CurrentView = Config; });
+        ShowConfigSlotsCommand = new RelayCommand(_ => { Config.SelectedSection = "工位"; CurrentView = Config; });
         ShowLogCommand      = new RelayCommand(_ => CurrentView = Log);
         ShowSettingsCommand = new RelayCommand(_ => CurrentView = Settings);
 

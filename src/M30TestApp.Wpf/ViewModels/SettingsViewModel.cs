@@ -9,6 +9,7 @@ using System.Windows;
 using M30TestApp.Core;
 using M30TestApp.Core.Common;
 using M30TestApp.Wpf.Mvvm;
+using M30TestApp.Wpf.Themes;
 
 namespace M30TestApp.Wpf.ViewModels;
 
@@ -173,23 +174,6 @@ public sealed class SettingsViewModel : ViewModelBase
     {
         _session.Context.Settings.Set("App", "Theme", theme);
         try { _session.Context.Settings.Save(AppPaths.SettingIni); } catch { }
-
-        Application.Current.Dispatcher.Invoke(() =>
-        {
-            var dict = new ResourceDictionary
-            {
-                Source = theme == "Dark"
-                    ? new Uri("pack://application:,,,/Themes/Dark.xaml")
-                    : new Uri("pack://application:,,,/Themes/Light.xaml")
-            };
-
-            var merged = Application.Current.Resources.MergedDictionaries;
-            for (int i = merged.Count - 1; i >= 0; i--)
-            {
-                if (merged[i].Source?.OriginalString.Contains("/Themes/") == true)
-                    merged.RemoveAt(i);
-            }
-            merged.Insert(0, dict);
-        });
+        ThemeHelper.Apply(theme);
     }
 }

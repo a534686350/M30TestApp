@@ -28,6 +28,11 @@ public interface IPressureController : IDevice
     Task<float> ReadUpperLimitAsync(CancellationToken ct = default);
     Task VentAsync(CancellationToken ct = default);
     Task<string> ReadStatusAsync(CancellationToken ct = default);
+    /// <summary>
+    /// 切换压力控制器的测量类型（绝压/表压/差压）。
+    /// 对应 Command.ini 中的 SetAbs / SetGaug / SetDiff 命令。
+    /// </summary>
+    Task SetPressureTypeAsync(Config.PressureType pressureType, CancellationToken ct = default);
 }
 
 public interface IOven : IDevice

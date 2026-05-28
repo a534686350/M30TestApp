@@ -13,6 +13,7 @@
         Background="{StaticResource SurfaceBrush}">
 
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <Style x:Key="FieldLabel" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
             <Setter Property="FontSize" Value="11"/>
@@ -77,6 +78,20 @@
                                         <CheckBox Content="烘箱" IsChecked="{Binding UseOven}" Margin="0,0,10,0"/>
                                         <CheckBox Content="探漏" IsChecked="{Binding UseLeakCheck}"/>
                                     </StackPanel>
+                                    <TextBlock Text="采集项启用" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,8,0,4"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <CheckBox Content="UT" IsChecked="{Binding CollectUt}" Margin="0,0,10,0"/>
+                                        <CheckBox Content="USC" IsChecked="{Binding CollectUsc}" Margin="0,0,10,0"/>
+                                        <CheckBox Content="ISC" IsChecked="{Binding CollectIsc}" Margin="0,0,10,0"/>
+                                        <CheckBox Content="USG" IsChecked="{Binding CollectUsg}" Margin="0,0,10,0"/>
+                                        <CheckBox Content="烘箱温度" IsChecked="{Binding CollectOvenTemp}"/>
+                                    </StackPanel>
+                                    <CheckBox Content="从断点续测" IsChecked="{Binding ResumeFromCheckpoint}"
+                                              Visibility="{Binding CanResumeCheckpoint, Converter={StaticResource BoolToVis}}"
+                                              Margin="0,6,0,0"/>
+                                    <TextBlock Text="{Binding CheckpointSummary}" TextWrapping="Wrap" FontSize="11"
+                                               Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0"
+                                               Visibility="{Binding CanResumeCheckpoint, Converter={StaticResource BoolToVis}}"/>
                                 </StackPanel>
                             </Border>
                             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Bottom">
@@ -120,6 +135,9 @@
                                 <TextBlock Text="压力单位" Foreground="{StaticResource MutedBrush}" Margin="0,10,0,2"/>
                                 <TextBox Text="{Binding PlanPressureUnit, Mode=OneWay}" IsReadOnly="True"/>
 
+                                <TextBlock Text="默认压力类型" Foreground="{StaticResource MutedBrush}" Margin="0,10,0,2"/>
+                                <TextBox Text="{Binding PlanDefaultPressureType, Mode=OneWay}" IsReadOnly="True"/>
+
                                 <TextBlock Text="说明" Foreground="{StaticResource MutedBrush}" Margin="0,16,0,4"/>
                                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" FontSize="11">
                                     本对话框只在本次启动测试时生效。指定方案 + 重新生成工位表后点击 Apply，
@@ -151,6 +169,7 @@
             <TabItem Header="工位">
                 <Grid Margin="4">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
@@ -217,13 +236,34 @@
                         </StackPanel>
                     </Border>
 
+                    <Border Style="{StaticResource Card}" Grid.Row="1" Margin="0,10,0,0" Padding="10,8">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="扫码录入:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0"/>
+                            <TextBlock Text="当前工位" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" Margin="0,0,4,0"/>
+                            <TextBlock x:Name="RunScanSlotLabel" Text="-" VerticalAlignment="Center" FontWeight="SemiBold"
+                                       Foreground="{StaticResource AccentBrush}" Margin="0,0,12,0"/>
+                            <TextBox x:Name="RunBarcodeInput" Width="260" Padding="6,4"
+                                     AcceptsReturn="False"
+                                     PreviewKeyDown="OnRunBarcodeKeyDown"
+                                     TextChanged="OnRunBarcodeTextChanged"
+                                     InputMethod.IsInputMethodEnabled="False"
+                                     ToolTip="点击此处，然后用扫码枪扫描条码（回车确认并跳到下一工位）"/>
+                            <Button Content="确认" Style="{StaticResource GhostButton}" Padding="10,3" Margin="6,0"
+                                    Click="OnRunBarcodeConfirm"/>
+                            <TextBlock x:Name="RunScanStatusText" Text="" VerticalAlignment="Center"
+                                       Foreground="Green" Margin="8,0,0,0" FontSize="12"/>
+                        </StackPanel>
+                    </Border>
+
                     <!-- 预览表 -->
-                    <Border Style="{StaticResource Card}" Grid.Row="1" Margin="0,10,0,0" Padding="0">
-                        <DataGrid ItemsSource="{Binding PreviewSlots}" BorderThickness="0"
+                    <Border Style="{StaticResource Card}" Grid.Row="2" Margin="0,10,0,0" Padding="0">
+                        <DataGrid x:Name="RunSlotGrid" ItemsSource="{Binding PreviewSlots}" BorderThickness="0"
+                                  SelectionMode="Single"
                                   AutoGenerateColumns="False"
                                   EnableRowVirtualization="True"
                                   EnableColumnVirtualization="True"
-                                  IsReadOnly="True">
+                                  IsReadOnly="True"
+                                  SelectionChanged="OnRunSlotGridSelectionChanged">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="工位"        Binding="{Binding Slot}"          Width="70"/>
                                 <DataGridTextColumn Header="序列号"      Binding="{Binding SerialNo}"      Width="180"/>
@@ -242,7 +282,7 @@
                     </Border>
 
                     <!-- 底部刷新条 -->
-                    <Border Grid.Row="2" Background="{StaticResource HeaderBgBrush}"
+                    <Border Grid.Row="3" Background="{StaticResource HeaderBgBrush}"
                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                             CornerRadius="4" Margin="0,10,0,0" Padding="12,8">
                         <DockPanel>

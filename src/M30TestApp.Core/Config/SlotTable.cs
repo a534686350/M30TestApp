@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace M30TestApp.Core.Config;
@@ -18,10 +20,23 @@ public sealed record SlotEntry(
     string PressureController,
     string Dmm,
     string Channel,
-    string ValveAddr)
+    string ValveAddr) : INotifyPropertyChanged
 {
-    /// <summary>Allow barcode scanner to update SerialNo after construction.</summary>
-    public string SerialNo { get; set; } = SerialNo;
+    private string _serialNo = SerialNo;
+
+    /// <summary>Allow barcode scanner to update SerialNo after construction. Raises PropertyChanged so DataGrid refreshes without Items.Refresh().</summary>
+    public string SerialNo
+    {
+        get => _serialNo;
+        set
+        {
+            if (_serialNo == value) return;
+            _serialNo = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SerialNo)));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
 }
 
 /// <summary>
@@ -47,5 +62,17 @@ public sealed class SlotTable
             list.Add(new SlotEntry(F(0), F(1), F(2), F(3), F(4), F(5), F(6), F(7), F(8), F(9), F(10), F(11)));
         }
         return new SlotTable(list);
+    }
+
+    public void Save(string path)
+    {
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+        var sb = new StringBuilder();
+        sb.AppendLine("工位,序列号,阀位,板卡位,板卡工位号,层数,夹具位,夹具工位号,压力控制器,数字万用表,通道,阀门");
+        foreach (var s in Entries)
+            sb.AppendLine(string.Join(',', s.Slot, s.SerialNo, s.Valve, s.Board, s.BoardSlotNo,
+                s.Layer, s.Fixture, s.FixtureSlotNo, s.PressureController, s.Dmm, s.Channel, s.ValveAddr));
+        File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
     }
 }

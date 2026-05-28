@@ -97,6 +97,14 @@
                                  GroupName="MainNav" Content="{DynamicResource Nav.Config}"
                                  Command="{Binding ShowConfigCommand}"/>
                     <RadioButton Style="{DynamicResource NavButton}"
+                                 GroupName="MainNav" Content="方案"
+                                 Command="{Binding ShowConfigPlanCommand}"
+                                 Margin="18,2,0,0"/>
+                    <RadioButton Style="{DynamicResource NavButton}"
+                                 GroupName="MainNav" Content="工位"
+                                 Command="{Binding ShowConfigSlotsCommand}"
+                                 Margin="18,2,0,0"/>
+                    <RadioButton Style="{DynamicResource NavButton}"
                                  GroupName="MainNav" Content="{DynamicResource Nav.Log}"
                                  Command="{Binding ShowLogCommand}"/>
 

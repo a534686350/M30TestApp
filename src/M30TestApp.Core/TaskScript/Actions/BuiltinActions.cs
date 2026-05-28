@@ -148,6 +148,10 @@ public sealed class TpSetPressurePointAction : IAction
         ctx.CurrentPressure = pp.Name;
         if (ctx.Pressure is not null)
         {
+            // 自动切换压力类型
+            await ctx.Pressure.SetPressureTypeAsync(pp.PressureType, ct);
+            AppLog.Info("TP", $"压力类型切换为 {pp.PressureType} ({pp.PressureTypeDisplay})");
+
             await ctx.Pressure.SetPressureAsync(pp.Value, ctx.Plan.PressureUnit, ctx.Plan.Precision, ct);
             // wait for stable (simplified)
             for (int i = 0; i < 100; i++)
@@ -158,7 +162,7 @@ public sealed class TpSetPressurePointAction : IAction
                 await Task.Delay(50, ct);
             }
         }
-        AppLog.Info("TP", $"Pressure point {pp.Name}={pp.Value}{ctx.Plan.PressureUnit}");
+        AppLog.Info("TP", $"Pressure point {pp.Name}={pp.Value}{ctx.Plan.PressureUnit} [{pp.PressureTypeDisplay}]");
     }
 }
 public sealed class TpSetTempPointAction : IAction
@@ -263,49 +267,48 @@ public sealed class ReadRAction : IAction
 public sealed class ReadUsourceAction : IAction
 {
     public string Key => "Read:Usource";
-    public Task ExecuteAsync(TaskContext ctx, TaskCommand cmd, CancellationToken ct) =>
-        ReadHelper.ReadAndStoreAsync(ctx, "Usource",
-            async (dac, slot, c) =>
-            {
-                var p = ctx.Plan.PressurePoints.FirstOrDefault(pp => pp.Name == ctx.CurrentPressure)?.Value ?? 0;
-                var t = ctx.Plan.TempPoints.FirstOrDefault(tp => tp.Name == ctx.CurrentTemp)?.Celsius ?? 25;
-                return await dac.ReadUsourceAsync(p, t, 5, slot.BoardSlotNo, slot.FixtureSlotNo, c);
-            },
-            null, ct);
+    public async Task ExecuteAsync(TaskContext ctx, TaskCommand cmd, CancellationToken ct)
+    {
+        var col = string.IsNullOrEmpty(ctx.CurrentTemp) ? "USC" : $"{ctx.CurrentTemp}_USC";
+        var p = ctx.Plan.PressurePoints.FirstOrDefault(pp => pp.Name == ctx.CurrentPressure)?.Value ?? 0;
+        var t = ctx.Plan.TempPoints.FirstOrDefault(tp => tp.Name == ctx.CurrentTemp)?.Celsius ?? 25;
+        await DacBatchSampler.SampleAllAsync(ctx, DacMeasureKind.Usource, col, p, t, ct);
+    }
 }
 public sealed class ReadIsourceAction : IAction
 {
     public string Key => "Read:Isource";
-    public Task ExecuteAsync(TaskContext ctx, TaskCommand cmd, CancellationToken ct) =>
-        ReadHelper.ReadAndStoreAsync(ctx, "Isource",
-            async (dac, slot, c) =>
-            {
-                var p = ctx.Plan.PressurePoints.FirstOrDefault(pp => pp.Name == ctx.CurrentPressure)?.Value ?? 0;
-                var t = ctx.Plan.TempPoints.FirstOrDefault(tp => tp.Name == ctx.CurrentTemp)?.Celsius ?? 25;
-                return await dac.ReadIsourceAsync(p, t, 5, slot.BoardSlotNo, slot.FixtureSlotNo, c);
-            },
-            null, ct);
+    public async Task ExecuteAsync(TaskContext ctx, TaskCommand cmd, CancellationToken ct)
+    {
+        var col = string.IsNullOrEmpty(ctx.CurrentTemp) ? "ISC" : $"{ctx.CurrentTemp}_ISC";
+        var p = ctx.Plan.PressurePoints.FirstOrDefault(pp => pp.Name == ctx.CurrentPressure)?.Value ?? 0;
+        var t = ctx.Plan.TempPoints.FirstOrDefault(tp => tp.Name == ctx.CurrentTemp)?.Celsius ?? 25;
+        await DacBatchSampler.SampleAllAsync(ctx, DacMeasureKind.Isource, col, p, t, ct);
+    }
 }
 public sealed class ReadUtAction : IAction
 {
     public string Key => "Read:UT";
-    public Task ExecuteAsync(TaskContext ctx, TaskCommand cmd, CancellationToken ct) =>
-        ReadHelper.ReadAndStoreAsync(ctx, "UT",
-            async (dac, slot, c) => await dac.ReadUtAsync(0, 25, 5, slot.BoardSlotNo, slot.FixtureSlotNo, c),
-            null, ct);
+    public async Task ExecuteAsync(TaskContext ctx, TaskCommand cmd, CancellationToken ct)
+    {
+        var col = string.IsNullOrEmpty(ctx.CurrentTemp) ? "UT" : $"{ctx.CurrentTemp}_UT";
+        var p = ctx.Plan.PressurePoints.FirstOrDefault(pp => pp.Name == ctx.CurrentPressure)?.Value ?? 0;
+        var t = ctx.Plan.TempPoints.FirstOrDefault(tp => tp.Name == ctx.CurrentTemp)?.Celsius ?? 25;
+        await DacBatchSampler.SampleAllAsync(ctx, DacMeasureKind.UT, col, p, t, ct);
+    }
 }
 public sealed class ReadUsignAction : IAction
 {
     public string Key => "Read:Usign";
-    public Task ExecuteAsync(TaskContext ctx, TaskCommand cmd, CancellationToken ct) =>
-        ReadHelper.ReadAndStoreAsync(ctx, "Usign",
-            async (dac, slot, c) =>
-            {
-                var p = ctx.Plan.PressurePoints.FirstOrDefault(pp => pp.Name == ctx.CurrentPressure)?.Value ?? 0;
-                var t = ctx.Plan.TempPoints.FirstOrDefault(tp => tp.Name == ctx.CurrentTemp)?.Celsius ?? 25;
-                return await dac.ReadUsigAsync(p, t, 5, slot.BoardSlotNo, slot.FixtureSlotNo, c);
-            },
-            null, ct);
+    public async Task ExecuteAsync(TaskContext ctx, TaskCommand cmd, CancellationToken ct)
+    {
+        var col = string.IsNullOrEmpty(ctx.CurrentTemp) || string.IsNullOrEmpty(ctx.CurrentPressure)
+            ? "USG"
+            : $"{ctx.CurrentTemp}{ctx.CurrentPressure}_USG";
+        var p = ctx.Plan.PressurePoints.FirstOrDefault(pp => pp.Name == ctx.CurrentPressure)?.Value ?? 0;
+        var t = ctx.Plan.TempPoints.FirstOrDefault(tp => tp.Name == ctx.CurrentTemp)?.Celsius ?? 25;
+        await DacBatchSampler.SampleAllAsync(ctx, DacMeasureKind.Usig, col, p, t, ct);
+    }
 }
 public sealed class ReadDmmSampleAction : IAction
 {
@@ -322,9 +325,22 @@ public sealed class RunPerformanceTestAction : IAction
 
     public async Task ExecuteAsync(TaskContext ctx, TaskCommand cmd, CancellationToken ct)
     {
-        ctx.Matrix.Clear();
-        ctx.Columns.Clear();
-        foreach (var slot in ctx.Slots.Entries) ctx.Matrix.EnsureSlot(slot.Slot);
+        var resume = ctx.ResumeCheckpoint;
+        var startTi = resume?.TempIndex ?? 0;
+        var startPi = resume?.PressureIndex ?? 0;
+        var leakDone = resume?.LeakCheckDone ?? false;
+
+        if (resume is null)
+        {
+            ctx.Matrix.Clear();
+            ctx.Columns.Clear();
+            foreach (var slot in ctx.Slots.Entries) ctx.Matrix.EnsureSlot(slot.Slot);
+        }
+        else
+        {
+            TestCheckpoint.RestoreMatrix(ctx, resume);
+            AppLog.Info("Run", $"续测：从温度点 #{startTi + 1}、压力点 #{startPi + 1} 继续");
+        }
 
         AppLog.Info("Run", $"开始完整性能测试：方案={ctx.Plan.Name}，传感器={ctx.Plan.SensorType}，工位数={ctx.Slots.Entries.Count}");
 
@@ -332,136 +348,129 @@ public sealed class RunPerformanceTestAction : IAction
         await InitDevicesAsync(ctx, ct);
 
         // ── 1. 探漏 ──────────────────────────────────────────────
-        await PerformLeakCheckAsync(ctx, ct);
+        if (!leakDone && !ctx.SkipLeakCheck)
+            await PerformLeakCheckAsync(ctx, ct);
+        else if (leakDone)
+            AppLog.Info("Run", "续测：跳过探漏（已完成）");
+
+        leakDone = true;
+        TestCheckpoint.Save(ctx, startTi, startPi, leakDone);
 
         // ── 2. 逐温度点 ─────────────────────────────────────────
-        for (var ti = 0; ti < ctx.Plan.TempPoints.Count; ti++)
+        for (var ti = startTi; ti < ctx.Plan.TempPoints.Count; ti++)
         {
             var tp = ctx.Plan.TempPoints[ti];
+            var piStart = ti == startTi ? startPi : 0;
             ctx.CurrentTemp = $"{tp.Name}: {tp.Celsius}℃";
             ctx.CurrentPressure = "";
             AppLog.Info("Run", $"当前温度点：{tp.Name} ({ti + 1}/{ctx.Plan.TempPoints.Count})");
 
-            // 设置烘箱温度并等待到达
-            if (ctx.Oven is not null)
-                await SetAndWaitOvenAsync(ctx, tp, "Run", ct);
+            var skipPrePressure = piStart > 0;
 
-            // 保温
-            var soakMinutes = tp.SoakMinutes ?? (int.TryParse(ctx.Settings.Get("DelaySettings", "SoakMinutes", "120"), out var sm) ? sm : 120);
-            AppLog.Info("Run", $"开始保持温度，持续 {soakMinutes} min");
-            await SoakWithLogAsync(ctx, soakMinutes, tp.Name, ct);
-            AppLog.Info("Run", "保持温度完成");
+            if (!skipPrePressure)
+            {
+                if (ctx.Oven is not null && ctx.Oven.State == ConnectionState.Connected)
+                {
+                    await SetAndWaitOvenAsync(ctx, tp, "Run", ct);
 
-            // 保温完成后恢复简洁显示
-            ctx.CurrentTemp = $"{tp.Name}: {tp.Celsius}℃";
+                    var soakMinutes = tp.SoakMinutes ?? (int.TryParse(ctx.Settings.Get("DelaySettings", "SoakMinutes", "120"), out var sm) ? sm : 120);
+                    AppLog.Info("Run", $"开始保持温度，持续 {soakMinutes} min");
+                    await SoakWithLogAsync(ctx, soakMinutes, tp.Name, ct);
+                    AppLog.Info("Run", "保持温度完成");
+                }
+                else
+                {
+                    AppLog.Info("Run", "烘箱未连接或未启用，跳过温度设置和保温");
+                }
 
-            // ── 每温度点采集一次的项：UT、USC、ISC（先一项所有工位，再下一项） ──
+                ctx.CurrentTemp = $"{tp.Name}: {tp.Celsius}℃";
 
-            // UT — 需要切换 34970A 通道（按板卡分组）
-            AppLog.Info("Run", $"开始采集 {tp.Name} UT（全部工位）");
-            await ReadUtForTempAsync(ctx, tp, ct);
-            AppLog.Info("Run", $"{tp.Name} UT 采集完成");
+                if (!ctx.SkipUt)
+                {
+                    AppLog.Info("Run", $"开始采集 {tp.Name} UT（全部工位，手动批量逻辑）");
+                    await DacBatchSampler.SampleAllAsync(ctx, DacMeasureKind.UT, $"{tp.Name}_UT", 0, tp.Celsius, ct);
+                    AppLog.Info("Run", $"{tp.Name} UT 采集完成");
+                }
+                else
+                {
+                    AppLog.Info("Run", $"跳过 {tp.Name} UT 采集（用户选择）");
+                }
 
-            // USC — 通过板卡采集，不需要切换 34970A
-            AppLog.Info("Run", $"开始采集 {tp.Name} USC（全部工位）");
-            await ReadAllSlotsSingleItem(ctx, tp, "USC",
-                async (dac, s, c) => await dac.ReadUsourceAsync(0, tp.Celsius, 5, s.BoardSlotNo, s.FixtureSlotNo, c), ct);
-            AppLog.Info("Run", $"{tp.Name} USC 采集完成");
+                if (!ctx.SkipUsc)
+                {
+                    AppLog.Info("Run", $"开始采集 {tp.Name} USC（全部工位，手动批量逻辑）");
+                    await DacBatchSampler.SampleAllAsync(ctx, DacMeasureKind.Usource, $"{tp.Name}_USC", 0, tp.Celsius, ct);
+                    AppLog.Info("Run", $"{tp.Name} USC 采集完成");
+                }
+                else
+                {
+                    AppLog.Info("Run", $"跳过 {tp.Name} USC 采集（用户选择）");
+                }
 
-            // ISC — 通过板卡采集，不需要切换 34970A
-            AppLog.Info("Run", $"开始采集 {tp.Name} ISC（全部工位）");
-            await ReadAllSlotsSingleItem(ctx, tp, "ISC",
-                async (dac, s, c) => await dac.ReadIsourceAsync(0, tp.Celsius, 5, s.BoardSlotNo, s.FixtureSlotNo, c), ct);
-            AppLog.Info("Run", $"{tp.Name} ISC 采集完成");
+                if (!ctx.SkipIsc)
+                {
+                    AppLog.Info("Run", $"开始采集 {tp.Name} ISC（全部工位，手动批量逻辑）");
+                    await DacBatchSampler.SampleAllAsync(ctx, DacMeasureKind.Isource, $"{tp.Name}_ISC", 0, tp.Celsius, ct);
+                    AppLog.Info("Run", $"{tp.Name} ISC 采集完成");
+                }
+                else
+                {
+                    AppLog.Info("Run", $"跳过 {tp.Name} ISC 采集（用户选择）");
+                }
+            }
+            else
+            {
+                AppLog.Info("Run", $"续测：跳过 {tp.Name} 烘箱/UT/USC/ISC（压力点 {piStart + 1} 起）");
+                ctx.CurrentTemp = $"{tp.Name}: {tp.Celsius}℃";
+            }
 
-            // ── 逐压力点：只有 USG 每个压力点都要采集 ──
-            for (var pi = 0; pi < ctx.Plan.PressurePoints.Count; pi++)
+            for (var pi = piStart; pi < ctx.Plan.PressurePoints.Count; pi++)
             {
                 var pp = ctx.Plan.PressurePoints[pi];
                 ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit}";
-                AppLog.Info("Run", $"开始测量当前温度点第{pi + 1}压力点：{tp.Name}:{tp.Celsius}; {pp.Name}:{pp.Value}; V5:5; F:USG");
+                AppLog.Info("Run", $"开始测量当前温度点第{pi + 1}压力点：{tp.Name}:{tp.Celsius}; {pp.Name}:{pp.Value} [{pp.PressureTypeDisplay}]; V5:5; F:USG");
 
-                // 设置压力并等待稳定
                 if (ctx.Pressure is not null)
                     await SetAndWaitPressureAsync(ctx, pp, ct);
 
-                // 保压
                 var holdMs = GetDelayMs(ctx, "PressureAfterMs", 60000);
                 AppLog.Info("Run", $"{pp.Value}{ctx.Plan.PressureUnit} 压力稳定中");
                 await Task.Delay(Math.Max(0, holdMs), ct);
 
-                // 恢复简洁压力显示
                 ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit}";
 
-                // USG — 通过板卡采集，不需要切换 34970A
-                AppLog.Info("Run", $"开始采集 {tp.Name}-{pp.Name} USG（全部工位）");
-                await ReadAllSlotsUsig(ctx, tp, pp, ct);
-                AppLog.Info("Run", $"采集完成 {tp.Name}-{pp.Name} USG");
+                if (!ctx.SkipUsg)
+                {
+                    AppLog.Info("Run", $"开始采集 {tp.Name}-{pp.Name} USG（全部工位，手动批量逻辑）");
+                    await DacBatchSampler.SampleAllAsync(ctx, DacMeasureKind.Usig, $"{tp.Name}{pp.Name}_USG", pp.Value, tp.Celsius, ct);
+                    AppLog.Info("Run", $"采集完成 {tp.Name}-{pp.Name} USG");
+                }
+                else
+                {
+                    AppLog.Info("Run", $"跳过 {tp.Name}-{pp.Name} USG 采集（用户选择）");
+                }
+
+                TestCheckpoint.Save(ctx, ti, pi + 1, leakDone);
             }
 
-            // ── 该温度点所有采集完成后，读取一次烘箱实际温度，写入所有工位 ──
             await ReadOvenTempForAllSlots(ctx, tp, ct);
+            TestCheckpoint.Save(ctx, ti + 1, 0, leakDone);
         }
 
         AppLog.Info("Run", "完成采集");
         SaveMatrix(ctx);
+        TestCheckpoint.Delete();
+        ctx.ResumeCheckpoint = null;
+
         if (ctx.Pressure is not null)
         {
             await ctx.Pressure.VentAsync(ct);
             AppLog.Info("Run", "泄压完成");
         }
-    }
-
-    private static async Task ReadUtForTempAsync(TaskContext ctx, TempPoint tp, CancellationToken ct)
-    {
-        var col = $"{tp.Name}_UT";
-        if (!ctx.Columns.Contains(col)) ctx.Columns.Add(col);
-        var switchMs = GetDelayMs(ctx, "ValveSwitchMs", 500);
-
-        // 按采集板编号分组：1号板→Card1(301)，2号板→Card2(302)，... 16号板→Card16(316)
-        var groups = ctx.Slots.Entries
-            .GroupBy(s => s.Board)
-            .Where(g => !string.IsNullOrWhiteSpace(g.Key))
-            .OrderBy(g => int.TryParse(g.Key, out var n) ? n : 999)
-            .ToList();
-
-        foreach (var group in groups)
+        if (ctx.Oven is not null)
         {
-            // 确定该板卡对应的切换单元卡通道
-            var boardNo = int.TryParse(group.Key, out var bn) ? bn : 1;
-            var cardChannel = ctx.Settings.Get("SwitchUnitCards", $"Card{boardNo}", (300 + boardNo).ToString());
-
-            // 切换 34970A 到该板卡通道
-            if (ctx.Dmm is not null)
-            {
-                AppLog.Info("Read", $"切换信号源到 {group.Key}号采集板 UT（通道 {cardChannel}）");
-                await ctx.Dmm.CloseRelayAsync(cardChannel, ct);
-                await Task.Delay(switchMs, ct);
-            }
-
-            // 采集该板卡下所有工位的 UT
-            foreach (var slot in group)
-            {
-                ct.ThrowIfCancellationRequested();
-                try
-                {
-                    var value = ctx.Dac is null ? double.NaN : await ctx.Dac.ReadUtAsync(0, tp.Celsius, 5, slot.BoardSlotNo, slot.FixtureSlotNo, ct);
-                    ctx.Matrix.Set(slot.Slot, col, value, CellStatus.Ok);
-                    AppLog.Info("Read", $"{slot.Slot} {col}={value:G6}");
-                }
-                catch (Exception ex)
-                {
-                    ctx.Matrix.Set(slot.Slot, col, double.NaN, CellStatus.Error);
-                    AppLog.Error("Read", $"{slot.Slot} {col} failed: {ex.Message}");
-                }
-            }
-
-            // 该板卡采完，断开通道
-            if (ctx.Dmm is not null)
-            {
-                await ctx.Dmm.OpenRelayAsync(cardChannel, ct);
-                AppLog.Info("Read", $"{group.Key}号采集板通道 {cardChannel} 已断开");
-            }
+            await ctx.Oven.StopAsync(ct);
+            AppLog.Info("Run", "烘箱已停止");
         }
     }
 
@@ -516,7 +525,10 @@ public sealed class RunPerformanceTestAction : IAction
             try
             {
                 await ctx.Power.OpenAsync(ct);
-                AppLog.Info("Init", $"电源 {ctx.Power.Model} 已连接");
+                if (ctx.Power.State == ConnectionState.Connected)
+                    AppLog.Info("Init", $"电源 {ctx.Power.Model} 已连接");
+                else
+                    AppLog.Warn("Init", $"电源 {ctx.Power.Model} 未连接");
             }
             catch (Exception ex) { AppLog.Warn("Init", $"电源连接失败: {ex.Message}"); }
         }
@@ -742,68 +754,30 @@ public sealed class RunPerformanceTestAction : IAction
     // ── 设置压力并等待稳定 ───────────────────────────────────────────────
     private static async Task SetAndWaitPressureAsync(TaskContext ctx, PressurePoint pp, CancellationToken ct)
     {
-        await ctx.Pressure!.SetPressureAsync(pp.Value, ctx.Plan.PressureUnit, ctx.Plan.Precision, ct);
+        // 自动切换压力类型（绝压/表压/差压）
+        await ctx.Pressure!.SetPressureTypeAsync(pp.PressureType, ct);
+        AppLog.Info("Run", $"压力类型切换为 {pp.PressureType} ({pp.PressureTypeDisplay})");
+
+        await ctx.Pressure.SetPressureAsync(pp.Value, ctx.Plan.PressureUnit, ctx.Plan.Precision, ct);
         for (var i = 0; i < 120; i++)
         {
             ct.ThrowIfCancellationRequested();
             var current = await ctx.Pressure.ReadPressureAsync(ct);
-            ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit}";
+            ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit} [{pp.PressureTypeDisplay}]";
             if (Math.Abs(current - pp.Value) <= ctx.Plan.Precision) break;
             await Task.Delay(500, ct);
-        }
-    }
-
-    // ── 采集某一项（USC/ISC）：遍历所有工位，通过板卡直接读取 ──────────────
-    private static async Task ReadAllSlotsSingleItem(TaskContext ctx, TempPoint tp, string measure,
-        Func<IDac, SlotEntry, CancellationToken, Task<float>> read, CancellationToken ct)
-    {
-        var col = $"{tp.Name}_{measure}";
-        if (!ctx.Columns.Contains(col)) ctx.Columns.Add(col);
-
-        foreach (var slot in ctx.Slots.Entries)
-        {
-            ct.ThrowIfCancellationRequested();
-            try
-            {
-                var value = ctx.Dac is null ? double.NaN : await read(ctx.Dac, slot, ct);
-                ctx.Matrix.Set(slot.Slot, col, value, CellStatus.Ok);
-                AppLog.Info("Read", $"{slot.Slot} {col}={value:G7}");
-            }
-            catch (Exception ex)
-            {
-                ctx.Matrix.Set(slot.Slot, col, double.NaN, CellStatus.Error);
-                AppLog.Error("Read", $"{slot.Slot} {col} failed: {ex.Message}");
-            }
-        }
-    }
-
-    // ── 采集 USG：遍历所有工位，通过板卡直接读取（每个压力点调一次）──────────
-    private static async Task ReadAllSlotsUsig(TaskContext ctx, TempPoint tp, PressurePoint pp, CancellationToken ct)
-    {
-        var col = $"{tp.Name}{pp.Name}_USG";
-        if (!ctx.Columns.Contains(col)) ctx.Columns.Add(col);
-
-        foreach (var slot in ctx.Slots.Entries)
-        {
-            ct.ThrowIfCancellationRequested();
-            try
-            {
-                var value = ctx.Dac is null ? double.NaN
-                    : await ctx.Dac.ReadUsigAsync(pp.Value, tp.Celsius, 5, slot.BoardSlotNo, slot.FixtureSlotNo, ct);
-                ctx.Matrix.Set(slot.Slot, col, value, CellStatus.Ok);
-                AppLog.Info("Read", $"{slot.Slot} {col}={value:G7}");
-            }
-            catch (Exception ex)
-            {
-                ctx.Matrix.Set(slot.Slot, col, double.NaN, CellStatus.Error);
-                AppLog.Error("Read", $"{slot.Slot} {col} failed: {ex.Message}");
-            }
         }
     }
 
     // ── 读取烘箱实际温度，写入所有工位（每温度点采集完成后调用一次）─────────
     private static async Task ReadOvenTempForAllSlots(TaskContext ctx, TempPoint tp, CancellationToken ct)
     {
+        if (ctx.SkipOvenTemp)
+        {
+            AppLog.Info("Run", $"跳过 {tp.Name} 烘箱温度采集（用户选择）");
+            return;
+        }
+
         var col = $"{tp.Name}_OvenTemp";
         if (!ctx.Columns.Contains(col)) ctx.Columns.Add(col);
 
@@ -831,7 +805,7 @@ public sealed class RunPerformanceTestAction : IAction
     private static int GetDelayMs(TaskContext ctx, string key, int fallback) =>
         int.TryParse(ctx.Settings.Get("DelaySettings", key, fallback.ToString(CultureInfo.InvariantCulture)), out var ms) ? ms : fallback;
 
-    internal static void SaveMatrix(TaskContext ctx)
+    public static void SaveMatrix(TaskContext ctx)
     {
         var planDir = Path.Combine(AppPaths.DataDir, SafePath(ctx.Plan.Name));
         Directory.CreateDirectory(planDir);
@@ -875,7 +849,8 @@ public sealed class CalTestAction : IAction
     public string Key => "Cal:Test";
     public Task ExecuteAsync(TaskContext ctx, TaskCommand cmd, CancellationToken ct)
     {
-        AppLog.Info("Cal", "Test calculation placeholder (MetricsCalculator pending)");
+        var count = MetricsCalculator.Calculate(ctx);
+        AppLog.Info("Cal", $"指标重新计算完成，共 {count} 个工位");
         return Task.CompletedTask;
     }
 }

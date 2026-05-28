@@ -15,6 +15,16 @@ using M30TestApp.Wpf.Mvvm;
 
 namespace M30TestApp.Wpf.ViewModels;
 
+public class BatchSampleResult
+{
+    public string Time { get; set; } = "";
+    public string Slot { get; set; } = "";
+    public string UsigValue { get; set; } = "";
+    public string UtValue { get; set; } = "";
+    public string UsourceValue { get; set; } = "";
+    public string IsourceValue { get; set; } = "";
+}
+
 /// <summary>
 /// Manual debug page (recreated to match the original ASLab layout):
 ///  - 设备控制 + 通道 + 电源切换 + 串口设置 cards
@@ -27,6 +37,7 @@ public sealed class ManualViewModel : ViewModelBase
     private readonly TestSession _session;
     private readonly DeviceStatusVm? _ovenStatus;
     private readonly DeviceStatusVm? _dacStatus;
+    private CancellationTokenSource? _batchCts;
     private SerialPort? _ovenSerial;
 
     // ─── COM / serial profile (display-only for SIM) ────────────────────────
@@ -192,7 +203,7 @@ public sealed class ManualViewModel : ViewModelBase
         "Usig", "UT", "Usource", "Isource", "DMM_V", "DMM_R"
     };
 
-    private string _selectedSlot = "Slot1";
+    private string _selectedSlot = "1";
     public string SelectedSlot
     {
         get => _selectedSlot;
@@ -206,12 +217,34 @@ public sealed class ManualViewModel : ViewModelBase
     public string SelectedMeasure { get => _selectedMeasure; set => SetField(ref _selectedMeasure, value); }
     private string _manualLabel = "MANUAL";
     public string ManualLabel { get => _manualLabel; set => SetField(ref _manualLabel, value); }
+    private string _batchStartSlot = "1";
+    public string BatchStartSlot { get => _batchStartSlot; set => SetField(ref _batchStartSlot, value); }
+    private string _batchEndSlot = "24";
+    public string BatchEndSlot { get => _batchEndSlot; set => SetField(ref _batchEndSlot, value); }
+
+    // ─── 批量采集项选择 ───────────────────────────────────────────────────────
+    private bool _collectUsig = true;
+    public bool CollectUsig { get => _collectUsig; set => SetField(ref _collectUsig, value); }
+
+    private bool _collectUt = true;
+    public bool CollectUt { get => _collectUt; set => SetField(ref _collectUt, value); }
+
+    private bool _collectUsource = true;
+    public bool CollectUsource { get => _collectUsource; set => SetField(ref _collectUsource, value); }
+
+    private bool _collectIsource = true;
+    public bool CollectIsource { get => _collectIsource; set => SetField(ref _collectIsource, value); }
+
+    private int _collectionInterval = 300;
+    public int CollectionInterval { get => _collectionInterval; set => SetField(ref _collectionInterval, value); }
 
     // ─── 两个底栏数据 ───────────────────────────────────────────────────────
     /// <summary>"数据I/O" 面板：原始 TX/RX 报文。</summary>
     public ObservableCollection<string> DataIo { get; } = new();
     /// <summary>"历史记录" 面板：操作动作日志。</summary>
     public ObservableCollection<string> History { get; } = new();
+    /// <summary>批量采集结果表格。</summary>
+    public ObservableCollection<BatchSampleResult> BatchResults { get; } = new();
 
     private string _dataIoText = "";
     public string DataIoText { get => _dataIoText; private set => SetField(ref _dataIoText, value); }
@@ -261,6 +294,9 @@ public sealed class ManualViewModel : ViewModelBase
 
     public AsyncRelayCommand SampleSlotCommand { get; }
     public AsyncRelayCommand SampleAllCommand { get; }
+    public AsyncRelayCommand BatchSampleCommand { get; }
+    public RelayCommand StopBatchSampleCommand { get; }
+    public RelayCommand ExportBatchResultsCommand { get; }
 
     public RelayCommand ClearDataIoCommand { get; }
     public RelayCommand ClearHistoryCommand { get; }
@@ -489,6 +525,9 @@ public sealed class ManualViewModel : ViewModelBase
             () => SampleAsync(new[] { SelectedSlot }));
         SampleAllCommand  = Wrap("采集 (全部工位)",
             () => SampleAsync(SlotNames.ToArray()));
+        BatchSampleCommand = Wrap("批量采集", BatchSampleAsync);
+        StopBatchSampleCommand = new RelayCommand(_ => StopBatchSample());
+        ExportBatchResultsCommand = new RelayCommand(_ => ExportBatchResults());
 
         ClearDataIoCommand  = new RelayCommand(_ => { DataIo.Clear(); DataIoText = ""; });
         ClearHistoryCommand = new RelayCommand(_ => { History.Clear(); HistoryText = ""; });
@@ -635,11 +674,70 @@ public sealed class ManualViewModel : ViewModelBase
 
     private void ApplySelectedSlotMapping()
     {
-        var slot = _session.Slots.Entries.FirstOrDefault(s => s.Slot == SelectedSlot);
-        if (slot is null) return;
-        if (CardAddrs.Contains(slot.BoardSlotNo)) CardAddr = slot.BoardSlotNo;
-        if (ChannelAddrs.Contains(slot.FixtureSlotNo)) ChannelAddr = slot.FixtureSlotNo;
+        if (!TryParseSlotNumber(SelectedSlot, out var slotNum))
+            return;
+
+        var slot = ResolveSlotForManual(slotNum);
+        GetDacAddresses(slot, slotNum, out var card, out var channel);
+        if (CardAddrs.Contains(card)) CardAddr = card;
+        if (ChannelAddrs.Contains(channel)) ChannelAddr = channel;
     }
+
+    /// <summary>解析工位号：支持 "9" 或 "Slot9"。</summary>
+    private static bool TryParseSlotNumber(string text, out int slotNum)
+    {
+        slotNum = 0;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var t = text.Trim();
+        if (int.TryParse(t, NumberStyles.Integer, CultureInfo.InvariantCulture, out slotNum))
+            return slotNum is >= 1 and <= 256;
+        if (t.StartsWith("Slot", StringComparison.OrdinalIgnoreCase) &&
+            int.TryParse(t.AsSpan(4), NumberStyles.Integer, CultureInfo.InvariantCulture, out slotNum))
+            return slotNum is >= 1 and <= 256;
+        return false;
+    }
+
+    private SlotEntry? FindSlotByNumber(int slotNum)
+    {
+        var entries = _session.Slots.Entries;
+        var name = $"Slot{slotNum}";
+        var byName = entries.FirstOrDefault(s =>
+            s.Slot.Equals(name, StringComparison.OrdinalIgnoreCase) ||
+            s.Slot.Equals(slotNum.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal));
+        if (byName is not null) return byName;
+        if (slotNum >= 1 && slotNum <= entries.Count &&
+            entries[slotNum - 1].Slot.Equals(name, StringComparison.OrdinalIgnoreCase))
+            return entries[slotNum - 1];
+        return null;
+    }
+
+    /// <summary>工位表有则用 CSV；否则按布局公式生成（与单次采集未录入工位时一致）。</summary>
+    private SlotEntry ResolveSlotForManual(int slotNum) =>
+        FindSlotByNumber(slotNum) ?? CreateLayoutSlot(slotNum);
+
+    private static SlotEntry CreateLayoutSlot(int slotNum)
+    {
+        var board = (slotNum - 1) / 16 + 1;
+        var boardSlot = (slotNum - 1) % 16 + 1;
+        var fixture = (slotNum - 1) / 8 + 1;
+        var fixtureSlot = (slotNum - 1) % 8 + 1;
+        return new SlotEntry(
+            Slot: $"Slot{slotNum}",
+            SerialNo: "-",
+            Valve: ((slotNum - 1) / 32 + 1).ToString(CultureInfo.InvariantCulture),
+            Board: board.ToString(CultureInfo.InvariantCulture),
+            BoardSlotNo: boardSlot.ToString(CultureInfo.InvariantCulture),
+            Layer: "1",
+            Fixture: fixture.ToString(CultureInfo.InvariantCulture),
+            FixtureSlotNo: fixtureSlot.ToString(CultureInfo.InvariantCulture),
+            PressureController: "1",
+            Dmm: "-",
+            Channel: "-",
+            ValveAddr: "-");
+    }
+
+    private static void GetDacAddresses(SlotEntry slot, int slotNum, out string card, out string channel) =>
+        (card, channel) = SlotDacAddress.Get(slot);
 
     private async Task ReadDacValueAsync(byte function, string name, Action<float> assign, string unit)
     {
@@ -690,44 +788,204 @@ public sealed class ManualViewModel : ViewModelBase
 
     private static string ToHex(byte[] data) => string.Join(" ", data.Select(b => b.ToString("X2"))) + " ";
 
+    private void StopBatchSample()
+    {
+        _batchCts?.Cancel();
+        Hist("批量采集已停止");
+    }
+
+    private void ExportBatchResults()
+    {
+        if (BatchResults.Count == 0)
+        {
+            MessageBox.Show("没有可导出的数据", "导出", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var saveDialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "CSV文件 (*.csv)|*.csv|所有文件 (*.*)|*.*",
+            DefaultExt = "csv",
+            FileName = $"批量采集_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
+        };
+
+        if (saveDialog.ShowDialog() != true)
+            return;
+
+        try
+        {
+            var csv = new System.Text.StringBuilder();
+            csv.AppendLine("时间,工位,Usig,UT,Usource,Isource");
+
+            foreach (var result in BatchResults)
+            {
+                csv.AppendLine($"{result.Time},{result.Slot},{result.UsigValue},{result.UtValue},{result.UsourceValue},{result.IsourceValue}");
+            }
+
+            System.IO.File.WriteAllText(saveDialog.FileName, csv.ToString(), System.Text.Encoding.UTF8);
+            Hist($"批量采集结果已导出到：{saveDialog.FileName}");
+            MessageBox.Show("导出成功", "导出", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"导出失败：{ex.Message}", "导出", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async Task BatchSampleAsync()
+    {
+        if (!TryParseSlotNumber(BatchStartSlot, out var start) || !TryParseSlotNumber(BatchEndSlot, out var end))
+        {
+            MessageBox.Show("请输入有效的工位号（如 1 或 Slot1）", "批量采集", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (start < 1 || end > 256 || start > end)
+        {
+            MessageBox.Show("工位范围无效，请输入1-256之间的有效范围", "批量采集", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        // Build list of selected measure types
+        var selectedMeasures = new List<(string name, DacMeasureKind? kind)>();
+        if (CollectUsig) selectedMeasures.Add(("Usig", DacBatchSampler.ParseMeasure("Usig")));
+        if (CollectUt) selectedMeasures.Add(("UT", DacBatchSampler.ParseMeasure("UT")));
+        if (CollectUsource) selectedMeasures.Add(("Usource", DacBatchSampler.ParseMeasure("Usource")));
+        if (CollectIsource) selectedMeasures.Add(("Isource", DacBatchSampler.ParseMeasure("Isource")));
+
+        if (selectedMeasures.Count == 0)
+        {
+            MessageBox.Show("请至少选择一种采集类型", "批量采集", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        _batchCts = new CancellationTokenSource();
+        var ct = _batchCts.Token;
+
+        float pressure = 0, temp = 25;
+        try { pressure = await _session.Pressure.ReadPressureAsync(ct); } catch { }
+        try { temp = await _session.Oven.ReadTempAsync(ct); } catch { }
+
+        BatchResults.Clear();
+        var totalOkCount = 0;
+        var totalFailCount = 0;
+        var slotResults = new Dictionary<string, BatchSampleResult>();
+
+        try
+        {
+            foreach (var (measure, measureKind) in selectedMeasures)
+            {
+                if (measureKind is null)
+                {
+                    Hist($"跳过 {measure}：不支持批量采集");
+                    continue;
+                }
+
+                var col = $"{ManualLabel}_{measure}";
+                var okCount = 0;
+                var failCount = 0;
+
+                await DacBatchSampler.SampleAllAsync(
+                    _session.Context,
+                    measureKind.Value,
+                    col,
+                    pressure,
+                    temp,
+                    ct,
+                    (slot, v, ok) =>
+                    {
+                        if (ok) okCount++; else failCount++;
+
+                        var valueStr = ok ? v.ToString("G6") : "失败";
+
+                        Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            if (!slotResults.ContainsKey(slot.Slot))
+                            {
+                                var newResult = new BatchSampleResult
+                                {
+                                    Time = DateTime.Now.ToString("HH:mm:ss"),
+                                    Slot = slot.Slot
+                                };
+                                slotResults[slot.Slot] = newResult;
+                                BatchResults.Add(newResult);
+                            }
+
+                            var result = slotResults[slot.Slot];
+
+                            switch (measure)
+                            {
+                                case "Usig":
+                                    result.UsigValue = valueStr;
+                                    break;
+                                case "UT":
+                                    result.UtValue = valueStr;
+                                    break;
+                                case "Usource":
+                                    result.UsourceValue = valueStr;
+                                    break;
+                                case "Isource":
+                                    result.IsourceValue = valueStr;
+                                    break;
+                            }
+                        }));
+                    },
+                    start,
+                    end,
+                    CollectionInterval);
+
+                totalOkCount += okCount;
+                totalFailCount += failCount;
+                Hist($"批量采集 {measure} 完成：成功 {okCount}，失败 {failCount}（工位 {start}-{end}）");
+            }
+
+            // Sort results by slot number
+            Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                var sortedResults = BatchResults.OrderBy(r => r.Slot).ToList();
+                BatchResults.Clear();
+                foreach (var result in sortedResults)
+                {
+                    BatchResults.Add(result);
+                }
+            }));
+
+            Hist($"批量采集全部完成：总成功 {totalOkCount}，总失败 {totalFailCount}");
+        }
+        catch (OperationCanceledException)
+        {
+            Hist($"批量采集已取消（已完成 {BatchResults.Count} 个工位）");
+        }
+        finally
+        {
+            _batchCts?.Dispose();
+            _batchCts = null;
+        }
+    }
+
     private async Task SampleAsync(string[] slotNames)
     {
-        var measure = SelectedMeasure;
-        var col = $"{ManualLabel}_{measure}";
-        var pressure = await _session.Pressure.ReadPressureAsync();
-        var temp = await _session.Oven.ReadTempAsync();
+        var measureKind = DacBatchSampler.ParseMeasure(SelectedMeasure);
+        if (measureKind is null) return;
 
-        DeviceBus.Info("Manual",
-            $"Sample {measure} for {slotNames.Length} slot(s) @ p={pressure:F2}, T={temp:F2}");
+        var col = $"{ManualLabel}_{SelectedMeasure}";
+        float pressure = 0, temp = 25;
+        try { pressure = await _session.Pressure.ReadPressureAsync(); } catch { }
+        try { temp = await _session.Oven.ReadTempAsync(); } catch { }
 
-        foreach (var slotName in slotNames)
-        {
-            var slot = _session.Slots.Entries.FirstOrDefault(s => s.Slot == slotName);
-            if (slot is null) continue;
+        var nums = slotNames
+            .Select(s => TryParseSlotNumber(s, out var n) ? n : _session.Slots.Entries.ToList().FindIndex(x => x.Slot == s) + 1)
+            .Where(n => n >= 1)
+            .ToList();
+        if (nums.Count == 0) return;
 
-            double v;
-            try
-            {
-                v = measure switch
-                {
-                    "Usig"    => await _session.Dac.ReadUsigAsync   (pressure, temp, 5, slot.BoardSlotNo, slot.FixtureSlotNo),
-                    "UT"      => await _session.Dac.ReadUtAsync     (pressure, temp, 5, slot.BoardSlotNo, slot.FixtureSlotNo),
-                    "Usource" => await _session.Dac.ReadUsourceAsync(pressure, temp, 5, slot.BoardSlotNo, slot.FixtureSlotNo),
-                    "Isource" => await _session.Dac.ReadIsourceAsync(pressure, temp, 5, slot.BoardSlotNo, slot.FixtureSlotNo),
-                    "DMM_V"   => await _session.Dmm.ReadVoltageAsync(slot.Channel),
-                    "DMM_R"   => await _session.Dmm.ReadResistanceAsync(slot.Channel),
-                    _ => double.NaN,
-                };
-            }
-            catch (Exception ex)
-            {
-                DeviceBus.Info("Manual", $"{slotName} {measure} 失败: {ex.Message}");
-                _session.Matrix.Set(slotName, col, double.NaN, CellStatus.Error);
-                continue;
-            }
-            _session.Matrix.Set(slotName, col, v, CellStatus.Ok);
-        }
-        Hist($"采集 {measure} 完成，{slotNames.Length} 工位 → 列 {col}");
+        await DacBatchSampler.SampleAllAsync(
+            _session.Context, measureKind.Value, col, pressure, temp,
+            CancellationToken.None, null,
+            nums.Min(), nums.Max(),
+            CollectionInterval);
+
+        Hist($"采集 {SelectedMeasure} 完成，{slotNames.Length} 工位 → 列 {col}");
     }
 
     private void OnTraffic(object? sender, BusEvent e)

@@ -9,7 +9,9 @@ using System.Windows;
 using M30TestApp.Core;
 using M30TestApp.Core.Common;
 using M30TestApp.Core.Config;
+using M30TestApp.Core.Data;
 using M30TestApp.Wpf.Mvvm;
+using M30TestApp.Wpf.Themes;
 
 namespace M30TestApp.Wpf.ViewModels;
 
@@ -129,99 +131,207 @@ public sealed class ConfigViewModel : ViewModelBase
     public ObservableCollection<SettingPairVm> DelaySettings { get; } = new();
     public ObservableCollection<PressureCommandSettingVm> PressureCommandSettings { get; } = new();
 
-    // ─── §设备 ─────────────────────────────────────────────────────────────
+    // ������ ���豸 ��������������������������������������������������������������������������������������������������������������������������
     public ObservableCollection<DeviceProfile> Devices { get; } = new();
 
-    // ─── §工位 ─────────────────────────────────────────────────────────────
+    // ������ �칤λ ��������������������������������������������������������������������������������������������������������������������������
+    public const int SlotMax = SlotLayoutHelper.SlotMax;
     public ObservableCollection<SlotEntry> Slots { get; } = new();
+    public int PreviewCount => Slots.Count;
 
-    // ─── §方案 ─────────────────────────────────────────────────────────────
+    private int _slotCount = 16;
+    public int SlotCount
+    {
+        get => _slotCount;
+        set => SetSlotLayoutField(ref _slotCount, Math.Clamp(value, 1, SlotMax));
+    }
+
+    private string _batchNo = $"{DateTime.Now:yyMMdd}_01";
+    public string BatchNo { get => _batchNo; set => SetSlotLayoutField(ref _batchNo, value); }
+
+    private int _startIndex = 1;
+    public int StartIndex { get => _startIndex; set => SetSlotLayoutField(ref _startIndex, value); }
+
+    private int _startBoard = 1;
+    public int StartBoard { get => _startBoard; set => SetSlotLayoutField(ref _startBoard, value); }
+
+    private int _startBoardSlot = 1;
+    public int StartBoardSlot { get => _startBoardSlot; set => SetSlotLayoutField(ref _startBoardSlot, value); }
+
+    private int _boardSlotCapacity = 16;
+    public int BoardSlotCapacity { get => _boardSlotCapacity; set => SetSlotLayoutField(ref _boardSlotCapacity, Math.Max(1, value)); }
+
+    private int _startValve = 1;
+    public int StartValve { get => _startValve; set => SetSlotLayoutField(ref _startValve, value); }
+
+    private int _fixtureSlotCapacity = 8;
+    public int FixtureSlotCapacity { get => _fixtureSlotCapacity; set => SetSlotLayoutField(ref _fixtureSlotCapacity, Math.Max(1, value)); }
+
+    private int _fixtureCount = 8;
+    public int FixtureCount { get => _fixtureCount; set => SetSlotLayoutField(ref _fixtureCount, Math.Max(1, value)); }
+
+    private int _startChannel = 1;
+    public int StartChannel { get => _startChannel; set => SetSlotLayoutField(ref _startChannel, value); }
+
+    private int _startSerial = 1;
+    public int StartSerial { get => _startSerial; set => SetSlotLayoutField(ref _startSerial, value); }
+
+    private bool _autoNumber = true;
+    public bool AutoNumber { get => _autoNumber; set => SetSlotLayoutField(ref _autoNumber, value); }
+
+    /// <summary>扫码录入需要下一行时扩展，不预生成占位 DEMO 行。</summary>
+    public void EnsureSlotCount(int count)
+    {
+        var target = Math.Clamp(count, 1, SlotMax);
+        if (target <= Slots.Count) return;
+        SlotCount = target;
+    }
+
+    public RelayCommand RegenerateSlotsCommand { get; private set; } = null!;
+
+    // ������ �췽�� ��������������������������������������������������������������������������������������������������������������������������
     private TestPlan _plan = new();
     public TestPlan Plan { get => _plan; private set => SetField(ref _plan, value); }
     public string TaskScript => Plan.TaskScript;
-    public ObservableCollection<string> PlanNames { get; } = new();
-    private string _selectedPlanName = "";
+    public ObservableCollection<string> PlanFolders { get; } = new();
+    public ObservableCollection<string> SensorModelFiles { get; } = new();
+    private string _selectedPlanFolder = "";
+    private string _selectedSensorModelFile = "";
     private bool _loadingPlan;
-    public string SelectedPlanName
+    public string SelectedPlanFolder
     {
-        get => _selectedPlanName;
+        get => _selectedPlanFolder;
         set
         {
-            if (!SetField(ref _selectedPlanName, value)) return;
-            if (!_loadingPlan && !string.IsNullOrWhiteSpace(value)) LoadPlanByName(value);
+            if (!SetField(ref _selectedPlanFolder, value)) return;
+            RefreshSensorModelFiles();
+        }
+    }
+    public string SelectedSensorModelFile
+    {
+        get => _selectedSensorModelFile;
+        set
+        {
+            if (!SetField(ref _selectedSensorModelFile, value)) return;
+            if (!_loadingPlan && !string.IsNullOrWhiteSpace(value)) LoadPlanByFile(value);
         }
     }
     public ObservableCollection<PressurePoint> PressurePoints { get; } = new();
     public ObservableCollection<TempPoint> TempPoints { get; } = new();
 
-    // ─── §指令 ─────────────────────────────────────────────────────────────
+    /// <summary>����Ĭ��ѹ�����͵�������ʾ�������� ComboBox ˫��󶨡�</summary>
+    public string PlanDefaultPressureTypeDisplay
+    {
+        get => Plan.DefaultPressureType switch
+        {
+            Core.Config.PressureType.Absolute     => "绝压",
+            Core.Config.PressureType.Differential => "差压",
+            _                                     => "表压",
+        };
+        set
+        {
+            Plan.DefaultPressureType = value switch
+            {
+                "绝压" => Core.Config.PressureType.Absolute,
+                "差压" => Core.Config.PressureType.Differential,
+                _      => Core.Config.PressureType.Gauge,
+            };
+            OnPropertyChanged();
+        }
+    }
+
+    // ������ ��ָ�� ��������������������������������������������������������������������������������������������������������������������������
     public ObservableCollection<ModelCommandsVm> ModelCommands { get; } = new();
 
-    // ─── §测试流程 ──────────────────────────────────────────────────────────
+    // ������ ��������� ��������������������������������������������������������������������������������������������������������������������
     public ObservableCollection<TaskStepVm> TaskSteps { get; } = new();
 
     /// <summary>Catalog of all action keys recognised by <see cref="Core.TaskScript.TaskRunner"/>.</summary>
     public ObservableCollection<string> AvailableActions { get; } = new()
     {
         "Initial:Pressure", "Initial:Temp", "Initial:Board", "Initial:DMM", "Initial:CommuTest",
-        "DAQ:ClearData", "DAQ:TestType,测试", "DAQ:Down",
+        "DAQ:ClearData", "DAQ:TestType,����", "DAQ:Down",
         "TP:SetPressurePoint,1,TEST", "TP:SetPressurePoint,2,TEST", "TP:SetPressurePoint,3,TEST",
         "TP:SetTempPoint,1,TEST", "TP:Vent", "TP:ReturnRoomTemp", "TP:StopTemp",
         "Read:R", "Read:UT", "Read:Usign", "Read:Usource", "Read:Isource", "Read:DMMSample",
         "Save:TestData", "Cal:Test",
     };
 
-    // ─── §计算 ─────────────────────────────────────────────────────────────
+    // ������ ����� ��������������������������������������������������������������������������������������������������������������������������
     public ObservableCollection<MetricSwitch> Metrics { get; } = new()
     {
-        new() { Code = "Offset",   Name = "零点输出",     Description = "首压力点 / 室温下输出偏置" },
-        new() { Code = "Span",     Name = "满量程输出",   Description = "末压力点 - 首压力点" },
-        new() { Code = "NL",       Name = "非线性",       Description = "实测曲线与理论拟合直线最大偏差" },
-        new() { Code = "PH",       Name = "压力迟滞",     Description = "正反程同压力点输出差" },
-        new() { Code = "TCO",      Name = "TCO",          Description = "零点温度系数" },
-        new() { Code = "TCS",      Name = "TCS",          Description = "满量程温度系数" },
-        new() { Code = "TCR",      Name = "TCR",          Description = "电阻温度系数" },
-        new() { Code = "THO",      Name = "温度迟滞",     Description = "升降温同温度点输出差" },
-        new() { Code = "Accuracy", Name = "精度",         Description = "综合误差，与精度等级核对" },
+        new() { Code = "Offset",   Name = "������",     Description = "��ѹ���� / ���������ƫ��" },
+        new() { Code = "Span",     Name = "���������",   Description = "ĩѹ���� - ��ѹ����" },
+        new() { Code = "NL",       Name = "������",       Description = "ʵ���������������ֱ�����ƫ��" },
+        new() { Code = "PH",       Name = "ѹ������",     Description = "������ͬѹ���������" },
+        new() { Code = "TCO",      Name = "TCO",          Description = "����¶�ϵ��" },
+        new() { Code = "TCS",      Name = "TCS",          Description = "�������¶�ϵ��" },
+        new() { Code = "TCR",      Name = "TCR",          Description = "�����¶�ϵ��" },
+        new() { Code = "THO",      Name = "�¶ȳ���",     Description = "������ͬ�¶ȵ������" },
+        new() { Code = "THS",      Name = "THS",          Description = "�������¶ȳ���" },
+        new() { Code = "TCT",      Name = "TCT",          Description = "�¶ȴ������¶�ϵ��" },
     };
 
-    // ─── §版本信息 ─────────────────────────────────────────────────────────
+    // ������ ��汾��Ϣ ������������������������������������������������������������������������������������������������������������������
     public string AppVersion => "3.0.0.25 (V2 MVP)";
     public string Changelog { get; }
 
-    // ─── §系统设置 ─────────────────────────────────────────────────────────
+    // ������ ��ϵͳ���� ������������������������������������������������������������������������������������������������������������������
     public string BaseDir => AppPaths.BaseDir;
     public string LogDir => AppPaths.LogDir;
     public string DataDir => AppPaths.DataDir;
     public string TestConfigDir => AppPaths.TestConfigDir;
-    public ObservableCollection<string> Themes { get; } = new() { "亮色", "暗色 (即将)" };
+    public ObservableCollection<string> Themes { get; } = new() { "��ɫ", "��ɫ" };
 
-    private string _selectedTheme = "亮色";
-    public string SelectedTheme { get => _selectedTheme; set => SetField(ref _selectedTheme, value); }
+    private string _selectedTheme = "��ɫ";
+    public string SelectedTheme
+    {
+        get => _selectedTheme;
+        set
+        {
+            if (!SetField(ref _selectedTheme, value)) return;
+            ThemeHelper.Apply(ThemeHelper.FromDisplayName(value));
+            AppPreferences.Set(_settingIni, "Theme", ThemeHelper.FromDisplayName(value));
+        }
+    }
 
     private int _logRetainDays = 30;
     public int LogRetainDays { get => _logRetainDays; set => SetField(ref _logRetainDays, value); }
 
-    // ─── Sub-nav ───────────────────────────────────────────────────────────
+    private bool _autoLoadLastPlan = true;
+    public bool AutoLoadLastPlan { get => _autoLoadLastPlan; set => SetField(ref _autoLoadLastPlan, value); }
+
+    private bool _autoExportCsv = true;
+    public bool AutoExportCsv { get => _autoExportCsv; set => SetField(ref _autoExportCsv, value); }
+
+    private bool _saveCheckpointOnAbort = false;
+    public bool SaveCheckpointOnAbort { get => _saveCheckpointOnAbort; set => SetField(ref _saveCheckpointOnAbort, value); }
+
+    private bool _fallbackSimOnDisconnect;
+    public bool FallbackSimOnDisconnect { get => _fallbackSimOnDisconnect; set => SetField(ref _fallbackSimOnDisconnect, value); }
+
+    // ������ Sub-nav ����������������������������������������������������������������������������������������������������������������������
     public ObservableCollection<string> Sections { get; } = new()
     {
-        "设备", "指令", "工位", "方案", "测试流程", "计算", "版本信息", "系统设置",
+        "�豸", "ָ��", "��λ", "����", "��������", "����", "�汾��Ϣ", "ϵͳ����",
     };
 
-    private string _selectedSection = "设备";
+    private string _selectedSection = "�豸";
     public string SelectedSection { get => _selectedSection; set => SetField(ref _selectedSection, value); }
 
-    // ─── Commands ──────────────────────────────────────────────────────────
+    // ������ Commands ��������������������������������������������������������������������������������������������������������������������
     public RelayCommand SaveCommand { get; }
     public RelayCommand ReloadCommand { get; }
     public RelayCommand AddSlotCommand { get; }
     public RelayCommand BatchGenerateSlotsCommand { get; }
     public RelayCommand ImportSlotsCommand { get; }
     public RelayCommand ExportSlotsCommand { get; }
-    public RelayCommand NewPlanCommand { get; }
+    public RelayCommand NewPlanFolderCommand { get; }
+    public RelayCommand NewSensorModelCommand { get; }
     public RelayCommand BulkEditPressurePointsCommand { get; }
     public RelayCommand BulkEditTempPointsCommand { get; }
     public RelayCommand UsePerformanceFlowCommand { get; }
+    public RelayCommand DeletePlanCommand { get; }
 
     public ConfigViewModel(TestSession session)
     {
@@ -230,20 +340,30 @@ public sealed class ConfigViewModel : ViewModelBase
             ? IniFile.Load(AppPaths.SettingIni)
             : new IniFile();
         Plan = session.Plan;
-        RefreshPlanNames();
-        _selectedPlanName = Plan.Name;
+
+
         RefreshComPorts();
         LoadDeviceSettings();
+        LoadAppSettings();
         BuildParameterSettings();
 
         foreach (var d in session.Station.Devices.Values) Devices.Add(d);
+        LoadSlotLayoutFromIni();
         foreach (var s in session.Slots.Entries) Slots.Add(s);
+        if (Slots.Count > 0)
+            _slotCount = Math.Clamp(Slots.Count, 1, SlotMax);
+        else
+            RegenerateSlots();
+        OnPropertyChanged(nameof(SlotCount));
+        OnPropertyChanged(nameof(PreviewCount));
         foreach (var pp in session.Plan.PressurePoints) PressurePoints.Add(pp);
         foreach (var tp in session.Plan.TempPoints) TempPoints.Add(tp);
 
         BuildModelCommands(session.Commands);
         BuildTaskSteps(session.Plan.TaskScript);
+        SyncMetricsFromPlan();
         Changelog = LoadChangelog();
+        RefreshPlanFolders();
 
         SaveCommand = new RelayCommand(_ => SaveSettings());
         ReloadCommand = new RelayCommand(_ => ReloadSettings());
@@ -251,10 +371,13 @@ public sealed class ConfigViewModel : ViewModelBase
         BatchGenerateSlotsCommand = new RelayCommand(_ => BatchGenerateSlots());
         ImportSlotsCommand = new RelayCommand(_ => ImportSlots());
         ExportSlotsCommand = new RelayCommand(_ => ExportSlots());
-        NewPlanCommand = new RelayCommand(_ => NewPlan());
+        RegenerateSlotsCommand = new RelayCommand(_ => RegenerateSlots());
+        NewPlanFolderCommand = new RelayCommand(_ => NewPlanFolder());
+        NewSensorModelCommand = new RelayCommand(_ => NewSensorModel());
         BulkEditPressurePointsCommand = new RelayCommand(_ => BulkEditPressurePoints());
         BulkEditTempPointsCommand = new RelayCommand(_ => BulkEditTempPoints());
         UsePerformanceFlowCommand = new RelayCommand(_ => UsePerformanceFlow());
+        DeletePlanCommand = new RelayCommand(_ => DeletePlan());
     }
 
     private void NewPlan()
@@ -273,9 +396,86 @@ public sealed class ConfigViewModel : ViewModelBase
         newPlan.TempPoints.Add(new TempPoint("T1", 25));
 
         SetPlan(newPlan);
-        _selectedPlanName = newPlan.Name;
-        OnPropertyChanged(nameof(SelectedPlanName));
-        AppLog.Info("Config", $"已创建新方案 {newPlan.Name}，点击“保存”后写入 {AppPaths.TestConfigDir}");
+
+
+        AppLog.Info("Config", $"�Ѵ����·��� {newPlan.Name}����������桱��д�� {AppPaths.TestConfigDir}");
+    }
+
+
+    private void NewPlanFolder()
+    {
+        var folderName = $"Plan_{DateTime.Now:yyyyMMdd_HHmmss}";
+        var folderPath = Path.Combine(AppPaths.TestConfigDir, folderName);
+        Directory.CreateDirectory(folderPath);
+        RefreshPlanFolders();
+        _selectedPlanFolder = folderName;
+        OnPropertyChanged(nameof(SelectedPlanFolder));
+        AppLog.Info("Config", $"�Ѵ����·����ļ��� {folderName}");
+    }
+
+    private void NewSensorModel()
+    {
+        if (string.IsNullOrWhiteSpace(_selectedPlanFolder))
+        {
+            MessageBox.Show("����ѡ��һ�������ļ���", "�½��������ͺ�", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var sensorModelName = $"Sensor_{DateTime.Now:yyyyMMdd_HHmmss}";
+        var folderPath = Path.Combine(AppPaths.TestConfigDir, _selectedPlanFolder);
+        var filePath = Path.Combine(folderPath, sensorModelName + ".ini");
+
+        var newPlan = new TestPlan
+        {
+            Name = sensorModelName,
+            SensorType = "M30-NEW",
+            PressureUnit = "kPa",
+            Precision = 0.05f,
+            TaskScript = "Run:PerformanceTest",
+        };
+        newPlan.PressurePoints.Add(new PressurePoint("P1", 0));
+        newPlan.PressurePoints.Add(new PressurePoint("P2", 50));
+        newPlan.PressurePoints.Add(new PressurePoint("P3", 100));
+        newPlan.TempPoints.Add(new TempPoint("T1", 25));
+
+        newPlan.Save(filePath);
+        RefreshSensorModelFiles();
+        _selectedSensorModelFile = sensorModelName;
+        OnPropertyChanged(nameof(SelectedSensorModelFile));
+        SetPlan(newPlan);
+        AppLog.Info("Config", $"�Ѵ����´������ͺ� {sensorModelName} �ڷ��� {_selectedPlanFolder}");
+    }
+    private void DeletePlan()
+    {
+        var name = Plan.Name;
+        if (string.IsNullOrWhiteSpace(name)) return;
+        var path = Path.Combine(AppPaths.TestConfigDir, name + ".ini");
+        if (!File.Exists(path))
+        {
+            MessageBox.Show($"�����ļ������ڣ�{path}", "ɾ������", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        var result = MessageBox.Show($"ȷ��Ҫɾ��������{name}����\n�˲������ɳ�����", "ɾ������",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (result != MessageBoxResult.Yes) return;
+        try
+        {
+            File.Delete(path);
+    
+            if (PlanFolders.Count > 0)
+            {
+                LoadPlanByFile(SensorModelFiles[0]);
+            }
+            else
+            {
+                NewPlan();
+            }
+            AppLog.Info("Config", $"��ɾ������ {name}");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"ɾ��ʧ�ܣ�{ex.Message}", "ɾ������", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void UsePerformanceFlow()
@@ -283,24 +483,24 @@ public sealed class ConfigViewModel : ViewModelBase
         Plan.TaskScript = "Run:PerformanceTest";
         OnPropertyChanged(nameof(TaskScript));
         BuildTaskSteps(Plan.TaskScript);
-        AppLog.Info("Config", "已切换为完整性能测试流程 Run:PerformanceTest");
+        AppLog.Info("Config", "���л�Ϊ�������ܲ������� Run:PerformanceTest");
     }
 
     private void BulkEditPressurePoints()
     {
         var text = string.Join(Environment.NewLine, PressurePoints.Select(p => $"{p.Name},{p.Value.ToString(CultureInfo.InvariantCulture)}"));
-        var dlg = new Views.BulkPointEditorWindow("批量录入压力点", text) { Owner = Application.Current.MainWindow };
+        var dlg = new Views.BulkPointEditorWindow("����¼��ѹ����", text) { Owner = Application.Current.MainWindow };
         if (dlg.ShowDialog() != true) return;
         try
         {
             var points = ParsePressurePoints(dlg.Text).ToList();
             PressurePoints.Clear();
             foreach (var p in points) PressurePoints.Add(p);
-            AppLog.Info("Config", $"已批量录入压力点 {points.Count} 个");
+            AppLog.Info("Config", $"������¼��ѹ���� {points.Count} ��");
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "压力点录入", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(ex.Message, "ѹ����¼��", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -310,18 +510,18 @@ public sealed class ConfigViewModel : ViewModelBase
             string.IsNullOrWhiteSpace(t.SoakMinutesText)
                 ? $"{t.Name},{t.Celsius.ToString(CultureInfo.InvariantCulture)}"
                 : $"{t.Name},{t.Celsius.ToString(CultureInfo.InvariantCulture)},{t.SoakMinutesText}"));
-        var dlg = new Views.BulkPointEditorWindow("批量录入温度点", text) { Owner = Application.Current.MainWindow };
+        var dlg = new Views.BulkPointEditorWindow("����¼���¶ȵ�", text) { Owner = Application.Current.MainWindow };
         if (dlg.ShowDialog() != true) return;
         try
         {
             var points = ParseTempPoints(dlg.Text).ToList();
             TempPoints.Clear();
             foreach (var p in points) TempPoints.Add(p);
-            AppLog.Info("Config", $"已批量录入温度点 {points.Count} 个");
+            AppLog.Info("Config", $"������¼���¶ȵ� {points.Count} ��");
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "温度点录入", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(ex.Message, "�¶ȵ�¼��", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -370,29 +570,49 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         if (float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result))
             return result;
-        throw new FormatException($"无法解析数值：{line}");
+        throw new FormatException($"�޷�������ֵ��{line}");
     }
 
-    private void RefreshPlanNames()
+    private void RefreshPlanFolders()
     {
-        PlanNames.Clear();
+        PlanFolders.Clear();
         if (Directory.Exists(AppPaths.TestConfigDir))
         {
-            foreach (var file in Directory.GetFiles(AppPaths.TestConfigDir, "*.ini").OrderBy(Path.GetFileNameWithoutExtension))
-                PlanNames.Add(Path.GetFileNameWithoutExtension(file));
+            foreach (var dir in Directory.GetDirectories(AppPaths.TestConfigDir))
+            {
+                var folderName = Path.GetFileName(dir);
+                PlanFolders.Add(folderName);
+            }
         }
-        if (!string.IsNullOrWhiteSpace(Plan.Name) && !PlanNames.Contains(Plan.Name))
-            PlanNames.Add(Plan.Name);
     }
 
-    private void LoadPlanByName(string name)
+    private void RefreshSensorModelFiles()
     {
-        if (string.Equals(Plan.Name, name, StringComparison.OrdinalIgnoreCase)) return;
-        var path = Path.Combine(AppPaths.TestConfigDir, name + ".ini");
-        if (!File.Exists(path)) return;
-        var plan = TestPlan.Load(path);
+        SensorModelFiles.Clear();
+        if (string.IsNullOrWhiteSpace(_selectedPlanFolder)) return;
+
+        var folderPath = Path.Combine(AppPaths.TestConfigDir, _selectedPlanFolder);
+        if (Directory.Exists(folderPath))
+        {
+            foreach (var file in Directory.GetFiles(folderPath, "*.ini"))
+            {
+                var fileName = Path.GetFileNameWithoutExtension(file);
+                SensorModelFiles.Add(fileName);
+            }
+        }
+    }
+
+    private void LoadPlanByFile(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(_selectedPlanFolder)) return;
+        if (string.Equals(Plan.Name, fileName, StringComparison.OrdinalIgnoreCase)) return;
+
+        var filePath = Path.Combine(AppPaths.TestConfigDir, _selectedPlanFolder, fileName + ".ini");
+        if (!File.Exists(filePath)) return;
+
+        var plan = TestPlan.Load(filePath);
         SetPlan(plan);
-        AppLog.Info("Config", $"已切换方案 {name}");
+        AppLog.Info("Config", $"���л��������ͺ� {fileName}");
     }
 
     private void SetPlan(TestPlan plan)
@@ -401,40 +621,43 @@ public sealed class ConfigViewModel : ViewModelBase
         Plan = plan;
         _session.Plan = plan;
         _session.Context.Plan = plan;
-        _selectedPlanName = plan.Name;
+        _selectedSensorModelFile = plan.Name;
         OnPropertyChanged(nameof(TaskScript));
-        OnPropertyChanged(nameof(SelectedPlanName));
+        OnPropertyChanged(nameof(SelectedSensorModelFile));
+        OnPropertyChanged(nameof(PlanDefaultPressureTypeDisplay));
         PressurePoints.Clear();
         foreach (var pp in plan.PressurePoints) PressurePoints.Add(pp);
         TempPoints.Clear();
         foreach (var tp in plan.TempPoints) TempPoints.Add(tp);
+        SyncMetricsFromPlan();
         _loadingPlan = false;
     }
 
     private void SavePlan()
     {
-        // 把 UI 编辑的点表写回 Plan，并按方案名持久化到 TestConfig 目录。
-        Plan.PressurePoints.Clear();
+        // ??UI �༭�ĵ��д??Plan�������������־û��� TestConfig Ŀ¼??        Plan.PressurePoints.Clear();
         foreach (var pp in PressurePoints) Plan.PressurePoints.Add(pp);
         Plan.TempPoints.Clear();
         foreach (var tp in TempPoints) Plan.TempPoints.Add(tp);
+        SaveMetricsToPlan();
 
         var name = string.IsNullOrWhiteSpace(Plan.Name) ? "plan" : Plan.Name;
+
+        // Save to root TestConfig directory
         Directory.CreateDirectory(AppPaths.TestConfigDir);
         var path = Path.Combine(AppPaths.TestConfigDir, name + ".ini");
         Plan.Save(path);
-        RefreshPlanNames();
-        if (!PlanNames.Contains(name)) PlanNames.Add(name);
-        _selectedPlanName = name;
-        OnPropertyChanged(nameof(SelectedPlanName));
-        AppLog.Info("Config", $"已保存方案 {name} 到 {path}");
+
+
+
+
+        AppLog.Info("Config", $"�ѱ��淽�� {name} �� {path}");
     }
 
     private void AddSlot()
     {
-        var next = Slots.Count + 1;
-        Slots.Add(MakeDefaultSlot(next));
-        AppLog.Info("Config", $"新增工位 Slot{next}，共 {Slots.Count} 行");
+        if (Slots.Count >= SlotMax) return;
+        SlotCount = Slots.Count + 1;
     }
 
     private void BatchGenerateSlots()
@@ -445,63 +668,110 @@ public sealed class ConfigViewModel : ViewModelBase
             Count = Math.Max(Slots.Count, 1)
         };
         if (dlg.ShowDialog() != true) return;
-        var target = Math.Clamp(dlg.Count, 1, 256);
-        Slots.Clear();
-        for (var i = 1; i <= target; i++) Slots.Add(MakeDefaultSlot(i));
-        AppLog.Info("Config", $"已批量生成 {target} 个工位");
+        SlotCount = Math.Clamp(dlg.Count, 1, SlotMax);
     }
 
     private void ImportSlots()
     {
         var dlg = new Microsoft.Win32.OpenFileDialog
         {
-            Filter = "CSV 文件|*.csv",
+            Filter = "CSV �ļ�|*.csv",
             InitialDirectory = System.IO.Path.GetDirectoryName(AppPaths.SlotCsv)
         };
         if (dlg.ShowDialog() != true) return;
         var table = SlotTable.Load(dlg.FileName);
         Slots.Clear();
         foreach (var s in table.Entries) Slots.Add(s);
-        AppLog.Info("Config", $"已从 {dlg.FileName} 导入 {Slots.Count} 行工位");
+        _slotCount = Math.Clamp(Slots.Count, 1, SlotMax);
+        OnPropertyChanged(nameof(SlotCount));
+        OnPropertyChanged(nameof(PreviewCount));
+        AppLog.Info("Config", $"�Ѵ� {dlg.FileName} ���� {Slots.Count} �й�λ");
     }
 
     private void ExportSlots()
     {
         var dlg = new Microsoft.Win32.SaveFileDialog
         {
-            Filter = "CSV 文件|*.csv",
+            Filter = "CSV �ļ�|*.csv",
             InitialDirectory = System.IO.Path.GetDirectoryName(AppPaths.SlotCsv),
-            FileName = "工位对应表.csv"
+            FileName = "��λ��Ӧ��.csv"
         };
         if (dlg.ShowDialog() != true) return;
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("工位,序列号,阀位,板卡位,板卡工位号,层数,夹具位,夹具工位号,压力控制器,数字万用表,通道,阀门");
-        foreach (var s in Slots)
+        sb.AppendLine("��λ,���к�,��λ,�忨λ,�忨��λ��,����,�о�λ,�о߹�λ��,ѹ��������,�������ñ�,ͨ��,����");
+        foreach (var s in SlotLayoutHelper.TrimTrailingPlaceholders(Slots.ToList()))
             sb.AppendLine(string.Join(',', s.Slot, s.SerialNo, s.Valve, s.Board, s.BoardSlotNo,
                 s.Layer, s.Fixture, s.FixtureSlotNo, s.PressureController, s.Dmm, s.Channel, s.ValveAddr));
         File.WriteAllText(dlg.FileName, sb.ToString(), System.Text.Encoding.UTF8);
-        AppLog.Info("Config", $"已导出 {Slots.Count} 行工位到 {dlg.FileName}");
+        AppLog.Info("Config", $"�ѵ��� {Slots.Count} �й�λ�� {dlg.FileName}");
     }
 
-    private static SlotEntry MakeDefaultSlot(int index)
+    private SlotLayoutOptions BuildSlotLayoutOptions() => new(
+        SlotCount: _slotCount,
+        BatchNo: _batchNo,
+        StartIndex: _startIndex,
+        StartBoard: _startBoard,
+        StartBoardSlot: _startBoardSlot,
+        BoardSlotCapacity: _boardSlotCapacity,
+        StartValve: _startValve,
+        FixtureSlotCapacity: _fixtureSlotCapacity,
+        FixtureCount: _fixtureCount,
+        StartChannel: _startChannel,
+        StartSerial: _startSerial,
+        AutoNumber: _autoNumber);
+
+    private bool SetSlotLayoutField<T>(ref T storage, T value, [System.Runtime.CompilerServices.CallerMemberName] string? name = null)
     {
-        var board = ((index - 1) / 16) + 1;
-        var boardSlot = ((index - 1) % 16) + 1;
-        var fixture = ((index - 1) / 8) + 1;
-        var fixtureSlot = ((index - 1) % 8) + 1;
-        return new SlotEntry(
-            Slot: $"Slot{index}",
-            SerialNo: $"DEMO_{index:D3}",
-            Valve: "1",
-            Board: board.ToString(),
-            BoardSlotNo: boardSlot.ToString(),
-            Layer: "1",
-            Fixture: fixture.ToString(),
-            FixtureSlotNo: fixtureSlot.ToString(),
-            PressureController: "1",
-            Dmm: "-",
-            Channel: "-",
-            ValveAddr: "-");
+        var changed = SetField(ref storage, value, name);
+        if (changed)
+            RegenerateSlots();
+        return changed;
+    }
+
+    public void RegenerateSlots()
+    {
+        var preserved = SlotLayoutHelper.CollectSerialMap(Slots);
+        var generated = SlotLayoutHelper.Generate(BuildSlotLayoutOptions());
+        SlotLayoutHelper.ApplyPreservedSerials(generated, preserved);
+
+        Slots.Clear();
+        foreach (var s in generated) Slots.Add(s);
+        OnPropertyChanged(nameof(PreviewCount));
+    }
+
+    private void LoadSlotLayoutFromIni()
+    {
+        if (int.TryParse(_settingIni.Get("Slots", "Count", ""), out var savedCount) && savedCount > 0)
+            _slotCount = Math.Clamp(savedCount, 1, SlotMax);
+        var savedBatch = _settingIni.Get("Slots", "BatchNo", "");
+        if (!string.IsNullOrWhiteSpace(savedBatch)) _batchNo = savedBatch;
+        if (int.TryParse(_settingIni.Get("Slots", "StartIndex", ""), out var si)) _startIndex = si;
+        if (int.TryParse(_settingIni.Get("Slots", "StartBoard", ""), out var sb)) _startBoard = sb;
+        if (int.TryParse(_settingIni.Get("Slots", "StartBoardSlot", ""), out var sbs)) _startBoardSlot = sbs;
+        if (int.TryParse(_settingIni.Get("Slots", "BoardSlotCapacity", ""), out var bsc) && bsc > 0) _boardSlotCapacity = bsc;
+        if (int.TryParse(_settingIni.Get("Slots", "StartValve", ""), out var sv)) _startValve = sv;
+        if (int.TryParse(_settingIni.Get("Slots", "FixtureSlotCapacity", ""), out var fsc) && fsc > 0) _fixtureSlotCapacity = fsc;
+        if (int.TryParse(_settingIni.Get("Slots", "FixtureCount", ""), out var fc) && fc > 0) _fixtureCount = fc;
+        if (int.TryParse(_settingIni.Get("Slots", "StartChannel", ""), out var sc)) _startChannel = sc;
+        if (int.TryParse(_settingIni.Get("Slots", "StartSerial", ""), out var ss)) _startSerial = ss;
+        if (bool.TryParse(_settingIni.Get("Slots", "AutoNumber", ""), out var an)) _autoNumber = an;
+    }
+
+    private void SaveSlotLayoutToIni()
+    {
+        _settingIni.Set("Slots", "Count", _slotCount.ToString());
+        _settingIni.Set("Slots", "BatchNo", _batchNo);
+        _settingIni.Set("Slots", "StartIndex", _startIndex.ToString());
+        _settingIni.Set("Slots", "StartBoard", _startBoard.ToString());
+        _settingIni.Set("Slots", "StartBoardSlot", _startBoardSlot.ToString());
+        _settingIni.Set("Slots", "BoardSlotCapacity", _boardSlotCapacity.ToString());
+        _settingIni.Set("Slots", "StartValve", _startValve.ToString());
+        _settingIni.Set("Slots", "FixtureSlotCapacity", _fixtureSlotCapacity.ToString());
+        _settingIni.Set("Slots", "FixtureCount", _fixtureCount.ToString());
+        _settingIni.Set("Slots", "StartChannel", _startChannel.ToString());
+        _settingIni.Set("Slots", "StartSerial", _startSerial.ToString());
+        _settingIni.Set("Slots", "AutoNumber", _autoNumber.ToString());
+        _settingIni.Set("Slots", "LastPlan", Plan.Name);
     }
 
     private void LoadDeviceSettings()
@@ -540,7 +810,7 @@ public sealed class ConfigViewModel : ViewModelBase
             .ToArray();
         ComPorts.Clear();
         foreach (var port in ports) ComPorts.Add(port);
-        if (ComPorts.Count == 0) ComPorts.Add("(无可用串口)");
+        if (ComPorts.Count == 0) ComPorts.Add("(�޿��ô�??");
         if (!ComPorts.Contains(DaqPort)) DaqPort = ComPorts[0];
         if (!ComPorts.Contains(OvenPort)) OvenPort = ComPorts.Count > 1 ? ComPorts[1] : ComPorts[0];
     }
@@ -554,35 +824,38 @@ public sealed class ConfigViewModel : ViewModelBase
         PressureCommandSettings.Clear();
 
         for (var i = 1; i <= 16; i++)
-            SwitchUnitCards.Add(new SettingPairVm($"卡{i}", LoadSetting(SwitchUnitSection, $"Card{i}", (300 + i).ToString()), CardChannels, section: SwitchUnitSection, key: $"Card{i}"));
+            SwitchUnitCards.Add(new SettingPairVm($"��{i}", LoadSetting(SwitchUnitSection, $"Card{i}", (300 + i).ToString()), CardChannels, section: SwitchUnitSection, key: $"Card{i}"));
 
-        ValveSettings.Add(new SettingPairVm("总阀", LoadSetting(ValveSection, "MasterValve", "101"), ValveChannels, section: ValveSection, key: "MasterValve"));
+        ValveSettings.Add(new SettingPairVm("�ܷ�", LoadSetting(ValveSection, "MasterValve", "101"), ValveChannels, section: ValveSection, key: "MasterValve"));
         for (var i = 1; i <= 8; i++)
-            ValveSettings.Add(new SettingPairVm($"阀门{i}", LoadSetting(ValveSection, $"Valve{i}", (101 + i).ToString()), ValveChannels, section: ValveSection, key: $"Valve{i}"));
+            ValveSettings.Add(new SettingPairVm($"����{i}", LoadSetting(ValveSection, $"Valve{i}", (101 + i).ToString()), ValveChannels, section: ValveSection, key: $"Valve{i}"));
 
         for (var i = 1; i <= 4; i++)
-            TempSensorSettings.Add(new SettingPairVm($"温度变送器{i}", LoadSetting(TempSensorSection, $"Sensor{i}", (200 + i).ToString()), TempChannels, section: TempSensorSection, key: $"Sensor{i}"));
+            TempSensorSettings.Add(new SettingPairVm($"�¶ȱ�����{i}", LoadSetting(TempSensorSection, $"Sensor{i}", (200 + i).ToString()), TempChannels, section: TempSensorSection, key: $"Sensor{i}"));
 
-        DelaySettings.Add(new SettingPairVm("加压后等待时间", LoadSetting(DelaySection, "PressureAfterMs", "60000"), null, "毫秒(ms)", DelaySection, "PressureAfterMs"));
-        DelaySettings.Add(new SettingPairVm("探漏等待时间", LoadSetting(DelaySection, "LeakWaitMs", "500"), null, "毫秒(ms)", DelaySection, "LeakWaitMs"));
-        DelaySettings.Add(new SettingPairVm("泄压等待时间", LoadSetting(DelaySection, "VentWaitMs", "120000"), null, "毫秒(ms)", DelaySection, "VentWaitMs"));
-        DelaySettings.Add(new SettingPairVm("稳定读写等待时间", LoadSetting(DelaySection, "StableIoMs", "3000"), null, "毫秒(ms)", DelaySection, "StableIoMs"));
-        DelaySettings.Add(new SettingPairVm("开关阀门等待时间", LoadSetting(DelaySection, "ValveSwitchMs", "500"), null, "毫秒(ms)", DelaySection, "ValveSwitchMs"));
-        DelaySettings.Add(new SettingPairVm("设定温度等待时间", LoadSetting(DelaySection, "SetTempMs", "10000"), null, "毫秒(ms)", DelaySection, "SetTempMs"));
-        DelaySettings.Add(new SettingPairVm("保温时间", LoadSetting(DelaySection, "SoakMinutes", "120"), null, "分钟(min)", DelaySection, "SoakMinutes"));
-        DelaySettings.Add(new SettingPairVm("零点校验等待时间", LoadSetting(DelaySection, "ZeroCheckMs", "0"), null, "毫秒(ms)", DelaySection, "ZeroCheckMs"));
-        PressureCommandSettings.Add(new("判定型号", "7250"));
-        PressureCommandSettings.Add(new("Open函数指令", "*RST;*IDN?"));
-        PressureCommandSettings.Add(new("MachineType函数指令", "*IDN?"));
-        PressureCommandSettings.Add(new("UpperLimit函数指令", "CALC:LIM:UPP?"));
-        PressureCommandSettings.Add(new("SetPressure函数指令", "*CLS;UNIT {0};PRES {1};TOL {2};OUTP:MC"));
-        PressureCommandSettings.Add(new("Vent函数指令", "*CLS;OUTP:MODE VENT"));
-        PressureCommandSettings.Add(new("ZeroCheck函数指令", "*CLS;CAL:ZERO:INIT;CAL:ZERO:RUN"));
-        PressureCommandSettings.Add(new("ReadPressure函数指令", "*CLS;MEAS?"));
-        PressureCommandSettings.Add(new("SetMeasure函数指令", "*CLS;OUTP:MODE MEAS"));
-        PressureCommandSettings.Add(new("SelfTest函数指令", "*TST?"));
-        PressureCommandSettings.Add(new("ReadStatus函数指令", "*CLS;STAT:OPER:COND?"));
-        PressureCommandSettings.Add(new("SetGaug函数指令", "*CLS;SENSE:MODE GAUG"));
+        DelaySettings.Add(new SettingPairVm("��ѹ��ȴ�ʱ��", LoadSetting(DelaySection, "PressureAfterMs", "60000"), null, "����(ms)", DelaySection, "PressureAfterMs"));
+        DelaySettings.Add(new SettingPairVm("̽©�ȴ�ʱ��", LoadSetting(DelaySection, "LeakWaitMs", "500"), null, "����(ms)", DelaySection, "LeakWaitMs"));
+        DelaySettings.Add(new SettingPairVm("йѹ�ȴ�ʱ��", LoadSetting(DelaySection, "VentWaitMs", "120000"), null, "����(ms)", DelaySection, "VentWaitMs"));
+        DelaySettings.Add(new SettingPairVm("Usig�ɼ��ӳ�", LoadSetting(DelaySection, "UsigDelayMs", "300"), null, "����(ms)", DelaySection, "UsigDelayMs"));
+        DelaySettings.Add(new SettingPairVm("UT�ɼ��ӳ�", LoadSetting(DelaySection, "UtDelayMs", "300"), null, "����(ms)", DelaySection, "UtDelayMs"));
+        DelaySettings.Add(new SettingPairVm("Usource�ɼ��ӳ�", LoadSetting(DelaySection, "UsourceDelayMs", "300"), null, "����(ms)", DelaySection, "UsourceDelayMs"));
+        DelaySettings.Add(new SettingPairVm("Isource�ɼ��ӳ�", LoadSetting(DelaySection, "IsourceDelayMs", "300"), null, "����(ms)", DelaySection, "IsourceDelayMs"));
+        DelaySettings.Add(new SettingPairVm("���ط��ŵȴ�ʱ��", LoadSetting(DelaySection, "ValveSwitchMs", "500"), null, "����(ms)", DelaySection, "ValveSwitchMs"));
+        DelaySettings.Add(new SettingPairVm("�趨�¶ȵȴ�ʱ��", LoadSetting(DelaySection, "SetTempMs", "10000"), null, "����(ms)", DelaySection, "SetTempMs"));
+        DelaySettings.Add(new SettingPairVm("����ʱ��", LoadSetting(DelaySection, "SoakMinutes", "120"), null, "����(min)", DelaySection, "SoakMinutes"));
+        DelaySettings.Add(new SettingPairVm("���У��ȴ�ʱ��", LoadSetting(DelaySection, "ZeroCheckMs", "0"), null, "����(ms)", DelaySection, "ZeroCheckMs"));
+        PressureCommandSettings.Add(new("�ж��ͺ�", "7250"));
+        PressureCommandSettings.Add(new("Open����ָ��", "*RST;*IDN?"));
+        PressureCommandSettings.Add(new("MachineType����ָ��", "*IDN?"));
+        PressureCommandSettings.Add(new("UpperLimit����ָ��", "CALC:LIM:UPP?"));
+        PressureCommandSettings.Add(new("SetPressure����ָ��", "*CLS;UNIT {0};PRES {1};TOL {2};OUTP:MC"));
+        PressureCommandSettings.Add(new("Vent����ָ��", "*CLS;OUTP:MODE VENT"));
+        PressureCommandSettings.Add(new("ZeroCheck����ָ��", "*CLS;CAL:ZERO:INIT;CAL:ZERO:RUN"));
+        PressureCommandSettings.Add(new("ReadPressure����ָ��", "*CLS;MEAS?"));
+        PressureCommandSettings.Add(new("SetMeasure����ָ��", "*CLS;OUTP:MODE MEAS"));
+        PressureCommandSettings.Add(new("SelfTest����ָ��", "*TST?"));
+        PressureCommandSettings.Add(new("ReadStatus����ָ��", "*CLS;STAT:OPER:COND?"));
+        PressureCommandSettings.Add(new("SetGaug����ָ��", "*CLS;SENSE:MODE GAUG"));
     }
 
     private string LoadSetting(string section, string key, string fallback) =>
@@ -591,6 +864,7 @@ public sealed class ConfigViewModel : ViewModelBase
     private void SaveSettings()
     {
         SaveDeviceProfiles();
+        SaveAppSettings();
         SavePairs(SwitchUnitCards);
         SavePairs(ValveSettings);
         SavePairs(TempSensorSettings);
@@ -598,7 +872,10 @@ public sealed class ConfigViewModel : ViewModelBase
         _settingIni.Save(AppPaths.SettingIni);
         _session.Context.Settings = _settingIni;
         SavePlan();
-        AppLog.Info("Config", $"已保存参数设置到 {AppPaths.SettingIni}");
+        SaveSlotLayoutToIni();
+        SaveSlotsToDefaultCsv();
+        AppPreferences.PruneOldLogs(_settingIni);
+        AppLog.Info("Config", $"�ѱ���������õ� {AppPaths.SettingIni}");
     }
 
     private void ReloadSettings()
@@ -607,8 +884,59 @@ public sealed class ConfigViewModel : ViewModelBase
             ? IniFile.Load(AppPaths.SettingIni)
             : new IniFile();
         LoadDeviceSettings();
+        LoadAppSettings();
         BuildParameterSettings();
-        AppLog.Info("Config", $"已从 {AppPaths.SettingIni} 重载参数设置");
+        AppLog.Info("Config", $"�Ѵ� {AppPaths.SettingIni} ���ز�������");
+    }
+
+    private void LoadAppSettings()
+    {
+        _selectedTheme = ThemeHelper.ToDisplayName(AppPreferences.Theme(_settingIni));
+        OnPropertyChanged(nameof(SelectedTheme));
+        LogRetainDays = AppPreferences.LogRetainDays(_settingIni);
+        AutoLoadLastPlan = AppPreferences.AutoLoadLastPlan(_settingIni);
+        AutoExportCsv = AppPreferences.AutoExportCsv(_settingIni);
+        SaveCheckpointOnAbort = AppPreferences.SaveCheckpointOnAbort(_settingIni);
+        FallbackSimOnDisconnect = AppPreferences.FallbackSimOnDisconnect(_settingIni);
+    }
+
+    private void SaveAppSettings()
+    {
+        AppPreferences.Set(_settingIni, "Theme", ThemeHelper.FromDisplayName(SelectedTheme));
+        AppPreferences.Set(_settingIni, "LogRetainDays", LogRetainDays.ToString(CultureInfo.InvariantCulture));
+        AppPreferences.SetBool(_settingIni, "AutoLoadLastPlan", AutoLoadLastPlan);
+        AppPreferences.SetBool(_settingIni, "AutoExportCsv", AutoExportCsv);
+        AppPreferences.SetBool(_settingIni, "SaveCheckpointOnAbort", SaveCheckpointOnAbort);
+        AppPreferences.SetBool(_settingIni, "FallbackSimOnDisconnect", FallbackSimOnDisconnect);
+        AppPreferences.Set(_settingIni, "LastPlan", Plan.Name);
+    }
+
+    private void SyncMetricsFromPlan()
+    {
+        foreach (var m in Metrics)
+            m.Enabled = Plan.IsMetricEnabled(m.Code);
+    }
+
+    private void SaveMetricsToPlan()
+    {
+        Plan.EnabledMetrics.Clear();
+        foreach (var m in Metrics)
+            Plan.EnabledMetrics[m.Code] = m.Enabled;
+    }
+
+    private void SaveSlotsToDefaultCsv()
+    {
+        try
+        {
+            var list = SlotLayoutHelper.TrimTrailingPlaceholders(Slots.ToList());
+            var table = new SlotTable(list);
+            table.Save(AppPaths.SlotCsv);
+            _session.ApplyRunConfig(Plan, table);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("Config", $"���湤λ��ʧ?? {ex.Message}");
+        }
     }
 
     private void SavePairs(IEnumerable<SettingPairVm> settings)
@@ -662,18 +990,18 @@ public sealed class ConfigViewModel : ViewModelBase
         // Surface a representative slice of Command.ini per device kind.
         var slice = new (string Kind, string[] Models, string[] Actions)[]
         {
-            ("压力控制器", new[] { "FLUKE-7250", "FLUKE-6270", "WIKA-CPC8000" },
+            ("ѹ��������", new[] { "FLUKE-7250", "FLUKE-6270", "WIKA-CPC8000" },
                 new[] { "Open", "MachineType", "UpperLimit", "SetPressure", "Vent", "SetAbs",
                         "ZeroCheck", "ReadPressure", "SetMeasure", "SelfTest", "ReadStatus", "SetGaug" }),
-            ("烘箱",      new[] { "GWSEBWT1670", "GWNMC2000" },
+            ("����",      new[] { "GWSEBWT1670", "GWNMC2000" },
                 new[] { "Open", "Set", "Read", "Stop", "SelfTest" }),
-            ("数字万用表", new[] { "Keysight-34970A", "Keysight-DAQ973A" },
+            ("�������ñ�", new[] { "Keysight-34970A", "Keysight-DAQ973A" },
                 new[] { "Open", "Close", "SetVol", "SetRes", "ReadValue", "SelfTest" }),
-            ("采集板",    new[] { "M30-DAC" },
+            ("�ɼ���",    new[] { "M30-DAC" },
                 new[] { "Open", "Usig", "Usource", "Isource", "UT", "SelfTest" }),
-            ("通道/阀门",  new[] { "Board" },
+            ("ͨ��/����",  new[] { "Board" },
                 new[] { "Open", "Close", "SelfTest" }),
-            ("电源",      new[] { "ADCMT-6146" },
+            ("��Դ",      new[] { "ADCMT-6146" },
                 new[] { "Open", "VoltageSource", "CurrentSource", "OutputON", "OutputOFF", "SelfTest" }),
         };
 
@@ -705,24 +1033,27 @@ public sealed class ConfigViewModel : ViewModelBase
         try { if (File.Exists(p)) return File.ReadAllText(p); } catch { /* fall back */ }
 
         return """
-        # M30TestApp V2 变更
+        # M30TestApp V2 ���
         
         ## 3.0.0.25 - 2026-05-25
-        ### 新增
-        - WPF 主程序壳 + 亮色主题 + 左侧导航
-        - 256 工位上限，SIM 自动生成 + 行/列虚拟化
-        - 手动调试 TX/RX 总线 + 多类型采集 (Usig/UT/Usource/Isource/DMM_V/DMM_R)
-        - 配置中心 8 子模块占位
-        ### 修复
-        - AsyncRelayCommand 异常吞噬 → 弹框 + 日志，不再闪退
-        - 矩阵列名 DMM-V 触发 Binding 错误 → DataMatrix.SanitizeKey
+        ### ����
+        - WPF ������� + ��ɫ���� + ��ർ��
+        - 256 ��λ���ޣ�SIM �Զ����� + ??�����⻯
+        - �ֶ����� TX/RX ���� + �����Ͳ�??(Usig/UT/Usource/Isource/DMM_V/DMM_R)
+        - �������� 8 ��ģ��ռ??        ### �޸�
+        - AsyncRelayCommand �쳣���� ??���� + ��־����������
+        - �������� DMM-V ���� Binding ���� ??DataMatrix.SanitizeKey
         
         ## 3.0.0.0 - 2026-05-20
-        ### 重构
-        - 从 WinForms ASLab 剥离测试核心，重写为 MVVM
-        - TaskScript 解释器替代硬编码温/压/工位三重循环
-        - DataMatrix 事件流取代 DataGridView 直绑
-        - 设备接口化 + SIM/HW 分离
+        ### �ع�
+        - ??WinForms ASLab ������Ժ��ģ���дΪ MVVM
+        - TaskScript ���������Ӳ����????��λ����ѭ��
+        - DataMatrix �¼���ȡ??DataGridView ֱ��
+        - �豸�ӿ�??+ SIM/HW ����
         """;
     }
 }
+
+
+
+
