@@ -430,7 +430,6 @@ public sealed class HwDmm : DeviceBase, IDmm
     protected override Task<bool> OnOpenAsync(CancellationToken ct)
     {
         _visa.Open();
-        _visa.Write("*RST");
         _visa.QueryString("*IDN?");
         return Task.FromResult(true);
     }
