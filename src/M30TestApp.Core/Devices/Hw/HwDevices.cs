@@ -32,7 +32,6 @@ internal sealed class VisaSession : IDisposable
         var session = (IMessage)_rm.Open(_address, AccessMode.NO_LOCK, 2000, string.Empty);
         session.Timeout = 10000;
         _io = new FormattedIO488 { IO = session };
-        TryClear();
         DeviceBus.Info(_device, "VISA open " + _address);
     }
 
