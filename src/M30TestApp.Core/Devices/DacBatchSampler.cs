@@ -122,10 +122,11 @@ public static class DacBatchSampler
     private static async Task TurnOffAllUtPowerAsync(TaskContext ctx, CancellationToken ct)
     {
         if (ctx.Dmm is null || ctx.Dmm.State != ConnectionState.Connected) return;
+        // UT 电源通道（3xx）：ROUT:CLOSE = 不通电
         for (var i = 1; i <= 16; i++)
         {
             var ch = ctx.Settings.Get("SwitchUnitCards", $"Card{i}", (300 + i).ToString());
-            await ctx.Dmm.OpenRelayAsync(ch, ct).ConfigureAwait(false);
+            await ctx.Dmm.CloseRelayAsync(ch, ct).ConfigureAwait(false);
         }
         AppLog.Info("Read", "UT采集结束，关闭全部板卡UT电源");
     }
@@ -146,14 +147,15 @@ public static class DacBatchSampler
             await ctx.Dmm.OpenAsync(ct).ConfigureAwait(false);
 
         var dmmChannel = ctx.Settings.Get("SwitchUnitCards", $"Card{cardAddr}", (300 + cardAddr).ToString());
-        // 与手动页一致：目标板卡 CloseRelay（选中通电），其他板卡 OpenRelay（默认开启）
+        // UT 电源通道（3xx）继电器语义：ROUT:CLOSE=不通电（默认），ROUT:OPEN=通电
+        // 其他板卡先 CloseRelay 断电，目标板卡再 OpenRelay 通电
         foreach (var i in Enumerable.Range(1, 16))
         {
             if (i == cardAddr) continue;
             var ch = ctx.Settings.Get("SwitchUnitCards", $"Card{i}", (300 + i).ToString());
-            await ctx.Dmm.OpenRelayAsync(ch, ct).ConfigureAwait(false);
+            await ctx.Dmm.CloseRelayAsync(ch, ct).ConfigureAwait(false);
         }
-        await ctx.Dmm.CloseRelayAsync(dmmChannel, ct).ConfigureAwait(false);
+        await ctx.Dmm.OpenRelayAsync(dmmChannel, ct).ConfigureAwait(false);
         await Task.Delay(switchMs, ct).ConfigureAwait(false);
         AppLog.Info("Read", $"切换UT电源：板卡{cardAddr} 通道{dmmChannel} 通电");
     }
