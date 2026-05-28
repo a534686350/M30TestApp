@@ -180,8 +180,8 @@ public sealed class ManualViewModel : ViewModelBase
     private string _currentVoltage = "—";
     public string CurrentVoltage { get => _currentVoltage; set => SetField(ref _currentVoltage, value); }
 
-    private string _poweredUtCard = "";
-    public string UtPowerText => string.Equals(_poweredUtCard, CardAddr, StringComparison.OrdinalIgnoreCase)
+    private string _closedUtPowerCard = "";
+    public string UtPowerText => string.Equals(_closedUtPowerCard, CardAddr, StringComparison.OrdinalIgnoreCase)
         ? $"UT：板卡{CardAddr}通电 ({GetSelectedUtPowerChannel()})"
         : $"UT：默认不通电 ({GetSelectedUtPowerChannel()})";
 
@@ -487,13 +487,13 @@ public sealed class ManualViewModel : ViewModelBase
                 await _session.Dmm.OpenAsync();
 
             var channel = GetSelectedUtPowerChannel();
-            // UT 电源通道（3xx）：ROUT:CLOSE=不通电（默认），ROUT:OPEN=通电
-            var powerOnSelected = !string.Equals(_poweredUtCard, CardAddr, StringComparison.OrdinalIgnoreCase);
+            // 与原始程序 FormTest.cs:2866 一致：目标→OpenRelayCh→ROUT:CLOSE（通电），其余→CloseRelayCh→ROUT:OPEN（不通电）
+            var powerOnSelected = !string.Equals(_closedUtPowerCard, CardAddr, StringComparison.OrdinalIgnoreCase);
             foreach (var ch in GetAllUtPowerChannels())
-                await _session.Dmm.CloseRelayAsync(ch);
+                await _session.Dmm.OpenRelayAsync(ch);
             if (powerOnSelected)
-                await _session.Dmm.OpenRelayAsync(channel);
-            _poweredUtCard = powerOnSelected ? CardAddr : "";
+                await _session.Dmm.CloseRelayAsync(channel);
+            _closedUtPowerCard = powerOnSelected ? CardAddr : "";
             OnPropertyChanged(nameof(UtPowerText));
             Hist($"切换 UT 电源 → {(powerOnSelected ? "通电" : "默认不通电")} (采集卡{CardAddr}={channel}，其余板卡不通电)");
         });
