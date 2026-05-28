@@ -84,8 +84,9 @@ public static class DacBatchSampler
             ctx.Matrix.EnsureSlot(slot.Slot);
             var (card, channel) = SlotDacAddress.Get(slot);
 
-            if (measure == DacMeasureKind.UT &&
-                int.TryParse(card, NumberStyles.Integer, CultureInfo.InvariantCulture, out var cardNum) &&
+            // 原版逻辑（FormTest.cs:2864-2882）：每个工位切换都要切UT电源，与测量类型无关。
+            // V2 之前限制 measure==UT 才切，导致 USC/ISC/USG 测量时电源停留在最后一个 UT 板卡上。
+            if (int.TryParse(card, NumberStyles.Integer, CultureInfo.InvariantCulture, out var cardNum) &&
                 cardNum != lastUtCard)
             {
                 await SwitchUtPowerForCardAsync(ctx, cardNum, switchMs, ct).ConfigureAwait(false);
