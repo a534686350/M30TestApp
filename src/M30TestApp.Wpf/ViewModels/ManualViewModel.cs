@@ -613,9 +613,9 @@ public sealed class ManualViewModel : ViewModelBase
         if (_session.Dmm.State != ConnectionState.Connected)
             await _session.Dmm.OpenAsync();
         if (on)
-            await _session.Dmm.CloseRelayAsync(channel);   // CloseRelay = 闭合继电器 = 开阀
+            await _session.Dmm.OpenRelayAsync(channel);     // ROUT:OPEN  = 阀门开
         else
-            await _session.Dmm.OpenRelayAsync(channel);     // OpenRelay  = 断开继电器 = 关阀
+            await _session.Dmm.CloseRelayAsync(channel);    // ROUT:CLOSE = 阀门关
         await Task.Delay(GetDelaySettingMs("ValveSwitchMs", 500));
         Hist($"{GetValveLabel(index)}({channel}) → {(on ? "开" : "关")}");
     }

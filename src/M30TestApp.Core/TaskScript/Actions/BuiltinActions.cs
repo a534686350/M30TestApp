@@ -618,9 +618,9 @@ public sealed class RunPerformanceTestAction : IAction
         // 初始状态：全部阀门关闭（主阀始终保持关闭）
         AppLog.Info("Leak", "关闭所有阀门");
         if (!string.IsNullOrWhiteSpace(masterValve))
-            await ctx.Dmm.OpenRelayAsync(masterValve, ct);
+            await ctx.Dmm.CloseRelayAsync(masterValve, ct);
         foreach (var (_, addr) in valves)
-            await ctx.Dmm.OpenRelayAsync(addr, ct);
+            await ctx.Dmm.CloseRelayAsync(addr, ct);
         await Task.Delay(switchMs, ct);
 
         // 泄压
@@ -636,8 +636,8 @@ public sealed class RunPerformanceTestAction : IAction
             try
             {
                 // 关闭所有工位阀，只开当前被测阀
-                foreach (var (_, a) in valves) await ctx.Dmm.OpenRelayAsync(a, ct);
-                await ctx.Dmm.CloseRelayAsync(vAddr, ct);
+                foreach (var (_, a) in valves) await ctx.Dmm.CloseRelayAsync(a, ct);
+                await ctx.Dmm.OpenRelayAsync(vAddr, ct);
                 await Task.Delay(switchMs, ct);
 
                 AppLog.Info("Leak", $"加压 {leakP}kPa 探漏开始");
@@ -657,7 +657,7 @@ public sealed class RunPerformanceTestAction : IAction
                     AppLog.Warn("Leak", $"{vName}探漏失败，泄漏率={leakRate:G4}");
 
                 // 测完关闭当前阀
-                await ctx.Dmm.OpenRelayAsync(vAddr, ct);
+                await ctx.Dmm.CloseRelayAsync(vAddr, ct);
             }
             catch (Exception ex)
             {
@@ -669,7 +669,7 @@ public sealed class RunPerformanceTestAction : IAction
         if (valves.Count > 1)
         {
             AppLog.Info("Leak", "打开所有工位阀进行整体探漏");
-            foreach (var (_, addr) in valves) await ctx.Dmm.CloseRelayAsync(addr, ct);
+            foreach (var (_, addr) in valves) await ctx.Dmm.OpenRelayAsync(addr, ct);
             await Task.Delay(switchMs, ct);
             try
             {
@@ -693,7 +693,7 @@ public sealed class RunPerformanceTestAction : IAction
             }
 
             // 整体探漏完毕，关闭所有工位阀
-            foreach (var (_, addr) in valves) await ctx.Dmm.OpenRelayAsync(addr, ct);
+            foreach (var (_, addr) in valves) await ctx.Dmm.CloseRelayAsync(addr, ct);
         }
 
         // 泄压结束
