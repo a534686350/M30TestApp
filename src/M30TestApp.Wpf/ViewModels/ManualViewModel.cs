@@ -180,10 +180,10 @@ public sealed class ManualViewModel : ViewModelBase
     private string _currentVoltage = "—";
     public string CurrentVoltage { get => _currentVoltage; set => SetField(ref _currentVoltage, value); }
 
-    private string _closedUtPowerCard = "";
-    public string UtPowerText => string.Equals(_closedUtPowerCard, CardAddr, StringComparison.OrdinalIgnoreCase)
-        ? $"UT：板卡{CardAddr}关闭 ({GetSelectedUtPowerChannel()})"
-        : $"UT：默认开启 ({GetSelectedUtPowerChannel()})";
+    private string _poweredUtCard = "";
+    public string UtPowerText => string.Equals(_poweredUtCard, CardAddr, StringComparison.OrdinalIgnoreCase)
+        ? $"UT：板卡{CardAddr}通电 ({GetSelectedUtPowerChannel()})"
+        : $"UT：默认不通电 ({GetSelectedUtPowerChannel()})";
 
     // ─── 读取数据 ───────────────────────────────────────────────────────────
     private string _readDriveV = ""; public string ReadDriveV { get => _readDriveV; set => SetField(ref _readDriveV, value); }
@@ -487,14 +487,15 @@ public sealed class ManualViewModel : ViewModelBase
                 await _session.Dmm.OpenAsync();
 
             var channel = GetSelectedUtPowerChannel();
-            var closeSelected = !string.Equals(_closedUtPowerCard, CardAddr, StringComparison.OrdinalIgnoreCase);
+            // UT 电源通道（3xx）：ROUT:CLOSE=不通电（默认），ROUT:OPEN=通电
+            var powerOnSelected = !string.Equals(_poweredUtCard, CardAddr, StringComparison.OrdinalIgnoreCase);
             foreach (var ch in GetAllUtPowerChannels())
-                await _session.Dmm.OpenRelayAsync(ch);
-            if (closeSelected)
-                await _session.Dmm.CloseRelayAsync(channel);
-            _closedUtPowerCard = closeSelected ? CardAddr : "";
+                await _session.Dmm.CloseRelayAsync(ch);
+            if (powerOnSelected)
+                await _session.Dmm.OpenRelayAsync(channel);
+            _poweredUtCard = powerOnSelected ? CardAddr : "";
             OnPropertyChanged(nameof(UtPowerText));
-            Hist($"切换 UT 电源 → {(closeSelected ? "关闭" : "默认开启")} (采集卡{CardAddr}={channel}，其余板卡默认开启)");
+            Hist($"切换 UT 电源 → {(powerOnSelected ? "通电" : "默认不通电")} (采集卡{CardAddr}={channel}，其余板卡不通电)");
         });
 
         ReadDriveVCommand = Wrap("读驱动电压", async () =>
