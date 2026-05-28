@@ -127,14 +127,14 @@ public static class DacBatchSampler
             await ctx.Dmm.OpenAsync(ct).ConfigureAwait(false);
 
         var dmmChannel = ctx.Settings.Get("SwitchUnitCards", $"Card{cardAddr}", (300 + cardAddr).ToString());
-        // ROUT:OPEN = 通电（导通），ROUT:CLOSE = 断电（断开）
-        await ctx.Dmm.OpenRelayAsync(dmmChannel, ct).ConfigureAwait(false);
-        for (var i = 1; i <= 16; i++)
+        // 与手动页一致：目标板卡 CloseRelay（选中通电），其他板卡 OpenRelay（默认开启）
+        foreach (var i in Enumerable.Range(1, 16))
         {
             if (i == cardAddr) continue;
             var ch = ctx.Settings.Get("SwitchUnitCards", $"Card{i}", (300 + i).ToString());
-            await ctx.Dmm.CloseRelayAsync(ch, ct).ConfigureAwait(false);
+            await ctx.Dmm.OpenRelayAsync(ch, ct).ConfigureAwait(false);
         }
+        await ctx.Dmm.CloseRelayAsync(dmmChannel, ct).ConfigureAwait(false);
         await Task.Delay(switchMs, ct).ConfigureAwait(false);
         AppLog.Info("Read", $"切换UT电源：板卡{cardAddr} 通道{dmmChannel} 通电");
     }
