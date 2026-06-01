@@ -2,10 +2,16 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
+    <!-- App -->
+    <sys:String x:Key="App.Title">M30 Test System</sys:String>
+    <sys:String x:Key="App.Name">M30 Test System</sys:String>
+
     <!-- Navigation -->
     <sys:String x:Key="Nav.TestRun">Auto Test</sys:String>
     <sys:String x:Key="Nav.Manual">Manual</sys:String>
     <sys:String x:Key="Nav.Config">Config</sys:String>
+    <sys:String x:Key="Nav.Plan">Plan</sys:String>
+    <sys:String x:Key="Nav.Slots">Slots</sys:String>
     <sys:String x:Key="Nav.Log">Log</sys:String>
     <sys:String x:Key="Nav.Settings">Settings</sys:String>
     <sys:String x:Key="Nav.Label">Navigation</sys:String>
@@ -26,6 +32,12 @@
     <sys:String x:Key="Settings.Repo">Repository</sys:String>
     <sys:String x:Key="Settings.Feedback">Feedback</sys:String>
     <sys:String x:Key="Settings.Feedback.Desc">Report issues or submit suggestions</sys:String>
+
+    <!-- Pick lists -->
+    <sys:String x:Key="Language.zhCN">简体中文</sys:String>
+    <sys:String x:Key="Language.enUS">English</sys:String>
+    <sys:String x:Key="Theme.Light">Light</sys:String>
+    <sys:String x:Key="Theme.Dark">Dark</sys:String>
 
     <!-- Device status -->
     <sys:String x:Key="Device.Online">Online</sys:String>

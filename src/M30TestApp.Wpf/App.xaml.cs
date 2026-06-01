@@ -49,6 +49,7 @@ public partial class App : Application
             ? IniFile.Load(AppPaths.SettingIni)
             : new IniFile();
         ThemeHelper.ApplyFromSettings(settingIni);
+        LanguageHelper.ApplyFromSettings(settingIni);
         AppPreferences.PruneOldLogs(settingIni);
         var station = StationProfile.Load(settingIni);
 

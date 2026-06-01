@@ -2,10 +2,16 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
+    <!-- App -->
+    <sys:String x:Key="App.Title">M30测试专用</sys:String>
+    <sys:String x:Key="App.Name">M30测试专用</sys:String>
+
     <!-- Navigation -->
     <sys:String x:Key="Nav.TestRun">自动测试</sys:String>
     <sys:String x:Key="Nav.Manual">手动调试</sys:String>
     <sys:String x:Key="Nav.Config">配置</sys:String>
+    <sys:String x:Key="Nav.Plan">方案</sys:String>
+    <sys:String x:Key="Nav.Slots">工位</sys:String>
     <sys:String x:Key="Nav.Log">日志</sys:String>
     <sys:String x:Key="Nav.Settings">设置</sys:String>
     <sys:String x:Key="Nav.Label">导航</sys:String>
@@ -14,18 +20,22 @@
     <sys:String x:Key="Settings.Title">应用设置</sys:String>
     <sys:String x:Key="Settings.Tab.General">通用</sys:String>
     <sys:String x:Key="Settings.Tab.About">关于</sys:String>
-
     <sys:String x:Key="Settings.Language">显示语言</sys:String>
     <sys:String x:Key="Settings.Language.Desc">选择界面的显示语言</sys:String>
     <sys:String x:Key="Settings.Theme">应用主题</sys:String>
     <sys:String x:Key="Settings.Theme.Desc">切换深色或浅色模式</sys:String>
-
-    <sys:String x:Key="Settings.About.Desc">M30测试专用</sys:String>
+    <sys:String x:Key="Settings.About.Desc">M30压力传感器测试系统</sys:String>
     <sys:String x:Key="Settings.CheckUpdate">检查更新</sys:String>
     <sys:String x:Key="Settings.Author">作者</sys:String>
     <sys:String x:Key="Settings.Repo">开源仓库</sys:String>
     <sys:String x:Key="Settings.Feedback">意见反馈</sys:String>
     <sys:String x:Key="Settings.Feedback.Desc">报告问题或提交建议</sys:String>
+
+    <!-- Pick lists -->
+    <sys:String x:Key="Language.zhCN">简体中文</sys:String>
+    <sys:String x:Key="Language.enUS">English</sys:String>
+    <sys:String x:Key="Theme.Light">浅色 / Light</sys:String>
+    <sys:String x:Key="Theme.Dark">深色 / Dark</sys:String>
 
     <!-- Device status -->
     <sys:String x:Key="Device.Online">在线</sys:String>

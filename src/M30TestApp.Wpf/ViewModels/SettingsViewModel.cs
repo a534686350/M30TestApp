@@ -77,11 +77,9 @@ public sealed class SettingsViewModel : ViewModelBase
         _session = session;
 
         // Load saved language preference
-        var savedLang = session.Context.Settings.Get("App", "Language", "zh-CN");
-        _language = savedLang;
+        _language = LanguageHelper.Normalize(AppPreferences.Language(session.Context.Settings));
 
-        var savedTheme = session.Context.Settings.Get("App", "Theme", "Light");
-        _theme = savedTheme;
+        _theme = ThemeHelper.Normalize(AppPreferences.Theme(session.Context.Settings));
 
         OpenRepoCommand = new RelayCommand(_ =>
         {
@@ -148,31 +146,16 @@ public sealed class SettingsViewModel : ViewModelBase
 
     private void ApplyLanguage(string lang)
     {
-        _session.Context.Settings.Set("App", "Language", lang);
+        lang = LanguageHelper.Normalize(lang);
+        AppPreferences.Set(_session.Context.Settings, "Language", lang);
         try { _session.Context.Settings.Save(AppPaths.SettingIni); } catch { }
-
-        Application.Current.Dispatcher.Invoke(() =>
-        {
-            var dict = new ResourceDictionary
-            {
-                Source = lang == "zh-CN"
-                    ? new Uri("pack://application:,,,/Strings/zh-CN.xaml")
-                    : new Uri("pack://application:,,,/Strings/en-US.xaml")
-            };
-
-            var merged = Application.Current.Resources.MergedDictionaries;
-            for (int i = merged.Count - 1; i >= 0; i--)
-            {
-                if (merged[i].Source?.OriginalString.Contains("/Strings/") == true)
-                    merged.RemoveAt(i);
-            }
-            merged.Add(dict);
-        });
+        LanguageHelper.Apply(lang);
     }
 
     private void ApplyTheme(string theme)
     {
-        _session.Context.Settings.Set("App", "Theme", theme);
+        theme = ThemeHelper.Normalize(theme);
+        AppPreferences.Set(_session.Context.Settings, "Theme", theme);
         try { _session.Context.Settings.Save(AppPaths.SettingIni); } catch { }
         ThemeHelper.Apply(theme);
     }

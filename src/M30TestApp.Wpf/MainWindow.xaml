@@ -7,7 +7,7 @@
         xmlns:views="clr-namespace:M30TestApp.Wpf.Views"
         d:DataContext="{d:DesignInstance vm:MainViewModel}"
         mc:Ignorable="d"
-        Title="M30测试专用"
+        Title="{DynamicResource App.Title}"
         Icon="/app.ico"
         Height="800" Width="1400"
         Background="{DynamicResource BgGradientBrush}"
@@ -96,11 +96,11 @@
                                  GroupName="MainNav" Content="{DynamicResource Nav.Config}"
                                  Command="{Binding ShowConfigCommand}"/>
                     <RadioButton Style="{DynamicResource NavButton}"
-                                 GroupName="MainNav" Content="方案"
+                                 GroupName="MainNav" Content="{DynamicResource Nav.Plan}"
                                  Command="{Binding ShowConfigPlanCommand}"
                                  Margin="18,2,0,0"/>
                     <RadioButton Style="{DynamicResource NavButton}"
-                                 GroupName="MainNav" Content="工位"
+                                 GroupName="MainNav" Content="{DynamicResource Nav.Slots}"
                                  Command="{Binding ShowConfigSlotsCommand}"
                                  Margin="18,2,0,0"/>
                     <RadioButton Style="{DynamicResource NavButton}"
