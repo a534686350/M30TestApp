@@ -6,7 +6,7 @@ using M30TestApp.Wpf.Mvvm;
 namespace M30TestApp.Wpf.ViewModels;
 
 /// <summary>Top-bar device status indicator: name + colored dot + model.</summary>
-public sealed class DeviceStatusVm : ViewModelBase
+public sealed class DeviceStatusVm : ViewModelBase, IDisposable
 {
     private readonly IDevice _device;
     private ConnectionState _state;
@@ -17,22 +17,26 @@ public sealed class DeviceStatusVm : ViewModelBase
         Title = title;
         _device = device;
         _state = device.State;
-        device.StateChanged += (_, _) =>
+        device.StateChanged += OnDeviceStateChanged;
+    }
+
+    private void OnDeviceStateChanged(object? sender, EventArgs e)
+    {
+        _state = _device.State;
+        App.Current.Dispatcher.BeginInvoke(new Action(() =>
         {
-            _state = device.State;
-            App.Current.Dispatcher.BeginInvoke(new Action(() =>
-            {
-                OnPropertyChanged(nameof(State));
-                OnPropertyChanged(nameof(StateText));
-                OnPropertyChanged(nameof(DotBrush));
-            }));
-        };
+            OnPropertyChanged(nameof(State));
+            OnPropertyChanged(nameof(StateText));
+            OnPropertyChanged(nameof(StatusLabel));
+            OnPropertyChanged(nameof(DotBrush));
+        }));
     }
 
     public string Title { get; }
     public string Model => string.IsNullOrEmpty(_device.Model) ? "—" : _device.Model;
     public string Address => string.IsNullOrEmpty(_device.Address) ? "" : _device.Address;
     public ConnectionState State => _overrideState ?? _state;
+    public string StatusLabel => $"{Title}{StateText}";
 
     public string StateText => State switch
     {
@@ -56,6 +60,9 @@ public sealed class DeviceStatusVm : ViewModelBase
         _overrideState = state;
         OnPropertyChanged(nameof(State));
         OnPropertyChanged(nameof(StateText));
+        OnPropertyChanged(nameof(StatusLabel));
         OnPropertyChanged(nameof(DotBrush));
     }
+
+    public void Dispose() => _device.StateChanged -= OnDeviceStateChanged;
 }

@@ -30,8 +30,8 @@ public static class ThemeHelper
 
     public static void ApplyFromSettings(IniFile ini) => Apply(AppPreferences.Theme(ini));
 
-    public static string ToDisplayName(string theme) => theme == "Dark" ? "暗色" : "亮色";
+    public static string ToDisplayName(string theme) => theme == "Dark" ? "深色" : "浅色";
 
     public static string FromDisplayName(string display) =>
-        display.StartsWith("暗", StringComparison.Ordinal) ? "Dark" : "Light";
+        display.StartsWith("深", StringComparison.Ordinal) ? "Dark" : "Light";
 }

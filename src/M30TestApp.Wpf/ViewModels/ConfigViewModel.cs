@@ -281,9 +281,9 @@ public sealed class ConfigViewModel : ViewModelBase
     public string LogDir => AppPaths.LogDir;
     public string DataDir => AppPaths.DataDir;
     public string TestConfigDir => AppPaths.TestConfigDir;
-    public ObservableCollection<string> Themes { get; } = new() { "��ɫ", "��ɫ" };
+    public ObservableCollection<string> Themes { get; } = new() { "深色", "浅色" };
 
-    private string _selectedTheme = "��ɫ";
+    private string _selectedTheme = "深色";
     public string SelectedTheme
     {
         get => _selectedTheme;
@@ -313,10 +313,10 @@ public sealed class ConfigViewModel : ViewModelBase
     // ── Sub-nav ──────────────────────────────────────────────────────────
     public ObservableCollection<string> Sections { get; } = new()
     {
-        "设备", "指令", "工位", "计算", "版本信息", "测试", "版本信息", "系统设置",
+        "方案", "指标限值", "参数控制", "设备", "指令", "工位", "测试流程", "计算", "版本信息", "系统设置",
     };
 
-    private string _selectedSection = "�豸";
+    private string _selectedSection = "方案";
     public string SelectedSection { get => _selectedSection; set => SetField(ref _selectedSection, value); }
 
     // ������ Commands ��������������������������������������������������������������������������������������������������������������������
@@ -889,7 +889,9 @@ public sealed class ConfigViewModel : ViewModelBase
         PressureCommandSettings.Add(new("SetMeasure发送指令", "*CLS;OUTP:MODE MEAS"));
         PressureCommandSettings.Add(new("SelfTest发送指令", "*TST?"));
         PressureCommandSettings.Add(new("ReadStatus发送指令", "*CLS;STAT:OPER:COND?"));
+        PressureCommandSettings.Add(new("SetAbs发送指令", "*CLS;SENSE:MODE ABS"));
         PressureCommandSettings.Add(new("SetGaug发送指令", "*CLS;SENSE:MODE GAUG"));
+        PressureCommandSettings.Add(new("SetDiff发送指令", "*CLS;SENSE:MODE DIFF"));
     }
 
     private string LoadSetting(string section, string key, string fallback) =>
@@ -1026,7 +1028,7 @@ public sealed class ConfigViewModel : ViewModelBase
         {
             ("压力控制器", new[] { "FLUKE-7250", "FLUKE-6270", "WIKA-CPC8000" },
                 new[] { "Open", "MachineType", "UpperLimit", "SetPressure", "Vent", "SetAbs",
-                        "ZeroCheck", "ReadPressure", "SetMeasure", "SelfTest", "ReadStatus", "SetGaug" }),
+                        "ZeroCheck", "ReadPressure", "SetMeasure", "SelfTest", "ReadStatus", "SetGaug", "SetDiff" }),
             ("烘箱",      new[] { "GWSEBWT1670", "GWNMC2000" },
                 new[] { "Open", "Set", "Read", "Stop", "SelfTest" }),
             ("数字万用表", new[] { "Keysight-34970A", "Keysight-DAQ973A" },

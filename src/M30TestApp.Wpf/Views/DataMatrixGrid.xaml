@@ -8,6 +8,12 @@
     <DataGrid x:Name="Grid"
               AutoGenerateColumns="False"
               FrozenColumnCount="2"
+              IsReadOnly="True"
+              SelectionMode="Extended"
+              SelectionUnit="CellOrRowHeader"
+              ClipboardCopyMode="IncludeHeader"
+              HeadersVisibility="All"
+              RowHeaderWidth="28"
               CanUserResizeColumns="True"
               CanUserSortColumns="False"
               CanUserReorderColumns="False"
@@ -17,5 +23,14 @@
               VirtualizingPanel.IsVirtualizing="True"
               ScrollViewer.CanContentScroll="True"
               ScrollViewer.HorizontalScrollBarVisibility="Auto"
-              ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+              ScrollViewer.VerticalScrollBarVisibility="Auto">
+        <DataGrid.ContextMenu>
+            <ContextMenu>
+                <MenuItem Header="复制选中数据" Command="Copy"
+                          CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                <MenuItem Header="全选" Command="SelectAll"
+                          CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+            </ContextMenu>
+        </DataGrid.ContextMenu>
+    </DataGrid>
 </UserControl>

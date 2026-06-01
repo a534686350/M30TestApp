@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using M30TestApp.Core;
 using M30TestApp.Core.Common;
 using M30TestApp.Core.Data;
@@ -13,7 +14,7 @@ using M30TestApp.Wpf.Mvvm;
 
 namespace M30TestApp.Wpf.ViewModels;
 
-public sealed class TestRunViewModel : ViewModelBase
+public sealed class TestRunViewModel : ViewModelBase, IDisposable
 {
     private readonly TestSession _session;
     private CancellationTokenSource? _cts;
@@ -22,6 +23,13 @@ public sealed class TestRunViewModel : ViewModelBase
     private int _progressIndex;
     private int _progressTotal;
     private double _okCount, _warnCount, _errCount;
+    private string _lastError = "";
+    private const int MaxLogLines = 500;
+    private readonly object _logGate = new();
+    private readonly Queue<string> _pendingLogLines = new();
+    private readonly Dictionary<string, CellStatus> _rowStatusBySlot = new(StringComparer.OrdinalIgnoreCase);
+    private bool _logFlushPending;
+    private readonly DispatcherTimer _timer;
 
     public ObservableCollection<MatrixRowVm> Rows { get; } = new();
     public ObservableCollection<string> Columns { get; } = new();
@@ -42,6 +50,7 @@ public sealed class TestRunViewModel : ViewModelBase
     public string OkPercent => $"{OkCount / Total * 100:F1}%";
     public string WarnPercent => $"{WarnCount / Total * 100:F1}%";
     public string ErrPercent => $"{ErrCount / Total * 100:F1}%";
+    public string LastError { get => _lastError; private set => SetField(ref _lastError, value); }
 
     public string PlanName => _session.Plan.Name;
     public string SensorType => _session.Plan.SensorType;
@@ -71,23 +80,15 @@ public sealed class TestRunViewModel : ViewModelBase
         session.Runner.Progress += OnProgress;
         session.Reconfigured += OnReconfigured;
 
-        AppLog.Logged += (_, e) =>
-        {
-            Application.Current.Dispatcher.BeginInvoke(new Action(() =>
-            {
-                LogLines.Add(e.ToString());
-                while (LogLines.Count > 500) LogLines.RemoveAt(0);
-                LogText = string.Join(Environment.NewLine, LogLines);
-            }));
-        };
+        AppLog.Logged += OnAppLogLogged;
 
         RunCommand = new AsyncRelayCommand(RunAsync, () => _cts is null) { Source = "测试" };
         CancelCommand = new RelayCommand(_ => _cts?.Cancel(), _ => _cts is not null);
         ClearLogCommand = new RelayCommand(_ => ClearLog());
 
         // 1-sec timer to refresh Elapsed, CurrentT/P, and CanExecute while running.
-        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        timer.Tick += (_, _) =>
+        _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _timer.Tick += (_, _) =>
         {
             if (_startedAt is { } t)
             {
@@ -97,8 +98,10 @@ public sealed class TestRunViewModel : ViewModelBase
             }
             System.Windows.Input.CommandManager.InvalidateRequerySuggested();
         };
-        timer.Start();
+        _timer.Start();
     }
+
+    private void OnAppLogLogged(object? sender, LogEvent e) => QueueLogLine(e.ToString());
 
     private void OnProgress(object? sender, Core.TaskScript.TaskProgress e)
     {
@@ -107,6 +110,8 @@ public sealed class TestRunViewModel : ViewModelBase
             CurrentStep = $"[{e.Index + 1}/{e.Total}] {e.Command}";
             ProgressIndex = e.Index + 1;
             ProgressTotal = e.Total;
+            if (e.Phase == "Error")
+                LastError = $"{e.Command}: {e.Error}";
             CurrentT = string.IsNullOrEmpty(_session.Context.CurrentTemp) ? "—" : _session.Context.CurrentTemp;
             CurrentP = string.IsNullOrEmpty(_session.Context.CurrentPressure) ? "—" : _session.Context.CurrentPressure;
             if (e.Phase == "Error") Status = "错误: " + e.Error;
@@ -122,8 +127,8 @@ public sealed class TestRunViewModel : ViewModelBase
             {
                 row.Cells[update.Cell.Key] = update.Cell;
                 if (!Columns.Contains(update.Cell.Key)) Columns.Add(update.Cell.Key);
+                ApplyRowStatus(row);
             }
-            RecalculateCounts();
         }));
     }
 
@@ -162,6 +167,37 @@ public sealed class TestRunViewModel : ViewModelBase
         ErrCount = err;
     }
 
+    private void ApplyRowStatus(MatrixRowVm row)
+    {
+        var oldStatus = _rowStatusBySlot.TryGetValue(row.Slot, out var old) ? old : CellStatus.Empty;
+        var newStatus = GetRowStatus(row);
+        if (oldStatus == newStatus) return;
+
+        AdjustStatusCount(oldStatus, -1);
+        AdjustStatusCount(newStatus, 1);
+
+        if (newStatus == CellStatus.Empty)
+            _rowStatusBySlot.Remove(row.Slot);
+        else
+            _rowStatusBySlot[row.Slot] = newStatus;
+    }
+
+    private void AdjustStatusCount(CellStatus status, int delta)
+    {
+        switch (status)
+        {
+            case CellStatus.Ok:
+                OkCount = Math.Max(0, OkCount + delta);
+                break;
+            case CellStatus.Warn:
+                WarnCount = Math.Max(0, WarnCount + delta);
+                break;
+            case CellStatus.Error:
+                ErrCount = Math.Max(0, ErrCount + delta);
+                break;
+        }
+    }
+
     private static CellStatus GetRowStatus(MatrixRowVm row)
     {
         var hasOk = false;
@@ -191,10 +227,13 @@ public sealed class TestRunViewModel : ViewModelBase
         {
             Rows.Clear();
             Columns.Clear();
+            _rowStatusBySlot.Clear();
             _rowBySlot = null;
             foreach (var slot in _session.Slots.Entries)
                 Rows.Add(new MatrixRowVm(slot.Slot, slot.SerialNo));
             OkCount = WarnCount = ErrCount = 0;
+            _rowStatusBySlot.Clear();
+            LastError = "";
             CurrentT = "—";
             CurrentP = "—";
             CurrentStep = "—";
@@ -210,11 +249,42 @@ public sealed class TestRunViewModel : ViewModelBase
 
     private void ClearLog()
     {
+        lock (_logGate) _pendingLogLines.Clear();
         LogLines.Clear();
         LogText = "";
+        LastError = "";
         CurrentStep = "—";
         ProgressIndex = 0;
         ProgressTotal = 0;
+    }
+
+    private void QueueLogLine(string line)
+    {
+        lock (_logGate)
+        {
+            _pendingLogLines.Enqueue(line);
+            if (_logFlushPending) return;
+            _logFlushPending = true;
+        }
+
+        Application.Current.Dispatcher.BeginInvoke(new Action(FlushLogLines));
+    }
+
+    private void FlushLogLines()
+    {
+        List<string> lines;
+        lock (_logGate)
+        {
+            lines = _pendingLogLines.ToList();
+            _pendingLogLines.Clear();
+            _logFlushPending = false;
+        }
+
+        foreach (var line in lines)
+            LogLines.Add(line);
+        while (LogLines.Count > MaxLogLines)
+            LogLines.RemoveAt(0);
+        LogText = string.Join(Environment.NewLine, LogLines);
     }
 
     private async Task ShutdownGracefullyAsync(bool saveData)
@@ -259,6 +329,12 @@ public sealed class TestRunViewModel : ViewModelBase
             }
         }
         catch (Exception ex) { AppLog.Error("Run", $"关闭电源失败: {ex.Message}"); }
+    }
+
+    private int GetRunnerMaxConsecutiveErrors()
+    {
+        var text = _session.Context.Settings.Get("Run", "MaxConsecutiveErrors", "1");
+        return int.TryParse(text, out var value) ? Math.Max(1, value) : 1;
     }
 
     private async Task RunAsync()
@@ -319,6 +395,8 @@ public sealed class TestRunViewModel : ViewModelBase
         if (!setupVm.CollectUsg) AppLog.Info("Run", "已跳过USG采集");
         if (!setupVm.CollectOvenTemp) AppLog.Info("Run", "已跳过烘箱温度采集");
 
+        _session.Runner.ThrowOnUnknown = true;
+        _session.Runner.MaxConsecutiveErrors = GetRunnerMaxConsecutiveErrors();
         _session.Context.ResumeCheckpoint = null;
         if (setupVm.ResumeFromCheckpoint && setupVm.CanResumeCheckpoint)
         {
@@ -334,6 +412,8 @@ public sealed class TestRunViewModel : ViewModelBase
         {
             Status = "运行中…";
             OkCount = WarnCount = ErrCount = 0;
+            _rowStatusBySlot.Clear();
+            LastError = "";
             await _session.RunAsync(_cts.Token);
             Status = "正在关闭设备…";
             await ShutdownGracefullyAsync(saveData: false);
@@ -349,6 +429,7 @@ public sealed class TestRunViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
+            LastError = ex.Message;
             Status = "失败: " + ex.Message;
             AppLog.Error("UI", ex.ToString());
             try { await ShutdownGracefullyAsync(saveData: true); }
@@ -368,5 +449,17 @@ public sealed class TestRunViewModel : ViewModelBase
             _cts = null;
             _startedAt = null;
         }
+    }
+
+    public void Dispose()
+    {
+        _timer.Stop();
+        AppLog.Logged -= OnAppLogLogged;
+        _session.Matrix.CellUpdated -= OnCellUpdated;
+        _session.Runner.Progress -= OnProgress;
+        _session.Reconfigured -= OnReconfigured;
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = null;
     }
 }

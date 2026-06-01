@@ -1,8 +1,8 @@
 using System;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO.Ports;
 using System.Linq;
-using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -87,7 +87,18 @@ internal static class SerialHelpers
         _ => StopBits.One
     };
 
-    public static string ToHex(byte[] data) => string.Join(" ", data.Select(b => b.ToString("X2", CultureInfo.InvariantCulture))) + " ";
+    public static string ToHex(byte[] data)
+    {
+        if (data.Length == 0) return string.Empty;
+
+        var sb = new StringBuilder(data.Length * 3);
+        foreach (var b in data)
+        {
+            sb.Append(b.ToString("X2", CultureInfo.InvariantCulture));
+            sb.Append(' ');
+        }
+        return sb.ToString();
+    }
 }
 
 public sealed class HwOven : DeviceBase, IOven
@@ -184,63 +195,33 @@ public sealed class HwDac : DeviceBase, IDac
         return Task.CompletedTask;
     }
 
-    public Task<float> ReadUsourceAsync(float pressure, float tempC, int v, string addr1, string addr2, CancellationToken ct = default) => ReadValueAsync(2, v, addr1, addr2, ct);
-    public Task<float> ReadIsourceAsync(float pressure, float tempC, int v, string addr1, string addr2, CancellationToken ct = default) => ReadValueAsync(3, v, addr1, addr2, ct);
-    public Task<float> ReadUsigAsync(float pressure, float tempC, int v, string addr1, string addr2, CancellationToken ct = default) => ReadValueAsync(4, v, addr1, addr2, ct);
+    public Task<float> ReadUsourceAsync(float pressure, float tempC, int v, string addr1, string addr2, CancellationToken ct = default) => ReadValueAsync(2, addr1, addr2, ct);
+    public Task<float> ReadIsourceAsync(float pressure, float tempC, int v, string addr1, string addr2, CancellationToken ct = default) => ReadValueAsync(3, addr1, addr2, ct);
+    public Task<float> ReadUsigAsync(float pressure, float tempC, int v, string addr1, string addr2, CancellationToken ct = default) => ReadValueAsync(4, addr1, addr2, ct);
     public async Task<float> ReadUtAsync(float pressure, float tempC, int v, string addr1, string addr2, CancellationToken ct = default)
     {
-        // 与原始程序 FuncDAC.UT 一致：
-        //   1) 设电压(01) → 设电流(06)，确认电流设定成功
-        //   2) 等待 UTcurrent 延时
-        //   3) 设电压(01) → 读 UT(05)
-        if (!byte.TryParse(addr1, out var card) || !byte.TryParse(addr2, out var channel))
-            throw new InvalidOperationException("采集卡地址或通道地址无效");
-        var vCode = VoltageCode(v);
+        // 先发功能码 06 切换 UT 电源到指定 card+channel
+        await SwitchUtPowerAsync(addr1, addr2, ct).ConfigureAwait(false);
+        // 板卡内部继电器切换后需要稳定时间,否则下一次 05 读取会得到空回复触发重试
+        await Task.Delay(UtSettleMs, ct).ConfigureAwait(false);
+        // 再发功能码 05 读取 UT 值
+        return await ReadValueAsync(5, addr1, addr2, ct).ConfigureAwait(false);
+    }
+
+    private static int UtSettleMs => 500;
+
+    /// <summary>
+    /// 发送功能码 06 [card, 0x06, channel] + CRC，等待 5 字节回声确认。
+    /// </summary>
+    private async Task SwitchUtPowerAsync(string cardAddr, string channelAddr, CancellationToken ct)
+    {
         EnsureOpen();
-        await SetVoltageAsync(card, vCode, ct).ConfigureAwait(false);
-        await SetUtCurrentAsync(card, channel, ct).ConfigureAwait(false);
-        await Task.Delay(UtCurrentMs, ct).ConfigureAwait(false);
-        await SetVoltageAsync(card, vCode, ct).ConfigureAwait(false);
-        return await ReadFunctionAsync(card, 5, channel, ct).ConfigureAwait(false);
-    }
+        if (!byte.TryParse(cardAddr, out var card) || !byte.TryParse(channelAddr, out var channel))
+            throw new InvalidOperationException("采集卡地址或通道地址无效");
 
-    private static int UtCurrentMs => 500;
-
-    private static byte VoltageCode(int v) => v switch
-    {
-        5 => 1,
-        12 => 2,
-        _ => throw new InvalidOperationException($"采集板电压设定值异常: {v}")
-    };
-
-    /// <summary>
-    /// 发送功能码 01 [card, 0x01, vCode] + CRC，等待 5 字节回声。
-    /// </summary>
-    private async Task SetVoltageAsync(byte card, byte vCode, CancellationToken ct)
-    {
-        var request = AppendCrc(new[] { card, (byte)1, vCode });
-        for (var attempt = 1; attempt <= 3; attempt++)
-        {
-            _port!.DiscardInBuffer();
-            _port.DiscardOutBuffer();
-            DeviceBus.Tx(Model, "Send: " + SerialHelpers.ToHex(request));
-            _port.Write(request, 0, request.Length);
-            var response = await ReadExactAsync(5, 1500, ct).ConfigureAwait(false);
-            DeviceBus.Rx(Model, "Get: " + SerialHelpers.ToHex(response));
-            if (response.Length >= 5 && CheckCrc(response) && response[0] == card && response[1] == 1)
-                return;
-            DeviceBus.Info(Model, $"SetVoltage retry {attempt}: echo invalid len={response.Length}");
-            await Task.Delay(100, ct).ConfigureAwait(false);
-        }
-        DeviceBus.Info(Model, "SetVoltage echo failed after retries, continuing anyway");
-    }
-
-    /// <summary>
-    /// 发送功能码 06 [card, 0x06, channel] + CRC（UT 电流设定），等待 5 字节回声确认。
-    /// </summary>
-    private async Task SetUtCurrentAsync(byte card, byte channel, CancellationToken ct)
-    {
         var request = AppendCrc(new[] { card, (byte)6, channel });
+
+        // 重试机制：确保回声正确
         for (var attempt = 1; attempt <= 3; attempt++)
         {
             _port!.DiscardInBuffer();
@@ -249,12 +230,21 @@ public sealed class HwDac : DeviceBase, IDac
             _port.Write(request, 0, request.Length);
             var response = await ReadExactAsync(5, 1500, ct).ConfigureAwait(false);
             DeviceBus.Rx(Model, "Get: " + SerialHelpers.ToHex(response));
-            if (response.Length >= 5 && CheckCrc(response) && response[0] == card && response[1] == 6 && response[2] == channel)
-                return;
-            DeviceBus.Info(Model, $"SetUtCurrent retry {attempt}: echo invalid len={response.Length}");
+
+            if (response.Length >= 5 && CheckCrc(response))
+            {
+                // 回声正确，验证是否为发送命令的回声
+                if (response[0] == card && response[1] == 6 && response[2] == channel)
+                {
+                    return; // 回声正确，成功
+                }
+            }
+
+            DeviceBus.Info(Model, $"UT power switch retry {attempt}: echo invalid len={response.Length}");
             await Task.Delay(100, ct).ConfigureAwait(false);
         }
-        DeviceBus.Info(Model, "SetUtCurrent echo failed after retries, continuing anyway");
+
+        DeviceBus.Info(Model, "UT power switch echo failed after retries, continuing anyway");
     }
 
     private void EnsureOpen()
@@ -273,18 +263,12 @@ public sealed class HwDac : DeviceBase, IDac
         DeviceBus.Rx(Model, "OK");
     }
 
-    private async Task<float> ReadValueAsync(byte function, int v, string cardAddr, string channelAddr, CancellationToken ct)
+    private async Task<float> ReadValueAsync(byte function, string cardAddr, string channelAddr, CancellationToken ct)
     {
         EnsureOpen();
         if (!byte.TryParse(cardAddr, out var card) || !byte.TryParse(channelAddr, out var channel))
             throw new InvalidOperationException("采集卡地址或通道地址无效");
-        // 与原始程序 FuncDAC.CardIO 一致：每次测量前先发功能码 01 设定电压
-        await SetVoltageAsync(card, VoltageCode(v), ct).ConfigureAwait(false);
-        return await ReadFunctionAsync(card, function, channel, ct).ConfigureAwait(false);
-    }
 
-    private async Task<float> ReadFunctionAsync(byte card, byte function, byte channel, CancellationToken ct)
-    {
         var request = AppendCrc(new[] { card, function, channel });
         byte[] response = Array.Empty<byte>();
         for (var attempt = 1; attempt <= 3; attempt++)
@@ -296,9 +280,10 @@ public sealed class HwDac : DeviceBase, IDac
             response = await ReadExactAsync(9, 1500, ct).ConfigureAwait(false);
             DeviceBus.Rx(Model, "Get: " + SerialHelpers.ToHex(response));
             if (response.Length >= 9 && CheckCrc(response))
-                return BitConverter.ToSingle(response.Skip(3).Take(4).ToArray(), 0);
+                return BitConverter.ToSingle(response.AsSpan(3, 4));
 
             DeviceBus.Info(Model, $"Read retry {attempt}: invalid response length={response.Length}");
+            // 空回复多半是板卡尚未稳定,加长间隔再试
             await Task.Delay(response.Length == 0 ? 300 : 100, ct).ConfigureAwait(false);
         }
 
@@ -307,52 +292,49 @@ public sealed class HwDac : DeviceBase, IDac
 
     private async Task<byte[]> ReadExactAsync(int expectedLength, int timeoutMs, CancellationToken ct)
     {
-        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
-        var buffer = new List<byte>(expectedLength);
-        while (DateTime.UtcNow < deadline && buffer.Count < expectedLength)
+        var sw = Stopwatch.StartNew();
+        var buffer = new byte[expectedLength];
+        var offset = 0;
+
+        while (sw.ElapsedMilliseconds < timeoutMs && offset < expectedLength)
         {
             ct.ThrowIfCancellationRequested();
             var count = _port!.BytesToRead;
             if (count > 0)
             {
-                var chunk = new byte[count];
-                _port.Read(chunk, 0, count);
-                buffer.AddRange(chunk);
-                if (buffer.Count >= expectedLength) break;
+                var read = _port.Read(buffer, offset, Math.Min(count, expectedLength - offset));
+                offset += read;
+                if (offset >= expectedLength) break;
             }
             await Task.Delay(20, ct).ConfigureAwait(false);
         }
 
-        while (_port!.BytesToRead > 0)
-        {
-            var count = _port.BytesToRead;
-            var chunk = new byte[count];
-            _port.Read(chunk, 0, count);
-            buffer.AddRange(chunk);
-        }
+        while (_port!.BytesToRead > 0 && offset < expectedLength)
+            offset += _port.Read(buffer, offset, Math.Min(_port.BytesToRead, expectedLength - offset));
 
-        var data = buffer.ToArray();
-        if (data.Length > expectedLength)
-            return data.Take(expectedLength).ToArray();
-
-        return data;
+        if (offset == expectedLength) return buffer;
+        Array.Resize(ref buffer, offset);
+        return buffer;
     }
 
     private static byte[] AppendCrc(byte[] data)
     {
         var crc = ModbusCrc(data);
-        return data.Concat(new[] { (byte)(crc & 0xFF), (byte)(crc >> 8) }).ToArray();
+        var frame = new byte[data.Length + 2];
+        Buffer.BlockCopy(data, 0, frame, 0, data.Length);
+        frame[^2] = (byte)(crc & 0xFF);
+        frame[^1] = (byte)(crc >> 8);
+        return frame;
     }
 
     private static bool CheckCrc(byte[] data)
     {
         if (data.Length < 3) return false;
-        var body = data.Take(data.Length - 2).ToArray();
-        var crc = ModbusCrc(body);
+        var crc = ModbusCrc(data.AsSpan(0, data.Length - 2));
         return data[^2] == (byte)(crc & 0xFF) && data[^1] == (byte)(crc >> 8);
     }
 
-    private static ushort ModbusCrc(byte[] data)
+    private static ushort ModbusCrc(ReadOnlySpan<byte> data)
     {
         ushort crc = 0xFFFF;
         foreach (var b in data)

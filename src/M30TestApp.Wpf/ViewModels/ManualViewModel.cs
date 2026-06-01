@@ -32,13 +32,24 @@ public class BatchSampleResult
 ///  - 阀门 1..8 + 排气阀
 ///  - 两个大底栏: 数据I/O (TX/RX 原始报文)  +  历史记录 (操作日志)
 /// </summary>
-public sealed class ManualViewModel : ViewModelBase
+public sealed class ManualViewModel : ViewModelBase, IDisposable
 {
     private readonly TestSession _session;
     private readonly DeviceStatusVm? _ovenStatus;
     private readonly DeviceStatusVm? _dacStatus;
     private CancellationTokenSource? _batchCts;
     private SerialPort? _ovenSerial;
+    private const int MaxDataIoLines = 2000;
+    private const int MaxHistoryLines = 500;
+    private readonly object _dataIoGate = new();
+    private readonly object _historyGate = new();
+    private readonly Queue<string> _pendingDataIoLines = new();
+    private readonly Queue<string> _pendingHistoryLines = new();
+    private bool _dataIoFlushPending;
+    private bool _historyFlushPending;
+    private static readonly object SettingCacheLock = new();
+    private static IniFile? _settingCache;
+    private static DateTime _settingCacheStamp;
 
     // ─── COM / serial profile (display-only for SIM) ────────────────────────
     public ObservableCollection<string> ComPorts { get; } = new();
@@ -182,8 +193,8 @@ public sealed class ManualViewModel : ViewModelBase
 
     private string _closedUtPowerCard = "";
     public string UtPowerText => string.Equals(_closedUtPowerCard, CardAddr, StringComparison.OrdinalIgnoreCase)
-        ? $"UT：板卡{CardAddr}通电 ({GetSelectedUtPowerChannel()})"
-        : $"UT：默认不通电 ({GetSelectedUtPowerChannel()})";
+        ? $"UT：板卡{CardAddr}关闭 ({GetSelectedUtPowerChannel()})"
+        : $"UT：默认开启 ({GetSelectedUtPowerChannel()})";
 
     // ─── 读取数据 ───────────────────────────────────────────────────────────
     private string _readDriveV = ""; public string ReadDriveV { get => _readDriveV; set => SetField(ref _readDriveV, value); }
@@ -361,6 +372,7 @@ public sealed class ManualViewModel : ViewModelBase
         });
         SetPressureCommand = Wrap("加压", async () =>
         {
+            await EnsurePressureModeAsync();
             await session.Pressure.SetPressureAsync(TargetPressure, PressureUnit, Precision);
             Hist($"加压 → {TargetPressure} {PressureUnit} (精度 {Precision})");
         });
@@ -407,11 +419,15 @@ public sealed class ManualViewModel : ViewModelBase
         });
         SwitchModeCommand = Wrap("切换测量模式", async () =>
         {
-            var next = MeasureMode == "Gauge" ? "Absolute" : "Gauge";
-            DeviceBus.Tx(PressureModel, $"Ptype={next}");
-            await Task.Delay(20);
-            DeviceBus.Rx(PressureModel, "OK");
-            MeasureMode = next;
+            var next = ParseManualPressureType(MeasureMode) == PressureType.Gauge
+                ? PressureType.Absolute
+                : PressureType.Gauge;
+
+            if (_session.Pressure.State != ConnectionState.Connected)
+                await _session.Pressure.OpenAsync();
+
+            await _session.Pressure.SetPressureTypeAsync(next);
+            MeasureMode = next == PressureType.Absolute ? "Absolute" : "Gauge";
             Hist($"切换测量模式 → {next}");
         });
         SelfTestCommand = Wrap("自检", async () =>
@@ -487,15 +503,14 @@ public sealed class ManualViewModel : ViewModelBase
                 await _session.Dmm.OpenAsync();
 
             var channel = GetSelectedUtPowerChannel();
-            // 与原始程序 FormTest.cs:2866 一致：目标→OpenRelayCh→ROUT:CLOSE（通电），其余→CloseRelayCh→ROUT:OPEN（不通电）
-            var powerOnSelected = !string.Equals(_closedUtPowerCard, CardAddr, StringComparison.OrdinalIgnoreCase);
+            var closeSelected = !string.Equals(_closedUtPowerCard, CardAddr, StringComparison.OrdinalIgnoreCase);
             foreach (var ch in GetAllUtPowerChannels())
                 await _session.Dmm.OpenRelayAsync(ch);
-            if (powerOnSelected)
+            if (closeSelected)
                 await _session.Dmm.CloseRelayAsync(channel);
-            _closedUtPowerCard = powerOnSelected ? CardAddr : "";
+            _closedUtPowerCard = closeSelected ? CardAddr : "";
             OnPropertyChanged(nameof(UtPowerText));
-            Hist($"切换 UT 电源 → {(powerOnSelected ? "通电" : "默认不通电")} (采集卡{CardAddr}={channel}，其余板卡不通电)");
+            Hist($"切换 UT 电源 → {(closeSelected ? "关闭" : "默认开启")} (采集卡{CardAddr}={channel}，其余板卡默认开启)");
         });
 
         ReadDriveVCommand = Wrap("读驱动电压", async () =>
@@ -533,8 +548,18 @@ public sealed class ManualViewModel : ViewModelBase
         StopBatchSampleCommand = new RelayCommand(_ => StopBatchSample());
         ExportBatchResultsCommand = new RelayCommand(_ => ExportBatchResults());
 
-        ClearDataIoCommand  = new RelayCommand(_ => { DataIo.Clear(); DataIoText = ""; });
-        ClearHistoryCommand = new RelayCommand(_ => { History.Clear(); HistoryText = ""; });
+        ClearDataIoCommand  = new RelayCommand(_ =>
+        {
+            lock (_dataIoGate) _pendingDataIoLines.Clear();
+            DataIo.Clear();
+            DataIoText = "";
+        });
+        ClearHistoryCommand = new RelayCommand(_ =>
+        {
+            lock (_historyGate) _pendingHistoryLines.Clear();
+            History.Clear();
+            HistoryText = "";
+        });
     }
 
     /// <summary>
@@ -676,8 +701,20 @@ public sealed class ManualViewModel : ViewModelBase
             : fallback;
     }
 
-    private static IniFile LoadSettingIni() =>
-        File.Exists(AppPaths.SettingIni) ? IniFile.Load(AppPaths.SettingIni) : new IniFile();
+    private static IniFile LoadSettingIni()
+    {
+        var exists = File.Exists(AppPaths.SettingIni);
+        var stamp = exists ? File.GetLastWriteTimeUtc(AppPaths.SettingIni) : DateTime.MinValue;
+        lock (SettingCacheLock)
+        {
+            if (_settingCache is null || stamp != _settingCacheStamp)
+            {
+                _settingCache = exists ? IniFile.Load(AppPaths.SettingIni) : new IniFile();
+                _settingCacheStamp = stamp;
+            }
+            return _settingCache;
+        }
+    }
 
     private string GetSelectedUtPowerChannel()
     {
@@ -767,6 +804,28 @@ public sealed class ManualViewModel : ViewModelBase
 
     private static void GetDacAddresses(SlotEntry slot, int slotNum, out string card, out string channel) =>
         (card, channel) = SlotDacAddress.Get(slot);
+
+    private async Task EnsurePressureModeAsync()
+    {
+        var pressureType = ParseManualPressureType(MeasureMode);
+        if (_session.Pressure.State != ConnectionState.Connected)
+            await _session.Pressure.OpenAsync();
+        await _session.Pressure.SetPressureTypeAsync(pressureType);
+    }
+
+    private static PressureType ParseManualPressureType(string mode) => mode switch
+    {
+        "Absolute" or "ABS" or "abs" or "绝压" => PressureType.Absolute,
+        "Differential" or "DIFF" or "diff" or "差压" => PressureType.Differential,
+        _ => PressureType.Gauge,
+    };
+
+    private static string PressureTypeDisplay(PressureType pressureType) => pressureType switch
+    {
+        PressureType.Absolute => "绝压",
+        PressureType.Differential => "差压",
+        _ => "表压",
+    };
 
     private async Task ReadDacValueAsync(byte function, string name, Action<float> assign, string unit)
     {
@@ -969,7 +1028,7 @@ public sealed class ManualViewModel : ViewModelBase
             }
 
             // Sort results by slot number
-            Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+            _ = Application.Current.Dispatcher.BeginInvoke(new Action(() =>
             {
                 var sortedResults = BatchResults.OrderBy(r => r.Slot).ToList();
                 BatchResults.Clear();
@@ -1027,12 +1086,14 @@ public sealed class ManualViewModel : ViewModelBase
 
         // Render as a single line matching the look of ASLab's "数据I/O" panel.
         var line = $"{e.Time:HH:mm:ss.fff}  {e.Arrow}  {e.Device,-14}  {e.Payload}";
-        Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+        lock (_dataIoGate)
         {
-            DataIo.Add(line);
-            while (DataIo.Count > 2000) DataIo.RemoveAt(0);
-            DataIoText = string.Join(Environment.NewLine, DataIo);
-        }));
+            _pendingDataIoLines.Enqueue(line);
+            if (_dataIoFlushPending) return;
+            _dataIoFlushPending = true;
+        }
+
+        Application.Current.Dispatcher.BeginInvoke(new Action(FlushDataIoLines));
     }
 
     private void Hist(string s)
@@ -1040,12 +1101,58 @@ public sealed class ManualViewModel : ViewModelBase
         StatusText = s;
         AppLog.Info("Manual", s);
         var line = $"{DateTime.Now:HH:mm:ss}  {s}";
-        Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+        lock (_historyGate)
         {
+            _pendingHistoryLines.Enqueue(line);
+            if (_historyFlushPending) return;
+            _historyFlushPending = true;
+        }
+
+        Application.Current.Dispatcher.BeginInvoke(new Action(FlushHistoryLines));
+    }
+
+    private void FlushDataIoLines()
+    {
+        List<string> lines;
+        lock (_dataIoGate)
+        {
+            lines = _pendingDataIoLines.ToList();
+            _pendingDataIoLines.Clear();
+            _dataIoFlushPending = false;
+        }
+
+        foreach (var line in lines)
+            DataIo.Add(line);
+        while (DataIo.Count > MaxDataIoLines)
+            DataIo.RemoveAt(0);
+        DataIoText = string.Join(Environment.NewLine, DataIo);
+    }
+
+    private void FlushHistoryLines()
+    {
+        List<string> lines;
+        lock (_historyGate)
+        {
+            lines = _pendingHistoryLines.ToList();
+            _pendingHistoryLines.Clear();
+            _historyFlushPending = false;
+        }
+
+        foreach (var line in lines)
             History.Add(line);
-            while (History.Count > 500) History.RemoveAt(0);
-            HistoryText = string.Join(Environment.NewLine, History);
-        }));
+        while (History.Count > MaxHistoryLines)
+            History.RemoveAt(0);
+        HistoryText = string.Join(Environment.NewLine, History);
+    }
+
+    public void Dispose()
+    {
+        DeviceBus.Traffic -= OnTraffic;
+        _batchCts?.Cancel();
+        _batchCts?.Dispose();
+        _batchCts = null;
+        _ovenSerial?.Dispose();
+        _ovenSerial = null;
     }
 }
 

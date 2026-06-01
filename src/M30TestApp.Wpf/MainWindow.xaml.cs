@@ -19,6 +19,11 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Closed += (_, _) =>
+        {
+            if (DataContext is System.IDisposable disposable)
+                disposable.Dispose();
+        };
         // 按 F11 在“全屏 (Maximized)”与“默认窗口 (Normal)”之间切换。
         // ResizeMode=CanMinimize 已禁止拖拽改变窗口大小。
         KeyDown += (_, e) =>

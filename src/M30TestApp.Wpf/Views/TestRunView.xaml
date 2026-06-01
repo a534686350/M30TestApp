@@ -13,8 +13,8 @@
             <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="Padding" Value="16,12"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="14,10"/>
             <Setter Property="Margin" Value="0,0,10,0"/>
             <Setter Property="Effect" Value="{StaticResource CardShadow}"/>
         </Style>
@@ -112,6 +112,8 @@
                         <TextBlock Text="{Binding Elapsed}" FontFamily="Consolas" FontWeight="SemiBold" Margin="4,0"/>
                     </StackPanel>
                     <TextBlock Text="{Binding CurrentStep}" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0"/>
+                    <TextBlock Text="{Binding LastError}" Foreground="{StaticResource ErrorBrush}" Margin="0,2,0,0"
+                               TextWrapping="Wrap"/>
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0">
@@ -144,7 +146,7 @@
                     <Border DockPanel.Dock="Top" Background="{StaticResource HeaderBgBrush}"
                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
                             Padding="12,8">
-                        <TextBlock Text="实时采集矩阵 (slot × 测试点)" FontWeight="SemiBold"
+                        <TextBlock Text="板卡采集数据矩阵" FontWeight="SemiBold"
                                    FontSize="{StaticResource FontSizeTitle}"/>
                     </Border>
                     <views:DataMatrixGrid Rows="{Binding Rows}" Columns="{Binding Columns}"/>

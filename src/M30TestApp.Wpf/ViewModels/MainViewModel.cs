@@ -9,7 +9,7 @@ using M30TestApp.Wpf.Mvvm;
 
 namespace M30TestApp.Wpf.ViewModels;
 
-public sealed class MainViewModel : ViewModelBase
+public sealed class MainViewModel : ViewModelBase, IDisposable
 {
     public TestSession Session { get; }
 
@@ -43,11 +43,11 @@ public sealed class MainViewModel : ViewModelBase
         Devices.Add(new DeviceStatusVm("压控", session.Pressure));
         var ovenStatus = new DeviceStatusVm("烘箱", session.Oven);
         Devices.Add(ovenStatus);
-        Devices.Add(new DeviceStatusVm("DMM",  session.Dmm));
-        var dacStatus = new DeviceStatusVm("采集", session.Dac);
+        Devices.Add(new DeviceStatusVm("切换单元",  session.Dmm));
+        var dacStatus = new DeviceStatusVm("板卡", session.Dac);
         Devices.Add(dacStatus);
         Devices.Add(new DeviceStatusVm("电源", session.Power));
-        Devices.Add(new DeviceStatusVm("板卡", session.Board));
+        Devices.Add(new DeviceStatusVm("通道板", session.Board));
 
         TestRun = new TestRunViewModel(session);
         Manual = new ManualViewModel(session, ovenStatus, dacStatus);
@@ -65,10 +65,23 @@ public sealed class MainViewModel : ViewModelBase
         ShowLogCommand      = new RelayCommand(_ => CurrentView = Log);
         ShowSettingsCommand = new RelayCommand(_ => CurrentView = Settings);
 
-        session.Reconfigured += (_, _) =>
-        {
-            System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
-                OnPropertyChanged(nameof(PlanTitle))));
-        };
+        session.Reconfigured += OnSessionReconfigured;
+    }
+
+    private void OnSessionReconfigured(object? sender, EventArgs e)
+    {
+        System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+            OnPropertyChanged(nameof(PlanTitle))));
+    }
+
+    public void Dispose()
+    {
+        Session.Reconfigured -= OnSessionReconfigured;
+        TestRun.Dispose();
+        Manual.Dispose();
+        Log.Dispose();
+        foreach (var device in Devices)
+            device.Dispose();
+        Session.Dispose();
     }
 }

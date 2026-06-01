@@ -54,14 +54,12 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Background="{DynamicResource HeaderBgBrush}" CornerRadius="16"
-                                    Padding="12,5" Margin="3,0"
+                            <Border Background="{DynamicResource HeaderBgBrush}" CornerRadius="10"
+                                    Padding="10,5" Margin="3,0"
                                     BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
                                 <StackPanel Orientation="Horizontal">
                                     <Ellipse Width="8" Height="8" Fill="{Binding DotBrush}" VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding Title}" Margin="6,0,0,0" FontWeight="SemiBold" FontSize="12"/>
-                                    <TextBlock Text="·" Margin="4,0" Foreground="{DynamicResource MutedBrush}" FontSize="12"/>
-                                    <TextBlock Text="{Binding StateText}" Foreground="{DynamicResource MutedBrush}" FontSize="12"/>
+                                    <TextBlock Text="{Binding StatusLabel}" Margin="6,0,0,0" FontWeight="SemiBold" FontSize="12"/>
                                 </StackPanel>
                             </Border>
                         </DataTemplate>

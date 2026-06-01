@@ -65,9 +65,10 @@ public static class DacBatchSampler
         List<SlotEntry> slots;
         if (startSlot is >= 1 && endSlot is int end && end >= startSlot.Value)
         {
+            var lookup = BuildSlotLookup(ctx);
             slots = new List<SlotEntry>(endSlot.Value - startSlot.Value + 1);
             for (var n = startSlot.Value; n <= endSlot.Value; n++)
-                slots.Add(ResolveSlot(ctx, n));
+                slots.Add(ResolveSlot(n, lookup));
         }
         else
         {
@@ -84,8 +85,6 @@ public static class DacBatchSampler
             ctx.Matrix.EnsureSlot(slot.Slot);
             var (card, channel) = SlotDacAddress.Get(slot);
 
-            // 只有测 UT 时才切 UT 电源（同板卡的16个工位共用一次切换）。
-            // USC/ISC/USG 不需要切电源，直接采集。
             if (measure == DacMeasureKind.UT &&
                 int.TryParse(card, NumberStyles.Integer, CultureInfo.InvariantCulture, out var cardNum) &&
                 cardNum != lastUtCard)
@@ -111,24 +110,6 @@ public static class DacBatchSampler
             if (ioDelay > 0)
                 await Task.Delay(ioDelay, ct).ConfigureAwait(false);
         }
-
-        // UT 采集完成后关闭所有板卡的 UT 电源（USC/ISC/USG 不需要电源）
-        if (measure == DacMeasureKind.UT)
-        {
-            await TurnOffAllUtPowerAsync(ctx, ct).ConfigureAwait(false);
-        }
-    }
-
-    private static async Task TurnOffAllUtPowerAsync(TaskContext ctx, CancellationToken ct)
-    {
-        if (ctx.Dmm is null || ctx.Dmm.State != ConnectionState.Connected) return;
-        // UT 电源通道（3xx）默认状态：ROUT:OPEN（与原始程序 CloseRelayCh 一致）
-        for (var i = 1; i <= 16; i++)
-        {
-            var ch = ctx.Settings.Get("SwitchUnitCards", $"Card{i}", (300 + i).ToString());
-            await ctx.Dmm.OpenRelayAsync(ch, ct).ConfigureAwait(false);
-        }
-        AppLog.Info("Read", "UT采集结束，关闭全部板卡UT电源");
     }
 
     private static int GetMeasureDelay(IniFile settings, DacMeasureKind measure) => measure switch
@@ -147,14 +128,13 @@ public static class DacBatchSampler
             await ctx.Dmm.OpenAsync(ct).ConfigureAwait(false);
 
         var dmmChannel = ctx.Settings.Get("SwitchUnitCards", $"Card{cardAddr}", (300 + cardAddr).ToString());
-        // 与原始程序 FormTest.cs:2866 一致：目标→OpenRelayCh→ROUT:CLOSE，其余→CloseRelayCh→ROUT:OPEN
-        foreach (var i in Enumerable.Range(1, 16))
+        await ctx.Dmm.CloseRelayAsync(dmmChannel, ct).ConfigureAwait(false);
+        for (var i = 1; i <= 16; i++)
         {
             if (i == cardAddr) continue;
             var ch = ctx.Settings.Get("SwitchUnitCards", $"Card{i}", (300 + i).ToString());
             await ctx.Dmm.OpenRelayAsync(ch, ct).ConfigureAwait(false);
         }
-        await ctx.Dmm.CloseRelayAsync(dmmChannel, ct).ConfigureAwait(false);
         await Task.Delay(switchMs, ct).ConfigureAwait(false);
         AppLog.Info("Read", $"切换UT电源：板卡{cardAddr} 通道{dmmChannel} 通电");
     }
@@ -170,13 +150,25 @@ public static class DacBatchSampler
             _ => Task.FromResult(float.NaN),
         };
 
-    private static SlotEntry ResolveSlot(TaskContext ctx, int slotNum)
+    private static Dictionary<string, SlotEntry> BuildSlotLookup(TaskContext ctx)
+    {
+        var lookup = new Dictionary<string, SlotEntry>(StringComparer.OrdinalIgnoreCase);
+        foreach (var slot in ctx.Slots.Entries)
+        {
+            lookup.TryAdd(slot.Slot, slot);
+            var slotNum = SlotDacAddress.ParseSlotIndex(slot.Slot);
+            if (slotNum > 0)
+                lookup.TryAdd(slotNum.ToString(CultureInfo.InvariantCulture), slot);
+        }
+        return lookup;
+    }
+
+    private static SlotEntry ResolveSlot(int slotNum, IReadOnlyDictionary<string, SlotEntry> lookup)
     {
         var name = $"Slot{slotNum}";
-        var found = ctx.Slots.Entries.FirstOrDefault(s =>
-            s.Slot.Equals(name, StringComparison.OrdinalIgnoreCase) ||
-            s.Slot.Equals(slotNum.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal));
-        if (found is not null) return found;
+        if (lookup.TryGetValue(name, out var named) ||
+            lookup.TryGetValue(slotNum.ToString(CultureInfo.InvariantCulture), out named))
+            return named;
 
         var board = (slotNum - 1) / 16 + 1;
         var boardSlot = (slotNum - 1) % 16 + 1;

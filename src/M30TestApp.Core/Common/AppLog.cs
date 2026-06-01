@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Threading.Channels;
+using System.Threading.Tasks;
 
 namespace M30TestApp.Core.Common;
 
@@ -20,14 +23,26 @@ public static class AppLog
 {
     public static event EventHandler<LogEvent>? Logged;
 
-    private static readonly object _fileLock = new();
+    private static readonly object _configureLock = new();
+    private static readonly Channel<LogEvent> _fileQueue = Channel.CreateUnbounded<LogEvent>(
+        new UnboundedChannelOptions { SingleReader = true, AllowSynchronousContinuations = false });
     private static string? _logFile;
+    private static bool _writerStarted;
 
     public static void Configure(string? file)
     {
-        _logFile = file;
-        if (file is not null)
-            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        lock (_configureLock)
+        {
+            _logFile = file;
+            if (file is not null)
+                Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+
+            if (!_writerStarted)
+            {
+                _writerStarted = true;
+                _ = Task.Run(ProcessFileQueueAsync);
+            }
+        }
     }
 
     public static void Trace(string source, string msg) => Emit(LogLevel.Trace, source, msg);
@@ -40,12 +55,28 @@ public static class AppLog
         var e = new LogEvent { Level = lvl, Source = source, Message = msg };
         Logged?.Invoke(null, e);
 
-        if (_logFile is null) return;
-        try
+        if (_logFile is not null)
+            _fileQueue.Writer.TryWrite(e);
+    }
+
+    private static async Task ProcessFileQueueAsync()
+    {
+        var batch = new List<string>(128);
+        while (await _fileQueue.Reader.WaitToReadAsync().ConfigureAwait(false))
         {
-            lock (_fileLock)
-                File.AppendAllText(_logFile, e + Environment.NewLine);
+            batch.Clear();
+            while (batch.Count < 128 && _fileQueue.Reader.TryRead(out var e))
+                batch.Add(e.ToString());
+
+            if (batch.Count == 0) continue;
+
+            try
+            {
+                var file = _logFile;
+                if (file is not null)
+                    File.AppendAllLines(file, batch);
+            }
+            catch { /* swallow */ }
         }
-        catch { /* swallow */ }
     }
 }
