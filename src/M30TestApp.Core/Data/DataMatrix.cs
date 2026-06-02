@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Text;
 
@@ -107,6 +108,114 @@ public sealed class DataMatrix
             sw.WriteLine(sb);
         }
     }
+
+    public void ExportXlsx(string path, IEnumerable<string> orderedColumns,
+        IReadOnlyDictionary<string, string>? slotSerialMap = null)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var cols = orderedColumns.ToArray();
+        using var fs = new FileStream(path, FileMode.Create, FileAccess.ReadWrite);
+        using var zip = new ZipArchive(fs, ZipArchiveMode.Create);
+
+        WriteZipEntry(zip, "[Content_Types].xml",
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+              <Default Extension="xml" ContentType="application/xml"/>
+              <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+              <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+            </Types>
+            """);
+        WriteZipEntry(zip, "_rels/.rels",
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+            </Relationships>
+            """);
+        WriteZipEntry(zip, "xl/workbook.xml",
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+              <sheets>
+                <sheet name="TestData" sheetId="1" r:id="rId1"/>
+              </sheets>
+            </workbook>
+            """);
+        WriteZipEntry(zip, "xl/_rels/workbook.xml.rels",
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+            </Relationships>
+            """);
+
+        var sheet = new StringBuilder();
+        sheet.AppendLine("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""");
+        sheet.AppendLine("""<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">""");
+        sheet.AppendLine("<sheetData>");
+
+        var headers = slotSerialMap != null
+            ? new[] { "slot", "SerialNo" }.Concat(cols).ToArray()
+            : new[] { "slot" }.Concat(cols).ToArray();
+
+        WriteXlsxRow(sheet, 1, headers);
+        var rowIndex = 2;
+        foreach (var slot in _rows.Keys.OrderBy(k => NaturalSortKey(k)))
+        {
+            var row = _rows[slot];
+            var values = new List<string> { slot };
+            if (slotSerialMap != null)
+                values.Add(slotSerialMap.TryGetValue(slot, out var sn) ? sn : "");
+            foreach (var col in cols)
+                values.Add(row.TryGetValue(col, out var c) ? c.Value : "");
+            WriteXlsxRow(sheet, rowIndex++, values);
+        }
+
+        sheet.AppendLine("</sheetData>");
+        sheet.AppendLine("</worksheet>");
+        WriteZipEntry(zip, "xl/worksheets/sheet1.xml", sheet.ToString());
+    }
+
+    private static void WriteZipEntry(ZipArchive zip, string name, string content)
+    {
+        var entry = zip.CreateEntry(name, CompressionLevel.Optimal);
+        using var stream = entry.Open();
+        using var writer = new StreamWriter(stream, Encoding.UTF8);
+        writer.Write(content);
+    }
+
+    private static void WriteXlsxRow(StringBuilder sheet, int rowIndex, IEnumerable<string> values)
+    {
+        sheet.Append(CultureInfo.InvariantCulture, $"<row r=\"{rowIndex}\">");
+        var colIndex = 1;
+        foreach (var value in values)
+        {
+            var cellRef = $"{ColumnName(colIndex++)}{rowIndex}";
+            sheet.Append(CultureInfo.InvariantCulture, $"<c r=\"{cellRef}\" t=\"inlineStr\"><is><t>{XmlEscape(value)}</t></is></c>");
+        }
+        sheet.AppendLine("</row>");
+    }
+
+    private static string ColumnName(int index)
+    {
+        var name = "";
+        while (index > 0)
+        {
+            index--;
+            name = (char)('A' + index % 26) + name;
+            index /= 26;
+        }
+        return name;
+    }
+
+    private static string XmlEscape(string? value) => (value ?? "")
+        .Replace("&", "&amp;")
+        .Replace("<", "&lt;")
+        .Replace(">", "&gt;")
+        .Replace("\"", "&quot;")
+        .Replace("'", "&apos;");
 
     /// <summary>Load matrix cells from a CSV previously written by <see cref="ExportCsv"/>.</summary>
     public void ImportCsv(string path, out IReadOnlyList<string> columns)

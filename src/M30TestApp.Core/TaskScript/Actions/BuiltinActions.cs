@@ -867,6 +867,12 @@ public sealed class RunPerformanceTestAction : IAction
 
     public static void SaveMatrix(TaskContext ctx)
     {
+        if (UseNewSaveLayout())
+        {
+            SaveMatrixWithCurrentLayout(ctx);
+            return;
+        }
+
         var planDir = Path.Combine(AppPaths.DataDir, SafePath(ctx.Plan.Name));
         Directory.CreateDirectory(planDir);
         var sensor = string.IsNullOrWhiteSpace(ctx.Plan.SensorType) ? "传感器" : ctx.Plan.SensorType;
@@ -897,6 +903,54 @@ public sealed class RunPerformanceTestAction : IAction
                 AppLog.Warn("Save", $"旧版格式CSV导出失败: {ex.Message}");
             }
         }
+    }
+
+    private static bool UseNewSaveLayout() => true;
+
+    private static void SaveMatrixWithCurrentLayout(TaskContext ctx)
+    {
+        var sensor = string.IsNullOrWhiteSpace(ctx.Plan.SensorType) ? ctx.Plan.Name : ctx.Plan.SensorType;
+        var safeSensor = SafePath(sensor);
+        var now = DateTime.Now;
+        var dateStr = now.ToString("yyyyMMdd");
+        var timeStr = now.ToString("HHmmss");
+
+        var sensorDir = Path.Combine(AppPaths.DataDir, safeSensor);
+        Directory.CreateDirectory(sensorDir);
+
+        var existing = Directory.GetDirectories(sensorDir, $"{safeSensor}-{now:yyMMdd}*");
+        var seq = existing.Length + 1;
+        var batchNameBase = $"{safeSensor}-{now:yyMMddHH_mm}";
+        var batchName = batchNameBase;
+        var duplicate = 2;
+        while (Directory.Exists(Path.Combine(sensorDir, batchName)))
+            batchName = $"{batchNameBase}-{duplicate++:D2}";
+        var batchDir = Path.Combine(sensorDir, batchName);
+        Directory.CreateDirectory(batchDir);
+
+        var serialMap = ctx.Slots.Entries.ToDictionary(s => s.Slot, s => s.SerialNo);
+        if (LegacyCsvExporter.IsLegacyProfile(ctx.Plan))
+        {
+            var csvName = $"{dateStr} {timeStr}-{seq:D2} {safeSensor}(性能测试).csv";
+            var csv = Path.Combine(batchDir, csvName);
+            ctx.Matrix.ExportCsv(csv, ctx.Columns, serialMap);
+            AppLog.Info("Save", $"数据保存到 {csv}");
+
+            try
+            {
+                LegacyCsvExporter.Export(ctx);
+            }
+            catch (Exception ex)
+            {
+                AppLog.Warn("Save", $"旧版格式 CSV 导出失败: {ex.Message}");
+            }
+            return;
+        }
+
+        var xlsxName = $"{dateStr} {timeStr}-{seq:D2} {safeSensor}(性能测试).xlsx";
+        var xlsx = Path.Combine(batchDir, xlsxName);
+        ctx.Matrix.ExportXlsx(xlsx, ctx.Columns, serialMap);
+        AppLog.Info("Save", $"数据保存到 {xlsx}");
     }
 
     private static string SafePath(string text)
