@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO.Ports;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Ivi.Visa.Interop;
@@ -39,21 +40,37 @@ internal sealed class VisaSession : IDisposable
     {
         Open();
         DeviceBus.Tx(_device, command);
-        _io!.WriteString(command, true);
+        try
+        {
+            _io!.WriteString(command, true);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"{_device} @ {_address} 发送失败：{command}；{ex.Message}", ex);
+        }
     }
 
     public string QueryString(string command)
     {
         Write(command);
-        var reply = (_io!.ReadString() ?? string.Empty).Trim();
-        DeviceBus.Rx(_device, reply);
-        return reply;
+        try
+        {
+            var reply = (_io!.ReadString() ?? string.Empty).Trim();
+            DeviceBus.Rx(_device, reply);
+            return reply;
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"{_device} @ {_address} 读取失败：{command}；{ex.Message}", ex);
+        }
     }
 
     public double QueryNumber(string command)
     {
-        Write(command);
-        var value = Convert.ToDouble(_io!.ReadNumber(IEEEASCIIType.ASCIIType_Any, true), CultureInfo.InvariantCulture);
+        var reply = QueryString(command);
+        var match = Regex.Match(reply, @"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][-+]?\d+)?");
+        if (!match.Success || !double.TryParse(match.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
+            throw new InvalidOperationException($"{_device} @ {_address} 返回值无法解析为数字：{reply}");
         DeviceBus.Rx(_device, value.ToString("G9", CultureInfo.InvariantCulture));
         return value;
     }
@@ -380,34 +397,35 @@ public sealed class HwPressureController : DeviceBase, IPressureController
 
     public Task SetPressureAsync(float target, string unit, float precision, CancellationToken ct = default)
     {
-        _visa.Write("*CLS");
-        _visa.Write($"UNIT {unit};:PRES {target.ToString(CultureInfo.InvariantCulture)};TOL {precision.ToString(CultureInfo.InvariantCulture)};:OUTP:MODE CONTROL");
+        var cmd = _commands.Render(Model, "SetPressure", target, unit, precision);
+        if (string.IsNullOrWhiteSpace(cmd))
+            cmd = $"UNIT {unit};:PRES {target.ToString(CultureInfo.InvariantCulture)};TOL {precision.ToString(CultureInfo.InvariantCulture)};:OUTP:MODE CONTROL";
+        _visa.Write(cmd);
         return Task.CompletedTask;
     }
 
     public Task<float> ReadPressureAsync(CancellationToken ct = default)
     {
-        _visa.Write("*CLS");
-        return Task.FromResult((float)_visa.QueryNumber("MEAS?"));
+        var cmd = _commands.Raw(Model, "ReadPressure", "MEAS?");
+        return Task.FromResult((float)_visa.QueryNumber(cmd));
     }
 
     public Task<float> ReadUpperLimitAsync(CancellationToken ct = default)
     {
-        _visa.Write("*CLS");
         var cmd = _commands.Raw(Model, "UpperLimit", "CALC:LIM:UPP?");
+        if (string.Equals(cmd, "CALC:LIM:UPP?", StringComparison.Ordinal))
+            cmd = _commands.Raw(Model, "UpperLimt", cmd);
         return Task.FromResult((float)_visa.QueryNumber(cmd));
     }
 
     public Task VentAsync(CancellationToken ct = default)
     {
-        _visa.Write("*CLS");
         _visa.Write(_commands.Raw(Model, "Vent", "OUTP:MODE VENT"));
         return Task.CompletedTask;
     }
 
     public Task<string> ReadStatusAsync(CancellationToken ct = default)
     {
-        _visa.Write("*CLS");
         return Task.FromResult(_visa.QueryString(_commands.Raw(Model, "ReadStatus", ":STAT:OPER:COND?")));
     }
 

@@ -48,11 +48,20 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
 {
     private readonly TestSession _session;
     private CancellationTokenSource? _cts;
+    private string _appliedPressureKey = "";
 
     public ObservableCollection<QuickTestRowVm> Rows { get; } = new();
+    public ObservableCollection<string> PressurePorts { get; } =
+        new(Enumerable.Range(0, 32).Select(i => i.ToString(CultureInfo.InvariantCulture)));
+    public ObservableCollection<string> PressureAddrs { get; } =
+        new(Enumerable.Range(0, 32).Select(i => i.ToString(CultureInfo.InvariantCulture)));
+    public ObservableCollection<string> PressureModels { get; } = new();
 
     private string _status = "就绪";
     public string Status { get => _status; set => SetField(ref _status, value); }
+
+    private string _logText = "";
+    public string LogText { get => _logText; private set => SetField(ref _logText, value); }
 
     private bool _isRunning;
     public bool IsRunning { get => _isRunning; set => SetField(ref _isRunning, value); }
@@ -76,6 +85,21 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
 
     private string _pressureUnit = "";
     public string PressureUnit { get => _pressureUnit; set => SetField(ref _pressureUnit, value); }
+
+    private string _pressurePort = "0";
+    public string PressurePort { get => _pressurePort; set => SetField(ref _pressurePort, value); }
+
+    private string _pressureAddr = "0";
+    public string PressureAddr { get => _pressureAddr; set => SetField(ref _pressureAddr, value); }
+
+    private string _pressureModel = "";
+    public string PressureModel { get => _pressureModel; set => SetField(ref _pressureModel, value); }
+
+    private string _holdSeconds = "5";
+    public string HoldSeconds { get => _holdSeconds; set => SetField(ref _holdSeconds, value); }
+
+    private string _pressurePrecision = "0.05";
+    public string PressurePrecision { get => _pressurePrecision; set => SetField(ref _pressurePrecision, value); }
 
     private string _spanMin = "";
     public string SpanMin { get => _spanMin; set => SetField(ref _spanMin, value); }
@@ -101,7 +125,11 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
         _spanMax = session.Plan.Specs.Span.Max;
         _linearityMin = session.Plan.Specs.Linearity.Min;
         _linearityMax = session.Plan.Specs.Linearity.Max;
+        _pressurePrecision = session.Plan.Precision.ToString(CultureInfo.InvariantCulture);
+        _holdSeconds = LoadPressureHoldSeconds(session.Context.Settings).ToString(CultureInfo.InvariantCulture);
         EndSlot = Math.Min(8, Math.Max(1, session.Slots.Entries.Count));
+        LoadPressureOptions();
+        LoadPressureProfileFromSession();
         RefreshRows();
 
         StartCommand = new AsyncRelayCommand(StartAsync, () => !IsRunning) { Source = "QuickTest" };
@@ -119,6 +147,10 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
         SpanMax = _session.Plan.Specs.Span.Max;
         LinearityMin = _session.Plan.Specs.Linearity.Min;
         LinearityMax = _session.Plan.Specs.Linearity.Max;
+        PressurePrecision = _session.Plan.Precision.ToString(CultureInfo.InvariantCulture);
+        HoldSeconds = LoadPressureHoldSeconds(_session.Context.Settings).ToString(CultureInfo.InvariantCulture);
+        LoadPressureOptions();
+        LoadPressureProfileFromSession();
         RefreshRows();
     }
 
@@ -135,6 +167,78 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
         }
     }
 
+    private void LoadPressureOptions()
+    {
+        PressureModels.Clear();
+        foreach (var model in _session.Commands.Models
+                     .Where(m => _session.Commands.Has(m, "SetPressure") || _session.Commands.Has(m, "ReadPressure"))
+                     .OrderBy(m => m, StringComparer.OrdinalIgnoreCase))
+        {
+            PressureModels.Add(model);
+        }
+
+        foreach (var fallback in new[] { "FLUKE-7250", "FLUKE-6270", "WIKA-CPC8000" })
+        {
+            if (!PressureModels.Contains(fallback))
+                PressureModels.Add(fallback);
+        }
+    }
+
+    private void LoadPressureProfileFromSession()
+    {
+        var pressure = _session.Station.Get(DeviceKind.Pressure);
+        if (pressure is null) return;
+
+        if (!string.IsNullOrWhiteSpace(pressure.Model))
+            PressureModel = pressure.Model;
+        ParseGpibAddress(pressure.Address, out var port, out var address);
+        PressurePort = port;
+        PressureAddr = address;
+    }
+
+    private void ApplyPressureProfileToSession()
+    {
+        var existing = _session.Station.Get(DeviceKind.Pressure);
+        var model = string.IsNullOrWhiteSpace(PressureModel) ? existing?.Model ?? "FLUKE-7250" : PressureModel.Trim();
+        var port = string.IsNullOrWhiteSpace(PressurePort) ? "0" : PressurePort.Trim();
+        var address = string.IsNullOrWhiteSpace(PressureAddr) ? "0" : PressureAddr.Trim();
+        var resource = BuildGpibAddress(port, address);
+        var key = $"{model}|{resource}|{existing?.Backend}|{existing?.Baud}|{existing?.Parity}|{existing?.DataBits}|{existing?.StopBits}";
+
+        if (string.Equals(_appliedPressureKey, key, StringComparison.Ordinal))
+            return;
+
+        _session.Station.Devices[DeviceKind.Pressure] = new DeviceProfile
+        {
+            Kind = DeviceKind.Pressure,
+            Model = model,
+            Backend = existing?.Backend ?? DeviceBackend.Hw,
+            Address = resource,
+            Baud = existing?.Baud ?? 9600,
+            Parity = existing?.Parity ?? "N",
+            DataBits = existing?.DataBits ?? 8,
+            StopBits = existing?.StopBits ?? "1"
+        };
+        _session.RebuildDevices(_session.DebugMode);
+        _appliedPressureKey = key;
+        Log($"压力控制器配置已应用：{model} @ {resource}");
+    }
+
+    private static void ParseGpibAddress(string resource, out string port, out string address)
+    {
+        port = "0";
+        address = "0";
+        if (string.IsNullOrWhiteSpace(resource)) return;
+        if (!resource.StartsWith("GPIB", StringComparison.OrdinalIgnoreCase)) return;
+
+        var parts = resource.Split("::", StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 2) return;
+        port = parts[0].Length > 4 ? parts[0][4..] : "0";
+        address = parts[1];
+    }
+
+    private static string BuildGpibAddress(string port, string address) => $"GPIB{port}::{address}::INSTR";
+
     private async Task StartAsync()
     {
         if (!TryFloat(P0, out var p0) || !TryFloat(P50, out var p50) || !TryFloat(P100, out var p100))
@@ -147,6 +251,18 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
             Status = "P100 必须大于 P0";
             return;
         }
+        if (!int.TryParse(HoldSeconds, NumberStyles.Integer, CultureInfo.InvariantCulture, out var holdSeconds) &&
+            !int.TryParse(HoldSeconds, NumberStyles.Integer, CultureInfo.CurrentCulture, out holdSeconds))
+        {
+            Log("保压时间输入无效");
+            return;
+        }
+        holdSeconds = Math.Max(0, holdSeconds);
+        if (!TryFloat(PressurePrecision, out var pressurePrecision) || pressurePrecision <= 0)
+        {
+            Log("压力精度输入无效");
+            return;
+        }
 
         RefreshRows();
         IsRunning = true;
@@ -155,18 +271,25 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
 
         try
         {
-            Status = "连接压力控制器";
+            Log("连接压力控制器");
+            ApplyPressureProfileToSession();
             await _session.Pressure.OpenAsync(ct);
             await _session.Pressure.SetMeasureAsync(ct);
             await _session.Pressure.SetPressureTypeAsync(_session.Plan.DefaultPressureType, ct);
+            Log($"压力模式：{_session.Plan.DefaultPressureType}");
 
-            await SamplePointAsync("P0", p0, row => row.P0, (row, value) => row.P0 = F(value), ct);
-            await SamplePointAsync("P50", p50, row => row.P50, (row, value) => row.P50 = F(value), ct);
-            await SamplePointAsync("P100", p100, row => row.P100, (row, value) => row.P100 = F(value), ct);
+            await SamplePointAsync("P0", p0, holdSeconds, pressurePrecision, row => row.P0, (row, value) => row.P0 = F(value), ct);
+            await SamplePointAsync("P50", p50, holdSeconds, pressurePrecision, row => row.P50, (row, value) => row.P50 = F(value), ct);
+            await SamplePointAsync("P100", p100, holdSeconds, pressurePrecision, row => row.P100, (row, value) => row.P100 = F(value), ct);
 
+            Log("计算 Span / NL");
             Calculate(p0, p50, p100);
             var saved = SaveToDesktop();
-            Status = $"完成，已保存到 {saved}";
+            Log($"完成，已保存到 {saved}");
+        }
+        catch (OperationCanceledException)
+        {
+            Log("快速测试已停止");
         }
         finally
         {
@@ -176,10 +299,23 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private async Task SamplePointAsync(string pointName, float pressure, Func<QuickTestRowVm, string> _, Action<QuickTestRowVm, double> setValue, CancellationToken ct)
+    private async Task SamplePointAsync(string pointName, float pressure, int holdSeconds, float pressurePrecision, Func<QuickTestRowVm, string> _, Action<QuickTestRowVm, double> setValue, CancellationToken ct)
     {
-        Status = $"设置压力 {pointName}={pressure:G6} {PressureUnit}";
-        await _session.Pressure.SetPressureAsync(pressure, PressureUnit, _session.Plan.Precision, ct);
+        Log($"设置压力 {pointName}={pressure:G6} {PressureUnit}，精度 {pressurePrecision:G6}");
+        await SetAndWaitPressureAsync(pointName, pressure, pressurePrecision, ct);
+        if (holdSeconds > 0)
+        {
+            for (var remaining = holdSeconds; remaining > 0; remaining--)
+            {
+                Status = $"{pointName} 保压 {remaining}s";
+                await Task.Delay(1000, ct);
+            }
+            Log($"{pointName} 保压完成");
+        }
+
+        Log($"{pointName} 开始采集 Usig，工位 {StartSlot}-{EndSlot}");
+        var okCount = 0;
+        var failCount = 0;
         await DacBatchSampler.SampleAllAsync(
             _session.Context,
             DacMeasureKind.Usig,
@@ -189,6 +325,7 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
             ct,
             onSlotComplete: (slot, value, ok) =>
             {
+                if (ok) okCount++; else failCount++;
                 Application.Current.Dispatcher.Invoke(() =>
                 {
                     var row = Rows.FirstOrDefault(r => string.Equals(r.Slot, slot.Slot, StringComparison.OrdinalIgnoreCase));
@@ -197,6 +334,32 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
             },
             startSlot: StartSlot,
             endSlot: EndSlot);
+        Log($"{pointName} 采集完成：成功 {okCount}，失败 {failCount}");
+    }
+
+    private async Task SetAndWaitPressureAsync(string pointName, float pressure, float pressurePrecision, CancellationToken ct)
+    {
+        await _session.Pressure.SetPressureTypeAsync(_session.Plan.DefaultPressureType, ct);
+        Log($"压力类型切换为 {_session.Plan.DefaultPressureType}");
+        await _session.Pressure.SetPressureAsync(pressure, PressureUnit, pressurePrecision, ct);
+
+        for (var i = 0; i < 120; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            var current = await _session.Pressure.ReadPressureAsync(ct);
+            var diff = Math.Abs(current - pressure);
+            Status = $"{pointName} 目标{pressure:G6} 当前{current:F4} 差值{diff:F4} {PressureUnit}";
+            if (i % 10 == 0)
+                Log($"等待压力稳定：目标 {pressure:G6}，当前 {current:F4}，差值 {diff:F4} ({i}/120)");
+            if (diff <= pressurePrecision)
+            {
+                Log($"压力已稳定：{current:F4}{PressureUnit}（目标 {pressure:G6}，精度 {pressurePrecision:G6}）");
+                return;
+            }
+            await Task.Delay(500, ct);
+        }
+
+        Log($"{pointName} 压力稳定等待超时，继续采集");
     }
 
     private void Calculate(float p0, float p50, float p100)
@@ -225,6 +388,10 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
             row.FailedMetrics = string.Join(" ", failed);
             row.TestResult = failed.Count == 0 ? "pass" : "fail";
         }
+
+        var pass = Rows.Count(r => string.Equals(r.TestResult, "pass", StringComparison.OrdinalIgnoreCase));
+        var fail = Rows.Count(r => string.Equals(r.TestResult, "fail", StringComparison.OrdinalIgnoreCase));
+        Log($"计算完成：Pass {pass}，Fail {fail}");
     }
 
     private string SaveToDesktop()
@@ -277,6 +444,25 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
         var invalid = Path.GetInvalidFileNameChars();
         var safe = new string((text ?? "").Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim();
         return string.IsNullOrWhiteSpace(safe) ? "QuickUsig" : safe;
+    }
+
+    private static int LoadPressureHoldSeconds(IniFile settings)
+    {
+        var text = settings.Get("DelaySettings", "PressureAfterMs", "60000");
+        return int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ms)
+            ? Math.Max(0, ms / 1000)
+            : 60;
+    }
+
+    private void Log(string message)
+    {
+        Status = message;
+        AppLog.Info("QuickTest", message);
+        var line = $"{DateTime.Now:HH:mm:ss}  {message}";
+        var lines = (LogText.Length == 0 ? Enumerable.Empty<string>() : LogText.Split(Environment.NewLine))
+            .Concat(new[] { line })
+            .TakeLast(300);
+        LogText = string.Join(Environment.NewLine, lines);
     }
 
     public void Dispose()

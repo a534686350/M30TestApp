@@ -8,4 +8,10 @@ public partial class QuickTestView : UserControl
     {
         InitializeComponent();
     }
+
+    private void QuickLogTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        QuickLogTextBox.CaretIndex = QuickLogTextBox.Text.Length;
+        QuickLogTextBox.ScrollToEnd();
+    }
 }

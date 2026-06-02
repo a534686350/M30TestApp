@@ -85,7 +85,9 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="串口号" Style="{StaticResource Lbl}"/>
                             <ComboBox Grid.Column="0" Margin="0,18,4,0"
-                                      ItemsSource="{Binding ComPorts}" SelectedItem="{Binding CardCom}"/>
+                                      ItemsSource="{Binding ComPorts}"
+                                      Text="{Binding CardCom, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      IsEditable="True"/>
                             <Button Grid.Column="1" Margin="0,18,0,0" Padding="8,0"
                                     Content="刷新" Command="{Binding RefreshComPortsCommand}"/>
                         </Grid>
@@ -134,7 +136,9 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="串口号" Style="{StaticResource Lbl}"/>
                             <ComboBox Grid.Column="0" Margin="0,18,4,0"
-                                      ItemsSource="{Binding ComPorts}" SelectedItem="{Binding OvenCom}"/>
+                                      ItemsSource="{Binding ComPorts}"
+                                      Text="{Binding OvenCom, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      IsEditable="True"/>
                             <Button Grid.Column="1" Margin="0,18,0,0" Padding="8,0"
                                     Content="刷新" Command="{Binding RefreshComPortsCommand}"/>
                         </Grid>
@@ -281,16 +285,22 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Margin="0,0,4,0">
                             <TextBlock Text="端口" Style="{StaticResource Lbl}"/>
-                            <ComboBox ItemsSource="{Binding PressurePorts}" SelectedItem="{Binding PressurePort}"/>
+                            <ComboBox ItemsSource="{Binding PressurePorts}"
+                                      Text="{Binding PressurePort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      IsEditable="True"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="4,0,0,0">
                             <TextBlock Text="地址" Style="{StaticResource Lbl}"/>
-                            <ComboBox ItemsSource="{Binding PressureAddrs}" SelectedItem="{Binding PressureAddr}"/>
+                            <ComboBox ItemsSource="{Binding PressureAddrs}"
+                                      Text="{Binding PressureAddr, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      IsEditable="True"/>
                         </StackPanel>
                     </Grid>
 
                     <TextBlock Text="型号" Style="{StaticResource Lbl}"/>
-                    <ComboBox ItemsSource="{Binding PressureModels}" SelectedItem="{Binding PressureModel}" Margin="0,0,0,6"/>
+                    <ComboBox ItemsSource="{Binding PressureModels}"
+                              Text="{Binding PressureModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              IsEditable="True" Margin="0,0,0,6"/>
 
                     <Grid Margin="0,0,0,6">
                         <Grid.ColumnDefinitions>

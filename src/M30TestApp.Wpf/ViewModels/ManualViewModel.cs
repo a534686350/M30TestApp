@@ -65,8 +65,8 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         ComPorts.Clear();
         foreach (var p in current) ComPorts.Add(p);
         if (current.Length == 0) ComPorts.Add("(无可用串口)");
-        if (!ComPorts.Contains(CardCom)) CardCom = ComPorts[0];
-        if (!ComPorts.Contains(OvenCom)) OvenCom = ComPorts.Count > 1 ? ComPorts[1] : ComPorts[0];
+        if (string.IsNullOrWhiteSpace(CardCom)) CardCom = ComPorts[0];
+        if (string.IsNullOrWhiteSpace(OvenCom)) OvenCom = ComPorts.Count > 1 ? ComPorts[1] : ComPorts[0];
         OnPropertyChanged(nameof(CardCom));
         OnPropertyChanged(nameof(OvenCom));
     }
@@ -140,11 +140,10 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
 
     // ─── 压控 ──────────────────────────────────────────────────────────────
     public ObservableCollection<string> PressurePorts { get; } =
-        new(new[] { "0", "1", "2", "3" });
+        new(Enumerable.Range(0, 32).Select(i => i.ToString(CultureInfo.InvariantCulture)));
     public ObservableCollection<string> PressureAddrs { get; } =
-        new(new[] { "1", "5", "10", "11" });
-    public ObservableCollection<string> PressureModels { get; } =
-        new(new[] { "FLUKE-7250", "FLUKE-6270", "WIKA-CPC8000" });
+        new(Enumerable.Range(0, 32).Select(i => i.ToString(CultureInfo.InvariantCulture)));
+    public ObservableCollection<string> PressureModels { get; } = new();
     public ObservableCollection<string> PressureUnits { get; } =
         new(new[] { "kPa", "MPa", "bar", "psi" });
     public ObservableCollection<string> MeasureModes { get; } =
@@ -271,6 +270,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
 
     private string _statusText = "就绪";
     public string StatusText { get => _statusText; set => SetField(ref _statusText, value); }
+    private string _appliedPressureKey = "";
 
     // ─── 命令 ──────────────────────────────────────────────────────────────
     public AsyncRelayCommand OpenCardSerialCommand { get; }
@@ -318,6 +318,9 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         _ovenStatus = ovenStatus;
         _dacStatus = dacStatus;
 
+        LoadPressureOptions();
+        LoadPressureProfileFromSession();
+
         foreach (var s in session.Slots.Entries) SlotNames.Add(s.Slot);
         if (SlotNames.Count > 0) _selectedSlot = SlotNames[0];
         ApplySelectedSlotMapping();
@@ -333,6 +336,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         RefreshComPorts();
 
         DeviceBus.Traffic += OnTraffic;
+        _session.DevicesRebuilt += OnSessionDevicesRebuilt;
 
         OpenCardSerialCommand = Wrap("打开采集卡串口", async () =>
         {
@@ -366,6 +370,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
 
         ConnectPressureCommand = Wrap("联接压力控制器", async () =>
         {
+            ApplyManualPressureProfileToSession();
             await session.Pressure.OpenAsync();
             ReadModelText = PressureModel;
             Hist($"已连接 {PressureModel} @ 端口{PressurePort} 地址{PressureAddr}");
@@ -378,11 +383,13 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         });
         VentCommand = Wrap("泄压", async () =>
         {
+            ApplyManualPressureProfileToSession();
             await session.Pressure.VentAsync();
             Hist("已发起泄压");
         });
         ReadRangeCommand = Wrap("读取量程", async () =>
         {
+            ApplyManualPressureProfileToSession();
             var v = await _session.Pressure.ReadUpperLimitAsync();
             ReadRangeText = $"{v} {PressureUnit}";
             Hist($"量程 = {ReadRangeText}");
@@ -405,6 +412,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         });
         ReadPressureCommand = Wrap("读取压力", async () =>
         {
+            ApplyManualPressureProfileToSession();
             var v = await session.Pressure.ReadPressureAsync();
             ReadPressureText = $"{v:F3} {PressureUnit}";
             Hist($"读压 = {ReadPressureText}");
@@ -419,6 +427,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         });
         SwitchModeCommand = Wrap("切换测量模式", async () =>
         {
+            ApplyManualPressureProfileToSession();
             var next = ParseManualPressureType(MeasureMode) == PressureType.Gauge
                 ? PressureType.Absolute
                 : PressureType.Gauge;
@@ -432,6 +441,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         });
         SelfTestCommand = Wrap("自检", async () =>
         {
+            ApplyManualPressureProfileToSession();
             DeviceBus.Info("Manual", "Self-test all devices");
             await session.Pressure.SelfTestAsync();
             await session.Oven.SelfTestAsync();
@@ -805,8 +815,93 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
     private static void GetDacAddresses(SlotEntry slot, int slotNum, out string card, out string channel) =>
         (card, channel) = SlotDacAddress.Get(slot);
 
+    private void LoadPressureOptions()
+    {
+        PressureModels.Clear();
+        foreach (var model in _session.Commands.Models
+                     .Where(m => _session.Commands.Has(m, "SetPressure") || _session.Commands.Has(m, "ReadPressure"))
+                     .OrderBy(m => m, StringComparer.OrdinalIgnoreCase))
+        {
+            PressureModels.Add(model);
+        }
+
+        foreach (var fallback in new[] { "FLUKE-7250", "FLUKE-6270", "WIKA-CPC8000" })
+        {
+            if (!PressureModels.Contains(fallback))
+                PressureModels.Add(fallback);
+        }
+    }
+
+    private void LoadPressureProfileFromSession()
+    {
+        var pressure = _session.Station.Get(DeviceKind.Pressure);
+        if (pressure is null) return;
+
+        if (!string.IsNullOrWhiteSpace(pressure.Model))
+            PressureModel = pressure.Model;
+        ParseGpibAddress(pressure.Address, out var port, out var address);
+        if (!string.IsNullOrWhiteSpace(port))
+            PressurePort = port;
+        if (!string.IsNullOrWhiteSpace(address))
+            PressureAddr = address;
+    }
+
+    private void OnSessionDevicesRebuilt(object? sender, EventArgs e)
+    {
+        Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+        {
+            LoadPressureOptions();
+            LoadPressureProfileFromSession();
+            Hist($"已刷新压力控制器配置：{PressureModel} @ GPIB{PressurePort}::{PressureAddr}::INSTR");
+        }));
+    }
+
+    private void ApplyManualPressureProfileToSession()
+    {
+        var existing = _session.Station.Get(DeviceKind.Pressure);
+        var model = string.IsNullOrWhiteSpace(PressureModel) ? existing?.Model ?? "FLUKE-7250" : PressureModel.Trim();
+        var port = string.IsNullOrWhiteSpace(PressurePort) ? "0" : PressurePort.Trim();
+        var address = string.IsNullOrWhiteSpace(PressureAddr) ? "0" : PressureAddr.Trim();
+        var resource = BuildGpibAddress(port, address);
+        var key = $"{model}|{resource}|{existing?.Backend}|{existing?.Baud}|{existing?.Parity}|{existing?.DataBits}|{existing?.StopBits}";
+
+        if (string.Equals(_appliedPressureKey, key, StringComparison.Ordinal))
+            return;
+
+        _session.Station.Devices[DeviceKind.Pressure] = new DeviceProfile
+        {
+            Kind = DeviceKind.Pressure,
+            Model = model,
+            Backend = existing?.Backend ?? DeviceBackend.Hw,
+            Address = resource,
+            Baud = existing?.Baud ?? 9600,
+            Parity = existing?.Parity ?? "N",
+            DataBits = existing?.DataBits ?? 8,
+            StopBits = existing?.StopBits ?? "1"
+        };
+        _session.RebuildDevices(_session.DebugMode);
+        _appliedPressureKey = key;
+        Hist($"压力控制器配置已应用：{model} @ {resource}");
+    }
+
+    private static void ParseGpibAddress(string resource, out string port, out string address)
+    {
+        port = "0";
+        address = "0";
+        if (string.IsNullOrWhiteSpace(resource)) return;
+        if (!resource.StartsWith("GPIB", StringComparison.OrdinalIgnoreCase)) return;
+
+        var parts = resource.Split("::", StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 2) return;
+        port = parts[0].Length > 4 ? parts[0][4..] : "0";
+        address = parts[1];
+    }
+
+    private static string BuildGpibAddress(string port, string address) => $"GPIB{port}::{address}::INSTR";
+
     private async Task EnsurePressureModeAsync()
     {
+        ApplyManualPressureProfileToSession();
         var pressureType = ParseManualPressureType(MeasureMode);
         if (_session.Pressure.State != ConnectionState.Connected)
             await _session.Pressure.OpenAsync();
@@ -1148,6 +1243,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         DeviceBus.Traffic -= OnTraffic;
+        _session.DevicesRebuilt -= OnSessionDevicesRebuilt;
         _batchCts?.Cancel();
         _batchCts?.Dispose();
         _batchCts = null;

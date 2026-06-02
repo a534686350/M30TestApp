@@ -45,12 +45,15 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="220"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <Border Style="{StaticResource Card}" Margin="0,0,0,10">
             <Grid>
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
@@ -77,7 +80,17 @@
                     <TextBox Text="{Binding PressureUnit, UpdateSourceTrigger=PropertyChanged}"/>
                 </StackPanel>
 
-                <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Bottom" Margin="0,0,16,0">
+                <StackPanel Grid.Column="4" Width="90" Margin="0,0,10,0">
+                    <TextBlock Text="压力精度" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Text="{Binding PressurePrecision, UpdateSourceTrigger=PropertyChanged}"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="5" Width="80" Margin="0,0,16,0">
+                    <TextBlock Text="保压(s)" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Text="{Binding HoldSeconds, UpdateSourceTrigger=PropertyChanged}"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Bottom" Margin="0,0,16,0">
                     <StackPanel Width="80" Margin="0,0,8,0">
                         <TextBlock Text="起始工位" Style="{StaticResource FieldLabel}"/>
                         <TextBox Text="{Binding StartSlot, UpdateSourceTrigger=PropertyChanged}"/>
@@ -88,12 +101,12 @@
                     </StackPanel>
                 </StackPanel>
 
-                <StackPanel Grid.Column="5" VerticalAlignment="Bottom">
+                <StackPanel Grid.Column="7" VerticalAlignment="Bottom">
                     <TextBlock Text="{Binding SensorName}" FontWeight="SemiBold"/>
                     <TextBlock Text="{Binding Status}" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="0,4,0,0"/>
                 </StackPanel>
 
-                <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Bottom">
+                <StackPanel Grid.Column="8" Orientation="Horizontal" VerticalAlignment="Bottom">
                     <Button Content="刷新工位" Style="{StaticResource GhostButton}" Padding="12,6"
                             Command="{Binding RefreshSlotsCommand}" Margin="0,0,8,0"/>
                     <Button Content="开始快速测试" Style="{StaticResource SaveButton}" Padding="16,6"
@@ -112,6 +125,32 @@
 
             <Border Style="{StaticResource Card}" Margin="0,0,10,0">
                 <StackPanel>
+                    <TextBlock Text="压力控制器" Style="{StaticResource SectionTitle}"/>
+                    <TextBlock Text="型号" Style="{StaticResource FieldLabel}"/>
+                    <ComboBox ItemsSource="{Binding PressureModels}"
+                              Text="{Binding PressureModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              IsEditable="True"
+                              Margin="0,0,0,8"/>
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="端口" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox ItemsSource="{Binding PressurePorts}"
+                                      Text="{Binding PressurePort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      IsEditable="True"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="地址" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox ItemsSource="{Binding PressureAddrs}"
+                                      Text="{Binding PressureAddr, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      IsEditable="True"/>
+                        </StackPanel>
+                    </Grid>
+
                     <TextBlock Text="判定指标" Style="{StaticResource SectionTitle}"/>
                     <TextBlock Text="测试前录入，留空表示不限。"
                                Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
@@ -162,7 +201,35 @@
             </Border>
         </Grid>
 
-        <TextBlock Grid.Row="2" Text="快速测试只控制压力并采集 Usig；不执行烘箱、UT、Usource、Isource 和完整流程。"
+        <Border Grid.Row="2" Style="{StaticResource Card}" Padding="0" Margin="0,10,0,0">
+            <DockPanel>
+                <Border DockPanel.Dock="Top" Background="{StaticResource HeaderBgBrush}"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                        Padding="12,6">
+                    <DockPanel>
+                        <TextBlock Text="测试日志" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding Status}"
+                                   Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                    </DockPanel>
+                </Border>
+                <TextBox x:Name="QuickLogTextBox"
+                         Text="{Binding LogText, Mode=OneWay}"
+                         BorderThickness="0"
+                         FontFamily="Consolas"
+                         FontSize="12"
+                         Background="{StaticResource SurfaceBrush}"
+                         IsReadOnly="True"
+                         AcceptsReturn="True"
+                         AcceptsTab="True"
+                         TextWrapping="NoWrap"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Auto"
+                         Padding="8,4"
+                         TextChanged="QuickLogTextBox_TextChanged"/>
+            </DockPanel>
+        </Border>
+
+        <TextBlock Grid.Row="3" Text="快速测试只控制压力并采集 Usig；不执行烘箱、UT、Usource、Isource 和完整流程。"
                    Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="4,8,0,0"/>
     </Grid>
 </UserControl>
