@@ -77,7 +77,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="320"/>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="280"/>
+                        <ColumnDefinition Width="360"/>
                     </Grid.ColumnDefinitions>
 
                     <!-- 基础信息 -->
@@ -223,56 +223,57 @@
                         </Grid>
                     </Border>
 
-                    <!-- 激励 + 循环 + 长漏 -->
+                    <!-- 当前型号指标 -->
                     <Border Style="{StaticResource Card}" Grid.Column="2">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
-                                <TextBlock Text="激励" Style="{StaticResource SectionTitle}"/>
-                                <StackPanel>
-                                    <TextBlock Text="激励 (mA/V)" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Text="0"/>
-                                </StackPanel>
-                                <StackPanel Margin="0,8,0,0">
-                                    <TextBlock Text="激励类型" Style="{StaticResource FieldLabel}"/>
-                                    <ComboBox SelectedIndex="0">
-                                        <ComboBoxItem Content="恒流"/>
-                                        <ComboBoxItem Content="恒压"/>
-                                    </ComboBox>
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                    <CheckBox Content="20Ω?" Margin="0,0,12,0"/>
-                                    <TextBlock Text="增益" VerticalAlignment="Center"
-                                               Foreground="{StaticResource MutedBrush}"/>
-                                    <TextBox Text="0" Width="60" Margin="8,0,0,0"/>
-                                </StackPanel>
+                                <TextBlock Text="当前型号指标" Style="{StaticResource SectionTitle}"/>
+                                <TextBlock Text="切换传感器型号后这里显示该型号自己的判定指标和限值。"
+                                           Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,10"/>
 
-                                <TextBlock Text="循环次数" Style="{StaticResource GroupTitle}"/>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel>
-                                        <TextBlock Text="压力循环" Style="{StaticResource FieldLabel}"/>
-                                        <TextBox Text="1"/>
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                        <TextBlock Text="温度循环" Style="{StaticResource FieldLabel}"/>
-                                        <TextBox Text="1"/>
-                                    </StackPanel>
-                                </Grid>
-                                <StackPanel Margin="0,8,0,0">
-                                    <TextBlock Text="测试循环" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Text="1"/>
-                                </StackPanel>
-
-                                <TextBlock Text="长漏配置" Style="{StaticResource GroupTitle}"/>
-                                <StackPanel>
-                                    <TextBlock Text="长漏时长 (HH:MM)" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Text="00:00"/>
-                                    <TextBlock Text="长漏间隔 (HH:MM:SS)" Style="{StaticResource FieldLabel}" Margin="0,8,0,4"/>
-                                    <TextBox Text="00:00:00"/>
-                                </StackPanel>
+                                <ItemsControl ItemsSource="{Binding Metrics}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{StaticResource HeaderBgBrush}" CornerRadius="4"
+                                                    Padding="10,8" Margin="0,0,0,8">
+                                                <StackPanel>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <CheckBox IsChecked="{Binding Enabled}" VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold"
+                                                                   Margin="6,0,8,0" TextTrimming="CharacterEllipsis"/>
+                                                        <Border Grid.Column="2" Background="{StaticResource SurfaceBrush}" CornerRadius="3"
+                                                                Padding="6,1">
+                                                            <TextBlock Text="{Binding Code}" FontSize="11"
+                                                                       Foreground="{StaticResource MutedBrush}"/>
+                                                        </Border>
+                                                    </Grid>
+                                                    <Grid Margin="0,8,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="18"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="限值" VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource MutedBrush}" FontSize="11"
+                                                                   Margin="0,0,8,0"/>
+                                                        <TextBox Grid.Column="1" Text="{Binding Min, UpdateSourceTrigger=PropertyChanged}"
+                                                                 MinWidth="56" ToolTip="Min"/>
+                                                        <TextBlock Grid.Column="2" Text="~" HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
+                                                        <TextBox Grid.Column="3" Text="{Binding Max, UpdateSourceTrigger=PropertyChanged}"
+                                                                 MinWidth="56" ToolTip="Max"/>
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </StackPanel>
                         </ScrollViewer>
                     </Border>
@@ -282,7 +283,7 @@
             <!-- ════════════════════════════════════════════════════════ -->
             <!-- 指标限值 -->
             <!-- ════════════════════════════════════════════════════════ -->
-            <TabItem Header="指标限值">
+            <TabItem Header="指标限值" Visibility="Collapsed">
                 <Border Style="{StaticResource Card}" Margin="4">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="8">
@@ -862,11 +863,11 @@
             <!-- ════════════════════════════════════════════════════════ -->
             <!-- 6. 计算 -->
             <!-- ════════════════════════════════════════════════════════ -->
-            <TabItem Header="计算">
+            <TabItem Header="计算" Visibility="Collapsed">
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
                         <TextBlock Text="指标项" Style="{StaticResource SectionTitle}"/>
-                        <TextBlock Text="勾选参与合格判定的指标；未勾选项仍会计算并显示，但不按限值标黄。"
+                        <TextBlock Text="勾选参与合格判定的指标；Min/Max 为当前型号的指标限值，留空表示不限。"
                                    Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
 
                         <ItemsControl ItemsSource="{Binding Metrics}">
@@ -889,6 +890,23 @@
                                             </StackPanel>
                                             <TextBlock Text="{Binding Description}" Foreground="{StaticResource MutedBrush}"
                                                        TextWrapping="Wrap" Margin="0,4,0,0" FontSize="11"/>
+                                            <Grid Margin="0,8,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="18"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="限值" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource MutedBrush}" FontSize="11"
+                                                           Margin="0,0,8,0"/>
+                                                <TextBox Grid.Column="1" Text="{Binding Min, UpdateSourceTrigger=PropertyChanged}"
+                                                         MinWidth="54" ToolTip="Min"/>
+                                                <TextBlock Grid.Column="2" Text="~" HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
+                                                <TextBox Grid.Column="3" Text="{Binding Max, UpdateSourceTrigger=PropertyChanged}"
+                                                         MinWidth="54" ToolTip="Max"/>
+                                            </Grid>
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
