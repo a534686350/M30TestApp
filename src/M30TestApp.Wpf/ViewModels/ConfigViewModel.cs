@@ -118,6 +118,7 @@ public sealed class PressureCommandSettingVm : ViewModelBase
 public sealed class ConfigViewModel : ViewModelBase
 {
     private readonly TestSession _session;
+    private readonly CommandDictionary _commands;
     private IniFile _settingIni;
 
     private const string SwitchUnitSection = "SwitchUnitCards";
@@ -151,7 +152,16 @@ public sealed class ConfigViewModel : ViewModelBase
     public string OvenStopBits { get; set; } = "1";
     public string PressureGpibAddress { get; set; } = "10";
     public string PressureGpibPort { get; set; } = "2";
-    public string PressureModelName { get; set; } = "FLUKE-7250";
+    private string _pressureModelName = "FLUKE-7250";
+    public string PressureModelName
+    {
+        get => _pressureModelName;
+        set
+        {
+            if (SetField(ref _pressureModelName, value))
+                LoadPressureCommandSettings();
+        }
+    }
     public string TempGpibAddress { get; set; } = "9";
     public string TempGpibPort { get; set; } = "0";
 
@@ -368,6 +378,7 @@ public sealed class ConfigViewModel : ViewModelBase
     public ConfigViewModel(TestSession session)
     {
         _session = session;
+        _commands = session.Commands;
         _settingIni = File.Exists(AppPaths.SettingIni)
             ? IniFile.Load(AppPaths.SettingIni)
             : new IniFile();
@@ -379,6 +390,7 @@ public sealed class ConfigViewModel : ViewModelBase
         LoadDeviceSettings();
         LoadAppSettings();
         BuildParameterSettings();
+        LoadPressureCommandSettings();
 
         foreach (var d in session.Station.Devices.Values) Devices.Add(d);
         LoadSlotLayoutFromIni();
@@ -961,6 +973,35 @@ public sealed class ConfigViewModel : ViewModelBase
         PressureCommandSettings.Add(new("SetAbs发送指令", "*CLS;SENSE:MODE ABS"));
         PressureCommandSettings.Add(new("SetGaug发送指令", "*CLS;SENSE:MODE GAUG"));
         PressureCommandSettings.Add(new("SetDiff发送指令", "*CLS;SENSE:MODE DIFF"));
+    }
+
+    private void LoadPressureCommandSettings()
+    {
+        PressureCommandSettings.Clear();
+        if (string.IsNullOrWhiteSpace(PressureModelName)) return;
+
+        foreach (var (label, key) in new[]
+        {
+            ("Open", "Open"),
+            ("Machine Type", "Machine Type"),
+            ("UpperLimit", "UpperLimit"),
+            ("SetPressure", "SetPressure"),
+            ("Vent", "Vent"),
+            ("ZeroCheck", "ZeroCheck"),
+            ("ReadPressure", "ReadPressure"),
+            ("SetMeasure", "SetMeasure"),
+            ("SelfTest", "SelfTest"),
+            ("ReadStatus", "ReadStatus"),
+            ("SetAbs", "SetAbs"),
+            ("SetGaug", "SetGaug"),
+            ("SetDiff", "SetDiff"),
+        })
+        {
+            var command = _commands.Raw(PressureModelName, key);
+            if (string.IsNullOrWhiteSpace(command) && key == "UpperLimit")
+                command = _commands.Raw(PressureModelName, "UpperLimt");
+            PressureCommandSettings.Add(new($"{label} 发送指令", command));
+        }
     }
 
     private string LoadSetting(string section, string key, string fallback) =>
