@@ -25,6 +25,10 @@
     <Content Include="..\..\samples\setting\**\*.*" Link="setting\%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- Ship current test plans / sensor models maintained from the configuration UI. -->
+    <Content Include="..\..\setting\TestConfig\**\*.*" Link="setting\TestConfig\%(RecursiveDir)%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>
