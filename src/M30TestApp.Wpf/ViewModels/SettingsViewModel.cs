@@ -59,6 +59,17 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
+    private bool _debugMode;
+    public bool DebugMode
+    {
+        get => _debugMode;
+        set
+        {
+            if (SetField(ref _debugMode, value))
+                ApplyDebugMode(value);
+        }
+    }
+
     // ── Update check ──
     private string _updateStatus = "";
     public string UpdateStatus { get => _updateStatus; set => SetField(ref _updateStatus, value); }
@@ -80,6 +91,7 @@ public sealed class SettingsViewModel : ViewModelBase
         _language = LanguageHelper.Normalize(AppPreferences.Language(session.Context.Settings));
 
         _theme = ThemeHelper.Normalize(AppPreferences.Theme(session.Context.Settings));
+        _debugMode = AppPreferences.DebugMode(session.Context.Settings);
 
         OpenRepoCommand = new RelayCommand(_ =>
         {
@@ -158,5 +170,24 @@ public sealed class SettingsViewModel : ViewModelBase
         AppPreferences.Set(_session.Context.Settings, "Theme", theme);
         try { _session.Context.Settings.Save(AppPaths.SettingIni); } catch { }
         ThemeHelper.Apply(theme);
+    }
+
+    private void ApplyDebugMode(bool enabled)
+    {
+        AppPreferences.SetBool(_session.Context.Settings, "DebugMode", enabled);
+        try { _session.Context.Settings.Save(AppPaths.SettingIni); } catch { }
+
+        try
+        {
+            _session.RebuildDevices(enabled);
+            UpdateStatus = enabled
+                ? "调试模式已开启：不连接真实硬件，指令记录发送并模拟接收。"
+                : "调试模式已关闭：后续连接按设备配置执行。";
+        }
+        catch (Exception ex)
+        {
+            UpdateStatus = $"切换调试模式失败：{ex.Message}";
+            AppLog.Error("Settings", UpdateStatus);
+        }
     }
 }

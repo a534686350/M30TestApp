@@ -359,6 +359,7 @@ public sealed class RunPerformanceTestAction : IAction
         // ── 2. 逐温度点 ─────────────────────────────────────────
         for (var ti = startTi; ti < ctx.Plan.TempPoints.Count; ti++)
         {
+            await ctx.WaitIfPausedAsync(ct);
             var tp = ctx.Plan.TempPoints[ti];
             var piStart = ti == startTi ? startPi : 0;
             ctx.CurrentTemp = $"{tp.Name}: {tp.Celsius}℃";
@@ -374,6 +375,11 @@ public sealed class RunPerformanceTestAction : IAction
                     await SetAndWaitOvenAsync(ctx, tp, "Run", ct);
 
                     var soakMinutes = tp.SoakMinutes ?? (int.TryParse(ctx.Settings.Get("DelaySettings", "SoakMinutes", "120"), out var sm) ? sm : 120);
+                    if (resume is not null && ti == startTi && piStart == 0 && ctx.ResumeSoakMinutesOverride is { } resumeSoakMinutes)
+                    {
+                        soakMinutes = Math.Max(0, resumeSoakMinutes);
+                        AppLog.Info("Run", $"Resume soak time override: {soakMinutes} min");
+                    }
                     AppLog.Info("Run", $"开始保持温度，持续 {soakMinutes} min");
                     await SoakWithLogAsync(ctx, soakMinutes, tp.Name, ct);
                     AppLog.Info("Run", "保持温度完成");
@@ -426,6 +432,7 @@ public sealed class RunPerformanceTestAction : IAction
 
             for (var pi = piStart; pi < ctx.Plan.PressurePoints.Count; pi++)
             {
+                await ctx.WaitIfPausedAsync(ct);
                 var pp = ctx.Plan.PressurePoints[pi];
                 ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit}";
                 AppLog.Info("Run", $"开始测量当前温度点第{pi + 1}压力点：{tp.Name}:{tp.Celsius}; {pp.Name}:{pp.Value} [{pp.PressureTypeDisplay}]; V5:5; F:USG");
@@ -457,6 +464,7 @@ public sealed class RunPerformanceTestAction : IAction
                 AppLog.Info("Run", $"开始回差测量（下行）：{tp.Name}");
                 for (var pi = ctx.Plan.PressurePoints.Count - 2; pi >= 0; pi--)
                 {
+                    await ctx.WaitIfPausedAsync(ct);
                     var pp = ctx.Plan.PressurePoints[pi];
                     ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit} (回差)";
                     AppLog.Info("Run", $"回差下行 {tp.Name} {pp.Name}:{pp.Value} [{pp.PressureTypeDisplay}]");
@@ -477,6 +485,8 @@ public sealed class RunPerformanceTestAction : IAction
         }
 
         AppLog.Info("Run", "完成采集");
+        var metricCount = MetricsCalculator.Calculate(ctx);
+        AppLog.Info("Cal", $"Metrics calculation complete for {metricCount} slots");
         SaveMatrix(ctx);
         TestCheckpoint.Delete();
         ctx.ResumeCheckpoint = null;
@@ -718,6 +728,7 @@ public sealed class RunPerformanceTestAction : IAction
         for (var min = 0; min <= maxMinutes; min++)
         {
             ct.ThrowIfCancellationRequested();
+            await ctx.WaitIfPausedAsync(ct);
             try
             {
                 var current = await ctx.Oven.ReadTempAsync(ct);
@@ -766,6 +777,7 @@ public sealed class RunPerformanceTestAction : IAction
         for (var min = 0; min <= totalMinutes; min++)
         {
             ct.ThrowIfCancellationRequested();
+            await ctx.WaitIfPausedAsync(ct);
             var remaining = totalMinutes - min;
             ctx.CurrentTemp = $"{tpName} 保温中 {min}/{totalMinutes} min (剩余{remaining}min)";
             AppLog.Info("Run", $"烘箱已保温 {min} min, 还剩 {remaining} min");
@@ -785,6 +797,7 @@ public sealed class RunPerformanceTestAction : IAction
         for (var i = 0; i < 120; i++)
         {
             ct.ThrowIfCancellationRequested();
+            await ctx.WaitIfPausedAsync(ct);
             var current = await ctx.Pressure.ReadPressureAsync(ct);
             var diff = Math.Abs(current - pp.Value);
             ctx.CurrentPressure = $"{pp.Name} 目标{pp.Value} 当前{current:F4} 差值{diff:F4} {ctx.Plan.PressureUnit}";
@@ -809,6 +822,7 @@ public sealed class RunPerformanceTestAction : IAction
         for (var s = 0; s < holdSec; s++)
         {
             ct.ThrowIfCancellationRequested();
+            await ctx.WaitIfPausedAsync(ct);
             ctx.CurrentPressure = $"{pp.Name} {pp.Value}{ctx.Plan.PressureUnit} 保压中 {s}/{holdSec}s";
             await Task.Delay(1000, ct);
         }
@@ -899,6 +913,8 @@ public sealed class SaveTestDataAction : IAction
     public string Key => "Save:TestData";
     public Task ExecuteAsync(TaskContext ctx, TaskCommand cmd, CancellationToken ct)
     {
+        var metricCount = MetricsCalculator.Calculate(ctx);
+        AppLog.Info("Cal", $"Metrics calculation complete for {metricCount} slots");
         RunPerformanceTestAction.SaveMatrix(ctx);
         return Task.CompletedTask;
     }

@@ -1,4 +1,7 @@
+using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using M30TestApp.Core.Config;
 using M30TestApp.Core.Data;
 using M30TestApp.Core.Devices;
@@ -55,4 +58,12 @@ public sealed class TaskContext
 
     /// <summary>When set, <see cref="RunPerformanceTestAction"/> resumes from this checkpoint.</summary>
     public TestCheckpointState? ResumeCheckpoint { get; set; }
+
+    /// <summary>Optional soak time override for the resumed temperature point.</summary>
+    public int? ResumeSoakMinutesOverride { get; set; }
+
+    public Func<CancellationToken, Task>? PauseWaiter { get; set; }
+
+    public Task WaitIfPausedAsync(CancellationToken ct) =>
+        PauseWaiter?.Invoke(ct) ?? Task.CompletedTask;
 }

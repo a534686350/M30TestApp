@@ -44,6 +44,7 @@ public static class MetricsCalculator
             var iscT2 = Get(ctx, slotName, Isc(t2));
 
             var usgP0T3 = Get(ctx, slotName, Usg(t3, p0));
+            var usgP50T3 = Get(ctx, slotName, Usg(t3, p50));
             var usgP100T3 = Get(ctx, slotName, Usg(t3, p100));
             var utT3 = Get(ctx, slotName, Ut(t3));
             var tempT3 = Get(ctx, slotName, OvenTemp(t3));
@@ -59,7 +60,7 @@ public static class MetricsCalculator
 
             var offset = usgP0T3;
             var span = Sub(usgP100T3, usgP0T3);
-            var nl = LinearityError(usgP50T1, usgP0T3, usgP100T3, p100.Value, p0.Value, p50.Value);
+            var nl = LinearityError(usgP50T3, usgP0T3, usgP100T3, p100.Value, p0.Value, p50.Value);
             var tco = Tco(usgP0T2, usgP0T3, tempT2, tempT3, usgP100T3);
             var tcs = Tcs(usgP100T2, usgP0T2, usgP100T3, usgP0T3, tempT2, tempT3);
             var tcr = Tcr(rb5T2, rb5T3, tempT2, tempT3);
@@ -103,7 +104,7 @@ public static class MetricsCalculator
 
     private static void Set(TaskContext ctx, string slot, string key, double value, SpecRange? spec)
     {
-        var status = double.IsNaN(value) || value <= -999
+        var status = double.IsNaN(value) || value <= -998
             ? CellStatus.Error
             : spec is { HasLimits: true } && !spec.IsInRange(value)
                 ? CellStatus.Warn
@@ -178,5 +179,5 @@ public static class MetricsCalculator
         return (utT2 - utT3) / (tempT2 - tempT3);
     }
 
-    private static bool Invalid(params double[] values) => values.Any(v => double.IsNaN(v) || v <= -999);
+    private static bool Invalid(params double[] values) => values.Any(v => double.IsNaN(v) || v <= -998);
 }

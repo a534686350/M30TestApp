@@ -27,16 +27,19 @@ public sealed class TestSession : IDisposable
     /// </summary>
     public event EventHandler? Reconfigured;
 
-    public IPressureController Pressure { get; }
-    public IOven Oven { get; }
-    public IDmm Dmm { get; }
-    public IDac Dac { get; }
-    public IPowerSupply Power { get; }
-    public IBoard Board { get; }
+    public IPressureController Pressure { get; private set; } = null!;
+    public IOven Oven { get; private set; } = null!;
+    public IDmm Dmm { get; private set; } = null!;
+    public IDac Dac { get; private set; } = null!;
+    public IPowerSupply Power { get; private set; } = null!;
+    public IBoard Board { get; private set; } = null!;
 
     public DataMatrix Matrix { get; } = new();
     public TaskContext Context { get; }
     public TaskRunner Runner { get; }
+    public bool DebugMode { get; private set; }
+
+    public event EventHandler? DevicesRebuilt;
 
     public TestSession(StationProfile station, CommandDictionary commands, SlotTable slots, TestPlan plan, IniFile? settings = null)
     {
@@ -45,13 +48,8 @@ public sealed class TestSession : IDisposable
         Slots = slots;
         Plan = plan;
 
-        var factory = new DeviceFactory(commands);
-        Pressure = factory.CreatePressure(station.Require(DeviceKind.Pressure));
-        Oven     = factory.CreateOven(station.Require(DeviceKind.Oven));
-        Dmm      = factory.CreateDmm(station.Require(DeviceKind.Dmm));
-        Dac      = factory.CreateDac(station.Require(DeviceKind.Dac));
-        Power    = factory.CreatePower(station.Require(DeviceKind.Power));
-        Board    = factory.CreateBoard(station.Require(DeviceKind.Board));
+        DebugMode = AppPreferences.DebugMode(settings ?? new IniFile());
+        CreateDevices(DebugMode);
 
         foreach (var slot in slots.Entries) Matrix.EnsureSlot(slot.Slot);
 
@@ -61,6 +59,53 @@ public sealed class TestSession : IDisposable
             Plan = Plan, Slots = Slots, Matrix = Matrix, Commands = Commands, Settings = settings ?? new IniFile(),
         };
         Runner = new TaskRunner().RegisterBuiltins();
+    }
+
+    public void RebuildDevices(bool debugMode)
+    {
+        if (Context is null)
+        {
+            DebugMode = debugMode;
+            CreateDevices(debugMode);
+            return;
+        }
+
+        var oldDevices = new IDevice[] { Pressure, Oven, Dmm, Dac, Power, Board };
+        DebugMode = debugMode;
+        CreateDevices(debugMode);
+        ApplyDevicesToContext();
+
+        foreach (var device in oldDevices)
+        {
+            try { device.Dispose(); }
+            catch (Exception ex) { AppLog.Warn("Session", $"Dispose old device failed: {ex.Message}"); }
+        }
+
+        AppLog.Info("Session", debugMode
+            ? "Debug mode enabled: all devices use simulated backends"
+            : "Debug mode disabled: devices use station backends");
+        DevicesRebuilt?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void CreateDevices(bool debugMode)
+    {
+        var factory = new DeviceFactory(Commands, debugMode);
+        Pressure = factory.CreatePressure(Station.Require(DeviceKind.Pressure));
+        Oven     = factory.CreateOven(Station.Require(DeviceKind.Oven));
+        Dmm      = factory.CreateDmm(Station.Require(DeviceKind.Dmm));
+        Dac      = factory.CreateDac(Station.Require(DeviceKind.Dac));
+        Power    = factory.CreatePower(Station.Require(DeviceKind.Power));
+        Board    = factory.CreateBoard(Station.Require(DeviceKind.Board));
+    }
+
+    private void ApplyDevicesToContext()
+    {
+        Context.Pressure = Pressure;
+        Context.Oven = Oven;
+        Context.Dmm = Dmm;
+        Context.Dac = Dac;
+        Context.Power = Power;
+        Context.Board = Board;
     }
 
     /// <summary>

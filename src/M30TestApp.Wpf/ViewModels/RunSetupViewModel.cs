@@ -21,6 +21,7 @@ public sealed class RunSetupViewModel : ViewModelBase
 {
     private readonly TestSession _session;
     private Dictionary<string, string> _configSerials = new(StringComparer.OrdinalIgnoreCase);
+    private TestCheckpoint? _checkpoint;
 
     // ─── Plan selection ────────────────────────────────────────────────────
     public ObservableCollection<TestPlan> Plans { get; } = new();
@@ -40,6 +41,7 @@ public sealed class RunSetupViewModel : ViewModelBase
                 OnPropertyChanged(nameof(PlanTempCount));
                 OnPropertyChanged(nameof(PlanDefaultPressureType));
                 OnPropertyChanged(nameof(PlanTaskPreview));
+                UpdateCheckpointState();
             }
         }
     }
@@ -174,6 +176,18 @@ public sealed class RunSetupViewModel : ViewModelBase
     public bool CanResumeCheckpoint { get; private set; }
     public string CheckpointSummary { get; private set; } = "";
 
+    private string _resumeSoakMinutesText = "0";
+    public string ResumeSoakMinutesText
+    {
+        get => _resumeSoakMinutesText;
+        set => SetField(ref _resumeSoakMinutesText, value);
+    }
+
+    public int? ResumeSoakMinutesOverride =>
+        ResumeFromCheckpoint && int.TryParse(ResumeSoakMinutesText, out var minutes)
+            ? Math.Max(0, minutes)
+            : null;
+
     private bool _resumeFromCheckpoint;
     public bool ResumeFromCheckpoint
     {
@@ -223,6 +237,7 @@ public sealed class RunSetupViewModel : ViewModelBase
 
     private void DetectCheckpoint(TestSession session)
     {
+        _checkpoint = null;
         CanResumeCheckpoint = false;
         CheckpointSummary = "";
         ResumeFromCheckpoint = false;
@@ -233,10 +248,33 @@ public sealed class RunSetupViewModel : ViewModelBase
         var ck = TestCheckpoint.Load();
         if (ck is null || !ck.MatchesPlan(session.Plan.Name)) return;
 
+        _checkpoint = ck;
         CanResumeCheckpoint = true;
         ResumeFromCheckpoint = true;
         CheckpointSummary =
             $"方案 {ck.PlanName}：温度点 {ck.TempIndex + 1}，压力点 {ck.PressureIndex + 1}，保存于 {ck.SavedAt:yyyy-MM-dd HH:mm}";
+        OnPropertyChanged(nameof(CanResumeCheckpoint));
+        OnPropertyChanged(nameof(CheckpointSummary));
+    }
+
+    private void UpdateCheckpointState(bool defaultResume = false)
+    {
+        var ck = _checkpoint;
+        var canResume = ck is not null && SelectedPlan is not null && ck.MatchesPlan(SelectedPlan.Name);
+        CanResumeCheckpoint = canResume;
+        if (!canResume)
+        {
+            ResumeFromCheckpoint = false;
+            CheckpointSummary = "";
+        }
+        else
+        {
+            if (defaultResume || !ResumeFromCheckpoint)
+                ResumeFromCheckpoint = true;
+            CheckpointSummary =
+                $"方案 {ck!.PlanName}，温度点 {ck.TempIndex + 1}，压力点 {ck.PressureIndex + 1}，保存于 {ck.SavedAt:yyyy-MM-dd HH:mm}";
+        }
+
         OnPropertyChanged(nameof(CanResumeCheckpoint));
         OnPropertyChanged(nameof(CheckpointSummary));
     }

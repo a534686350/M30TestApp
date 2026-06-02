@@ -8,7 +8,7 @@ namespace M30TestApp.Wpf.ViewModels;
 /// <summary>Top-bar device status indicator: name + colored dot + model.</summary>
 public sealed class DeviceStatusVm : ViewModelBase, IDisposable
 {
-    private readonly IDevice _device;
+    private IDevice _device;
     private ConnectionState _state;
     private ConnectionState? _overrideState;
 
@@ -58,6 +58,23 @@ public sealed class DeviceStatusVm : ViewModelBase, IDisposable
     public void SetOverride(ConnectionState? state)
     {
         _overrideState = state;
+        OnPropertyChanged(nameof(State));
+        OnPropertyChanged(nameof(StateText));
+        OnPropertyChanged(nameof(StatusLabel));
+        OnPropertyChanged(nameof(DotBrush));
+    }
+
+    public void SetDevice(IDevice device)
+    {
+        if (ReferenceEquals(_device, device)) return;
+
+        _device.StateChanged -= OnDeviceStateChanged;
+        _device = device;
+        _state = device.State;
+        device.StateChanged += OnDeviceStateChanged;
+
+        OnPropertyChanged(nameof(Model));
+        OnPropertyChanged(nameof(Address));
         OnPropertyChanged(nameof(State));
         OnPropertyChanged(nameof(StateText));
         OnPropertyChanged(nameof(StatusLabel));

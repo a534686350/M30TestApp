@@ -18,11 +18,12 @@
               CanUserSortColumns="False"
               CanUserReorderColumns="False"
               EnableRowVirtualization="True"
-              EnableColumnVirtualization="True"
+              EnableColumnVirtualization="False"
               VirtualizingPanel.VirtualizationMode="Recycling"
               VirtualizingPanel.IsVirtualizing="True"
-              ScrollViewer.CanContentScroll="True"
-              ScrollViewer.HorizontalScrollBarVisibility="Auto"
+              ScrollViewer.CanContentScroll="False"
+              ScrollViewer.PanningMode="Both"
+              ScrollViewer.HorizontalScrollBarVisibility="Visible"
               ScrollViewer.VerticalScrollBarVisibility="Auto">
         <DataGrid.ContextMenu>
             <ContextMenu>

@@ -77,6 +77,28 @@
                             </Grid>
                         </Border>
 
+                        <!-- Debug mode -->
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,2" Padding="20,16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="调试模式"
+                                               FontWeight="SemiBold" FontSize="14"/>
+                                    <TextBlock Text="开启后不连接真实硬件，所有指令只记录发送并模拟接收。"
+                                               Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="0,3,0,0"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <CheckBox Grid.Column="1"
+                                          Content="启用"
+                                          IsChecked="{Binding DebugMode}"
+                                          VerticalAlignment="Center"
+                                          Margin="16,0,0,0"/>
+                            </Grid>
+                        </Border>
+
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

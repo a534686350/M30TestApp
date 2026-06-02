@@ -82,6 +82,7 @@ public static class DacBatchSampler
         foreach (var slot in slots)
         {
             ct.ThrowIfCancellationRequested();
+            await ctx.WaitIfPausedAsync(ct).ConfigureAwait(false);
             ctx.Matrix.EnsureSlot(slot.Slot);
             var (card, channel) = SlotDacAddress.Get(slot);
 
