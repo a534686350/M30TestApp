@@ -135,7 +135,7 @@ public sealed class ConfigViewModel : ViewModelBase
     public ObservableCollection<string> CardChannels { get; } = new(Enumerable.Range(301, 16).Select(i => i.ToString()));
     public ObservableCollection<string> ValveChannels { get; } = new(Enumerable.Range(101, 9).Select(i => i.ToString()));
     public ObservableCollection<string> TempChannels { get; } = new(Enumerable.Range(201, 4).Select(i => i.ToString()));
-    public ObservableCollection<string> PressureModels { get; } = new() { "FLUKE-7250", "FLUKE-6270", "WIKA-CPC8000" };
+    public ObservableCollection<string> PressureModels { get; } = new();
 
     private string _daqPort = "COM3";
     public string DaqPort { get => _daqPort; set => SetField(ref _daqPort, value); }
@@ -373,6 +373,7 @@ public sealed class ConfigViewModel : ViewModelBase
             : new IniFile();
         Plan = session.Plan;
 
+        LoadPressureModels(session.Commands);
 
         RefreshComPorts();
         LoadDeviceSettings();
@@ -975,11 +976,20 @@ public sealed class ConfigViewModel : ViewModelBase
         SavePairs(DelaySettings);
         _settingIni.Save(AppPaths.SettingIni);
         _session.Context.Settings = _settingIni;
+        ApplyDeviceProfilesToSession();
         SavePlan();
         SaveSlotLayoutToIni();
         SaveSlotsToDefaultCsv();
         AppPreferences.PruneOldLogs(_settingIni);
         AppLog.Info("Config", $"已保存所有配置到 {AppPaths.SettingIni}");
+    }
+
+    private void ApplyDeviceProfilesToSession()
+    {
+        var station = StationProfile.Load(_settingIni);
+        foreach (var kv in station.Devices)
+            _session.Station.Devices[kv.Key] = kv.Value;
+        _session.RebuildDevices(AppPreferences.DebugMode(_settingIni));
     }
 
     private void ReloadSettings()
@@ -1095,6 +1105,10 @@ public sealed class ConfigViewModel : ViewModelBase
     private void BuildModelCommands(CommandDictionary commands)
     {
         // Surface a representative slice of Command.ini per device kind.
+        var pressureModels = commands.Models
+            .Where(m => commands.Has(m, "SetPressure") || commands.Has(m, "ReadPressure"))
+            .OrderBy(m => m)
+            .ToArray();
         var slice = new (string Kind, string[] Models, string[] Actions)[]
         {
             ("压力控制器", new[] { "FLUKE-7250", "FLUKE-6270", "WIKA-CPC8000" },
@@ -1122,6 +1136,36 @@ public sealed class ConfigViewModel : ViewModelBase
                 vm.Templates.Add(new CommandTemplateVm { Action = action, Template = tpl });
             }
             ModelCommands.Add(vm);
+        }
+
+        foreach (var model in pressureModels.Where(m => !ModelCommands.Any(x => x.Model.Equals(m, StringComparison.OrdinalIgnoreCase))))
+        {
+            var vm = new ModelCommandsVm { Kind = "压力控制器", Model = model };
+            foreach (var action in new[] { "Open", "MachineType", "UpperLimit", "SetPressure", "Vent", "SetAbs",
+                         "ZeroCheck", "ReadPressure", "SetMeasure", "SelfTest", "ReadStatus", "SetGaug", "SetDiff" })
+            {
+                var tpl = commands.Render(model, action) is { Length: > 0 } t ? t : "";
+                vm.Templates.Add(new CommandTemplateVm { Action = action, Template = tpl });
+            }
+            ModelCommands.Add(vm);
+        }
+    }
+
+    private void LoadPressureModels(CommandDictionary commands)
+    {
+        PressureModels.Clear();
+        foreach (var model in commands.Models
+                     .Where(m => commands.Has(m, "SetPressure") || commands.Has(m, "ReadPressure"))
+                     .OrderBy(m => m))
+        {
+            PressureModels.Add(model);
+        }
+
+        if (PressureModels.Count == 0)
+        {
+            PressureModels.Add("FLUKE-7250");
+            PressureModels.Add("FLUKE-6270");
+            PressureModels.Add("WIKA-CPC8000");
         }
     }
 

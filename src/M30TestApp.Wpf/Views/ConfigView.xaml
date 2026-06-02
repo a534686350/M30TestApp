@@ -403,7 +403,7 @@
                                     <StackPanel Margin="0,0,8,0">
                                         <TextBlock Text="数据采集卡 Data Acquisition Card" Style="{StaticResource GroupTitle}"/>
                                         <TextBlock Text="串口号 Port Number" Style="{StaticResource FieldLabel}"/>
-                                        <ComboBox ItemsSource="{Binding ComPorts}" SelectedItem="{Binding DaqPort}"/>
+                                        <ComboBox ItemsSource="{Binding ComPorts}" Text="{Binding DaqPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
                                         <TextBlock Text="波特率 Baud" Style="{StaticResource FieldLabel}" Margin="0,8,0,4"/>
                                         <ComboBox ItemsSource="{Binding BaudRates}" SelectedItem="{Binding DaqBaud}"/>
                                         <TextBlock Text="数据位 Data Bits" Style="{StaticResource FieldLabel}" Margin="0,8,0,4"/>
@@ -416,7 +416,7 @@
                                     <StackPanel Grid.Column="1">
                                         <TextBlock Text="烘箱 Oven Chamber" Style="{StaticResource GroupTitle}"/>
                                         <TextBlock Text="串口号 Port Number" Style="{StaticResource FieldLabel}"/>
-                                        <ComboBox ItemsSource="{Binding ComPorts}" SelectedItem="{Binding OvenPort}"/>
+                                        <ComboBox ItemsSource="{Binding ComPorts}" Text="{Binding OvenPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
                                         <TextBlock Text="波特率 Baud" Style="{StaticResource FieldLabel}" Margin="0,8,0,4"/>
                                         <ComboBox ItemsSource="{Binding BaudRates}" SelectedItem="{Binding OvenBaud}"/>
                                         <TextBlock Text="数据位 Data Bits" Style="{StaticResource FieldLabel}" Margin="0,8,0,4"/>
@@ -437,15 +437,15 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
                                         <TextBlock Text="GPIB地址 Address" Style="{StaticResource FieldLabel}"/>
-                                        <ComboBox ItemsSource="{Binding GpibAddresses}" SelectedItem="{Binding PressureGpibAddress}"/>
+                                        <ComboBox ItemsSource="{Binding GpibAddresses}" Text="{Binding PressureGpibAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Margin="8,0">
                                         <TextBlock Text="GPIB端口号 Port Num" Style="{StaticResource FieldLabel}"/>
-                                        <ComboBox ItemsSource="{Binding Ports}" SelectedItem="{Binding PressureGpibPort}"/>
+                                        <ComboBox ItemsSource="{Binding Ports}" Text="{Binding PressureGpibPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="2">
                                         <TextBlock Text="压力控制器型号 Type" Style="{StaticResource FieldLabel}"/>
-                                        <ComboBox ItemsSource="{Binding PressureModels}" SelectedItem="{Binding PressureModelName}"/>
+                                        <ComboBox ItemsSource="{Binding PressureModels}" Text="{Binding PressureModelName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
                                     </StackPanel>
                                 </Grid>
                             </StackPanel>
@@ -461,11 +461,11 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Margin="0,0,8,0">
                                         <TextBlock Text="GPIB地址 Address" Style="{StaticResource FieldLabel}"/>
-                                        <ComboBox ItemsSource="{Binding GpibAddresses}" SelectedItem="{Binding TempGpibAddress}"/>
+                                        <ComboBox ItemsSource="{Binding GpibAddresses}" Text="{Binding TempGpibAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1">
                                         <TextBlock Text="GPIB端口号 Port Num" Style="{StaticResource FieldLabel}"/>
-                                        <ComboBox ItemsSource="{Binding Ports}" SelectedItem="{Binding TempGpibPort}"/>
+                                        <ComboBox ItemsSource="{Binding Ports}" Text="{Binding TempGpibPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
                                     </StackPanel>
                                 </Grid>
                                 <ItemsControl ItemsSource="{Binding SwitchUnitCards}" ItemTemplate="{StaticResource OptionSettingTemplate}" Margin="0,12,0,0">
@@ -516,7 +516,7 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Margin="0,0,12,0">
                                         <TextBlock Text="型号" Style="{StaticResource FieldLabel}"/>
-                                        <ComboBox ItemsSource="{Binding PressureModels}" SelectedItem="{Binding PressureModelName}"/>
+                                        <ComboBox ItemsSource="{Binding PressureModels}" Text="{Binding PressureModelName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
                                     </StackPanel>
                                     <ItemsControl Grid.Column="1" ItemsSource="{Binding PressureCommandSettings}">
                                         <ItemsControl.ItemsPanel>
