@@ -23,6 +23,36 @@ public sealed class MetricSwitch : ViewModelBase
 
     private bool _enabled;
     public bool Enabled { get => _enabled; set => SetField(ref _enabled, value); }
+
+    private SpecRange? _spec;
+    public string Min
+    {
+        get => _spec?.Min ?? "";
+        set
+        {
+            if (_spec is null || _spec.Min == value) return;
+            _spec.Min = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string Max
+    {
+        get => _spec?.Max ?? "";
+        set
+        {
+            if (_spec is null || _spec.Max == value) return;
+            _spec.Max = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public void BindSpec(SpecRange spec)
+    {
+        _spec = spec;
+        OnPropertyChanged(nameof(Min));
+        OnPropertyChanged(nameof(Max));
+    }
 }
 
 public sealed class CommandTemplateVm : ViewModelBase
@@ -315,7 +345,7 @@ public sealed class ConfigViewModel : ViewModelBase
     // ── Sub-nav ──────────────────────────────────────────────────────────
     public ObservableCollection<string> Sections { get; } = new()
     {
-        "方案", "指标限值", "参数控制", "设备", "指令", "工位", "测试流程", "计算", "版本信息", "系统设置",
+        "方案", "参数控制", "设备", "指令", "工位", "测试流程", "版本信息", "系统设置",
     };
 
     private string _selectedSection = "方案";
@@ -988,7 +1018,10 @@ public sealed class ConfigViewModel : ViewModelBase
     private void SyncMetricsFromPlan()
     {
         foreach (var m in Metrics)
+        {
             m.Enabled = Plan.IsMetricEnabled(m.Code);
+            m.BindSpec(Plan.Specs[m.Code]);
+        }
     }
 
     private void SaveMetricsToPlan()
