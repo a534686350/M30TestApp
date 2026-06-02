@@ -5,7 +5,7 @@ namespace M30TestApp.Core.Common;
 public static class AppPaths
 {
     public static string BaseDir { get; set; } =
-        Path.GetDirectoryName(typeof(AppPaths).Assembly.Location) ?? ".";
+        AppContext.BaseDirectory;
 
     public static string SettingDir => Path.Combine(BaseDir, "setting");
     public static string TestConfigDir => Path.Combine(SettingDir, "TestConfig");

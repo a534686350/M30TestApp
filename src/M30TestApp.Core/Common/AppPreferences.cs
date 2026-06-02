@@ -40,6 +40,8 @@ public static class AppPreferences
 
     public static bool FallbackSimOnDisconnect(IniFile ini) => GetBool(ini, "FallbackSimOnDisconnect", false);
 
+    public static bool DebugMode(IniFile ini) => GetBool(ini, "DebugMode", false);
+
     public static string LastPlan(IniFile ini) => Get(ini, "LastPlan", "");
 
     public static void PruneOldLogs(IniFile ini)

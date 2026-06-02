@@ -197,6 +197,8 @@ public sealed class ConfigViewModel : ViewModelBase
     public ObservableCollection<string> SensorModelFiles { get; } = new();
     private string _selectedPlanFolder = "";
     private string _selectedSensorModelFile = "";
+    private string _loadedPlanFolder = "";
+    private string _loadedSensorModelFile = "";
     private bool _loadingPlan;
     public string SelectedPlanFolder
     {
@@ -601,6 +603,7 @@ public sealed class ConfigViewModel : ViewModelBase
 
         _loadingPlan = true;
         _selectedPlanFolder = matchFolder;
+        _loadedPlanFolder = matchFolder;
         OnPropertyChanged(nameof(SelectedPlanFolder));
         RefreshSensorModelFiles();
 
@@ -609,6 +612,7 @@ public sealed class ConfigViewModel : ViewModelBase
             _selectedSensorModelFile = planName;
         else if (SensorModelFiles.Count > 0)
             _selectedSensorModelFile = SensorModelFiles[0];
+        _loadedSensorModelFile = _selectedSensorModelFile;
         OnPropertyChanged(nameof(SelectedSensorModelFile));
         _loadingPlan = false;
     }
@@ -636,6 +640,8 @@ public sealed class ConfigViewModel : ViewModelBase
 
         var plan = TestPlan.Load(filePath);
         SetPlan(plan);
+        _loadedPlanFolder = _selectedPlanFolder;
+        _loadedSensorModelFile = fileName;
         AppLog.Info("Config", $"已切换到传感器型号 {fileName}");
     }
 
@@ -665,14 +671,39 @@ public sealed class ConfigViewModel : ViewModelBase
         foreach (var tp in TempPoints) Plan.TempPoints.Add(tp);
         SaveMetricsToPlan();
 
-        var name = string.IsNullOrWhiteSpace(Plan.Name) ? "plan" : Plan.Name;
+        var name = CleanPathName(string.IsNullOrWhiteSpace(Plan.Name) ? "plan" : Plan.Name);
+        Plan.Name = name;
+        Plan.SensorType = name;
 
-        var folder = string.IsNullOrWhiteSpace(_selectedPlanFolder)
-            ? AppPaths.TestConfigDir
-            : Path.Combine(AppPaths.TestConfigDir, _selectedPlanFolder);
+        var folderName = CleanPathName(string.IsNullOrWhiteSpace(_selectedPlanFolder) ? "M30测试" : _selectedPlanFolder);
+        var oldFolder = string.IsNullOrWhiteSpace(_loadedPlanFolder) ? folderName : _loadedPlanFolder;
+        var oldFolderPath = Path.Combine(AppPaths.TestConfigDir, oldFolder);
+        var folder = Path.Combine(AppPaths.TestConfigDir, folderName);
+        if (!string.Equals(oldFolder, folderName, StringComparison.OrdinalIgnoreCase) &&
+            Directory.Exists(oldFolderPath) &&
+            !Directory.Exists(folder))
+        {
+            Directory.Move(oldFolderPath, folder);
+        }
         Directory.CreateDirectory(folder);
+        var oldName = string.IsNullOrWhiteSpace(_loadedSensorModelFile) ? name : _loadedSensorModelFile;
+        var oldPath = Path.Combine(folder, oldName + ".ini");
         var path = Path.Combine(folder, name + ".ini");
+        if (!string.Equals(oldName, name, StringComparison.OrdinalIgnoreCase) &&
+            File.Exists(oldPath) &&
+            !File.Exists(path))
+        {
+            File.Move(oldPath, path);
+        }
         Plan.Save(path);
+        RefreshPlanFolders();
+        _selectedPlanFolder = folderName;
+        _loadedPlanFolder = folderName;
+        OnPropertyChanged(nameof(SelectedPlanFolder));
+        RefreshSensorModelFiles();
+        _selectedSensorModelFile = name;
+        _loadedSensorModelFile = name;
+        OnPropertyChanged(nameof(SelectedSensorModelFile));
 
         AppLog.Info("Config", $"已保存方案 {name} 到 {path}");
     }
@@ -681,6 +712,13 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         if (Slots.Count >= SlotMax) return;
         SlotCount = Slots.Count + 1;
+    }
+
+    private static string CleanPathName(string name)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var clean = new string(name.Trim().Select(c => invalid.Contains(c) ? '_' : c).ToArray());
+        return string.IsNullOrWhiteSpace(clean) ? "plan" : clean;
     }
 
     private void BatchGenerateSlots()

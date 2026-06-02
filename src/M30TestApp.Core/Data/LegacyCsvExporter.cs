@@ -14,7 +14,6 @@ namespace M30TestApp.Core.Data;
 /// 按照旧版 WinForms ASLab 程序的 CSV 格式导出测试数据。
 /// 生成两份文件：
 ///   1. 完整内部数据 CSV（所有原始采集 + 计算指标）
-///   2. 客户用测试报告 CSV（仅计算指标 + 关键参数）
 ///
 /// 仅适用于 M30 标准测试方案（≥3温度点 × ≥3压力点）。
 /// </summary>
@@ -50,10 +49,6 @@ public static class LegacyCsvExporter
         ExportFull(ctx, fullPath, now);
         AppLog.Info("LegacyCSV", $"完整数据已保存到 {fullPath}");
 
-        // 2. 客户用测试报告 CSV
-        var customerPath = Path.Combine(desktop, $"客户用测试报告{timeStr}_{sensorType}.csv");
-        ExportCustomer(ctx, customerPath, now);
-        AppLog.Info("LegacyCSV", $"客户报告已保存到 {customerPath}");
     }
 
     /// <summary>完整内部 CSV：表头列 + 计算指标 + 全部原始测量列。</summary>
@@ -227,6 +222,8 @@ public static class LegacyCsvExporter
             }
         }
 
+        cols.Add(new ColumnDef { Header = "FailedMetrics", GetValue = (ctx, s, _, _) => GetFailedMetrics(ctx, s.Slot) });
+
         return cols;
     }
 
@@ -299,6 +296,11 @@ public static class LegacyCsvExporter
     /// </summary>
     private static string GetTestResult(TaskContext ctx, string slot)
     {
+        return string.IsNullOrWhiteSpace(GetFailedMetrics(ctx, slot)) ? "pass" : "fail";
+    }
+
+    private static string GetFailedMetrics(TaskContext ctx, string slot)
+    {
         var specs = ctx.Plan.Specs;
         var checks = new (string Code, SpecRange Spec)[]
         {
@@ -308,20 +310,20 @@ public static class LegacyCsvExporter
             ("TCT", specs.CT),
         };
 
-        var anyFail = false;
+        var failed = new List<string>();
         foreach (var (code, spec) in checks)
         {
             if (!ctx.Plan.IsMetricEnabled(code)) continue;
             if (!spec.HasLimits) continue;
             var val = GetCellValue(ctx, slot, code);
-            if (string.IsNullOrEmpty(val)) continue;
-            if (double.TryParse(val, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) && !spec.IsInRange(v))
-            {
-                anyFail = true;
-                break;
-            }
+            if (string.IsNullOrWhiteSpace(val) ||
+                !double.TryParse(val, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ||
+                double.IsNaN(v) ||
+                v <= -998 ||
+                !spec.IsInRange(v))
+                failed.Add(code);
         }
 
-        return anyFail ? "fail" : "pass";
+        return string.Join(" ", failed);
     }
 }

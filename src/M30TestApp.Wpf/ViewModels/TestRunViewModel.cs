@@ -18,6 +18,8 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
 {
     private readonly TestSession _session;
     private CancellationTokenSource? _cts;
+    private TaskCompletionSource? _pauseTcs;
+    private bool _isPaused;
     private string _status = "就绪";
     private string _currentStep = "—";
     private int _progressIndex;
@@ -66,8 +68,21 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     public string Elapsed { get => _elapsed; set => SetField(ref _elapsed, value); }
 
     public AsyncRelayCommand RunCommand { get; }
+    public RelayCommand PauseCommand { get; }
     public RelayCommand CancelCommand { get; }
     public RelayCommand ClearLogCommand { get; }
+
+    public bool IsPaused
+    {
+        get => _isPaused;
+        private set
+        {
+            if (SetField(ref _isPaused, value))
+                OnPropertyChanged(nameof(PauseButtonText));
+        }
+    }
+
+    public string PauseButtonText => IsPaused ? "继续" : "暂停";
 
     public TestRunViewModel(TestSession session)
     {
@@ -83,6 +98,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         AppLog.Logged += OnAppLogLogged;
 
         RunCommand = new AsyncRelayCommand(RunAsync, () => _cts is null) { Source = "测试" };
+        PauseCommand = new RelayCommand(_ => TogglePause(), _ => _cts is not null);
         CancelCommand = new RelayCommand(_ => _cts?.Cancel(), _ => _cts is not null);
         ClearLogCommand = new RelayCommand(_ => ClearLog());
 
@@ -258,6 +274,36 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         ProgressTotal = 0;
     }
 
+    private Task WaitIfPausedAsync(CancellationToken ct)
+    {
+        if (!IsPaused) return Task.CompletedTask;
+        var tcs = _pauseTcs ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        return tcs.Task.WaitAsync(ct);
+    }
+
+    private void TogglePause()
+    {
+        if (_cts is null) return;
+
+        if (!IsPaused)
+        {
+            _pauseTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            IsPaused = true;
+            Status = "已暂停";
+            AppLog.Info("Run", "测试已暂停");
+        }
+        else
+        {
+            IsPaused = false;
+            _pauseTcs?.TrySetResult();
+            _pauseTcs = null;
+            Status = "运行中";
+            AppLog.Info("Run", "测试继续");
+        }
+
+        System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+    }
+
     private void QueueLogLine(string line)
     {
         lock (_logGate)
@@ -337,10 +383,49 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         return int.TryParse(text, out var value) ? Math.Max(1, value) : 1;
     }
 
+    private (bool Cancel, bool? Resume, int? ResumeSoakMinutes) PromptResumeCheckpoint()
+    {
+        if (!AppPreferences.SaveCheckpointOnAbort(_session.Context.Settings) || !TestCheckpoint.Exists())
+            return (false, null, null);
+
+        var ck = TestCheckpoint.Load();
+        if (ck is null)
+            return (false, null, null);
+
+        var result = MessageBox.Show(
+            $"检测到上次有未完成的测试。\n\n方案：{ck.PlanName}\n温度点：{ck.TempIndex + 1}\n压力点：{ck.PressureIndex + 1}\n保存时间：{ck.SavedAt:yyyy-MM-dd HH:mm}\n\n是否继续上次测试？\n选择“否”将从头开始新测试。",
+            "未完成测试",
+            MessageBoxButton.YesNoCancel,
+            MessageBoxImage.Question);
+
+        if (result == MessageBoxResult.Cancel)
+            return (true, null, null);
+
+        if (result == MessageBoxResult.No)
+            return (false, false, null);
+
+        var text = Microsoft.VisualBasic.Interaction.InputBox(
+            "请输入续测时当前温度点需要继续保温的时间（分钟）。\n填 0 表示不额外保温，直接继续后续步骤。",
+            "续测保温时间",
+            "0");
+
+        var minutes = int.TryParse(text, out var value) ? Math.Max(0, value) : 0;
+        return (false, true, minutes);
+    }
+
     private async Task RunAsync()
     {
         // 先弹出"选择运行方案 + 工位"对话框；取消则直接放弃本次运行。
+        var resumePrompt = PromptResumeCheckpoint();
+        if (resumePrompt.Cancel)
+        {
+            Status = "已取消（未启动）";
+            return;
+        }
+
         var setupVm = new RunSetupViewModel(_session);
+        if (resumePrompt.Resume.HasValue)
+            setupVm.ResumeFromCheckpoint = resumePrompt.Resume.Value && setupVm.CanResumeCheckpoint;
         var dlg = new Views.RunSetupWindow(setupVm)
         {
             Owner = Application.Current.MainWindow,
@@ -365,6 +450,11 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         var savedSkipIsc = _session.Context.SkipIsc;
         var savedSkipUsg = _session.Context.SkipUsg;
         var savedSkipOvenTemp = _session.Context.SkipOvenTemp;
+        var savedPauseWaiter = _session.Context.PauseWaiter;
+        var savedResumeSoakMinutesOverride = _session.Context.ResumeSoakMinutesOverride;
+
+        _session.Context.PauseWaiter = WaitIfPausedAsync;
+        _session.Context.ResumeSoakMinutesOverride = setupVm.ResumeFromCheckpoint ? resumePrompt.ResumeSoakMinutes : null;
 
         if (!setupVm.UsePressure)
         {
@@ -445,6 +535,11 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
             _session.Context.SkipIsc = savedSkipIsc;
             _session.Context.SkipUsg = savedSkipUsg;
             _session.Context.SkipOvenTemp = savedSkipOvenTemp;
+            _session.Context.PauseWaiter = savedPauseWaiter;
+            _session.Context.ResumeSoakMinutesOverride = savedResumeSoakMinutesOverride;
+            IsPaused = false;
+            _pauseTcs?.TrySetResult();
+            _pauseTcs = null;
             _cts?.Dispose();
             _cts = null;
             _startedAt = null;

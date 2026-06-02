@@ -16,36 +16,43 @@ namespace M30TestApp.Core.Devices;
 public sealed class DeviceFactory
 {
     private readonly CommandDictionary _commands;
+    private readonly bool _forceSim;
 
-    public DeviceFactory(CommandDictionary commands) => _commands = commands;
+    public DeviceFactory(CommandDictionary commands, bool forceSim = false)
+    {
+        _commands = commands;
+        _forceSim = forceSim;
+    }
+
+    private bool UseHw(DeviceProfile p) => !_forceSim && p.Backend == DeviceBackend.Hw;
 
     public IPressureController CreatePressure(DeviceProfile p)
-        => p.Backend == DeviceBackend.Hw
+        => UseHw(p)
             ? new HwPressureController(p, _commands)
             : new SimPressureController(p.Model, p.Address, _commands);
 
     public IOven CreateOven(DeviceProfile p)
-        => p.Backend == DeviceBackend.Hw
+        => UseHw(p)
             ? new HwOven(p)
             : new SimOven(p.Model, p.Address, _commands);
 
     public IDmm CreateDmm(DeviceProfile p)
-        => p.Backend == DeviceBackend.Hw
+        => UseHw(p)
             ? new HwDmm(p)
             : new SimDmm(p.Model, p.Address, _commands);
 
     public IDac CreateDac(DeviceProfile p)
-        => p.Backend == DeviceBackend.Hw
+        => UseHw(p)
             ? new HwDac(p)
             : new SimDac(p.Model, p.Address, _commands);
 
     public IPowerSupply CreatePower(DeviceProfile p)
-        => p.Backend == DeviceBackend.Hw
+        => UseHw(p)
             ? new HwPowerSupply(p, _commands)
             : new SimPower(p.Model, p.Address, _commands);
 
     public IBoard CreateBoard(DeviceProfile p)
-        => p.Backend == DeviceBackend.Hw
+        => UseHw(p)
             ? new HwBoard(p)
             : new SimBoard(p.Model, p.Address, _commands);
 }

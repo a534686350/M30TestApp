@@ -1,6 +1,8 @@
 using System;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Windows;
+using System.Windows.Controls;
 using M30TestApp.Core;
 using M30TestApp.Core.Common;
 using M30TestApp.Core.Config;
@@ -63,9 +65,10 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         ShowConfigPlanCommand = new RelayCommand(_ => { Config.SelectedSection = "方案"; CurrentView = Config; });
         ShowConfigSlotsCommand = new RelayCommand(_ => { Config.SelectedSection = "工位"; CurrentView = Config; });
         ShowLogCommand      = new RelayCommand(_ => CurrentView = Log);
-        ShowSettingsCommand = new RelayCommand(_ => CurrentView = Settings);
+        ShowSettingsCommand = new RelayCommand(_ => OpenSettingsWithPassword());
 
         session.Reconfigured += OnSessionReconfigured;
+        session.DevicesRebuilt += OnSessionDevicesRebuilt;
     }
 
     private void OnSessionReconfigured(object? sender, EventArgs e)
@@ -74,9 +77,113 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             OnPropertyChanged(nameof(PlanTitle))));
     }
 
+    private void OnSessionDevicesRebuilt(object? sender, EventArgs e)
+    {
+        System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (Devices.Count < 6) return;
+            Devices[0].SetDevice(Session.Pressure);
+            Devices[1].SetDevice(Session.Oven);
+            Devices[2].SetDevice(Session.Dmm);
+            Devices[3].SetDevice(Session.Dac);
+            Devices[4].SetDevice(Session.Power);
+            Devices[5].SetDevice(Session.Board);
+        }));
+    }
+
+    private void OpenSettingsWithPassword()
+    {
+        var password = PromptAdminPassword();
+        if (password is null) return;
+
+        if (password == "admin123")
+        {
+            CurrentView = Settings;
+            return;
+        }
+
+        MessageBox.Show("管理员密码错误", "设置", MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+
+    private static string? PromptAdminPassword()
+    {
+        var prompt = new TextBlock { Text = "请输入管理员密码", FontSize = 13, FontWeight = FontWeights.SemiBold };
+        prompt.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+
+        var hint = new TextBlock { Text = "进入设置需要管理员权限", FontSize = 12, Margin = new Thickness(0, 4, 0, 8) };
+        hint.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
+
+        var box = new PasswordBox
+        {
+            Width = 240,
+            Height = 30,
+            Padding = new Thickness(8, 4, 8, 4),
+            Margin = new Thickness(0, 0, 0, 16),
+            BorderThickness = new Thickness(1)
+        };
+        box.SetResourceReference(Control.BackgroundProperty, "SurfaceBrush");
+        box.SetResourceReference(Control.ForegroundProperty, "TextBrush");
+        box.SetResourceReference(Control.BorderBrushProperty, "BorderBrush");
+
+        var okButton = new Button
+        {
+            Content = "确定",
+            Width = 82,
+            Height = 30,
+            IsDefault = true
+        };
+        okButton.SetResourceReference(FrameworkElement.StyleProperty, "PrimaryButton");
+
+        var cancelButton = new Button
+        {
+            Content = "取消",
+            Width = 82,
+            Height = 30,
+            Margin = new Thickness(8, 0, 0, 0),
+            IsCancel = true
+        };
+        cancelButton.SetResourceReference(FrameworkElement.StyleProperty, "GhostButton");
+
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Children = { okButton, cancelButton }
+        };
+
+        var panel = new StackPanel
+        {
+            Margin = new Thickness(20),
+            Children = { prompt, hint, box, buttons }
+        };
+        panel.SetResourceReference(Panel.BackgroundProperty, "SurfaceBrush");
+
+        var ok = false;
+
+        var window = new Window
+        {
+            Title = "设置",
+            Width = 340,
+            Height = 190,
+            ResizeMode = ResizeMode.NoResize,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = Application.Current.MainWindow,
+            Content = panel
+        };
+        window.SetResourceReference(Control.BackgroundProperty, "SurfaceBrush");
+
+        okButton.Click += (_, _) => { ok = true; window.Close(); };
+        cancelButton.Click += (_, _) => window.Close();
+
+        box.Focus();
+        window.ShowDialog();
+        return ok ? box.Password : null;
+    }
+
     public void Dispose()
     {
         Session.Reconfigured -= OnSessionReconfigured;
+        Session.DevicesRebuilt -= OnSessionDevicesRebuilt;
         TestRun.Dispose();
         Manual.Dispose();
         Log.Dispose();
