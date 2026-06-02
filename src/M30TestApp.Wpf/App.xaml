@@ -17,6 +17,9 @@
             <DataTemplate DataType="{x:Type vm:ManualViewModel}">
                 <views:ManualView/>
             </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:QuickTestViewModel}">
+                <views:QuickTestView/>
+            </DataTemplate>
             <DataTemplate DataType="{x:Type vm:ConfigViewModel}">
                 <views:ConfigView/>
             </DataTemplate>

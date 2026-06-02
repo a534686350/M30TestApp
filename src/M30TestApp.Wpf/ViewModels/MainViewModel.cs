@@ -19,6 +19,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     public TestRunViewModel TestRun { get; }
     public ManualViewModel Manual { get; }
+    public QuickTestViewModel QuickTest { get; }
     public ConfigViewModel Config { get; }
     public LogViewModel Log { get; }
     public SettingsViewModel Settings { get; }
@@ -28,6 +29,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     public RelayCommand ShowTestRunCommand  { get; }
     public RelayCommand ShowManualCommand   { get; }
+    public RelayCommand ShowQuickTestCommand { get; }
     public RelayCommand ShowConfigCommand   { get; }
     public RelayCommand ShowConfigPlanCommand { get; }
     public RelayCommand ShowConfigSlotsCommand { get; }
@@ -53,6 +55,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
         TestRun = new TestRunViewModel(session);
         Manual = new ManualViewModel(session, ovenStatus, dacStatus);
+        QuickTest = new QuickTestViewModel(session);
         Config = new ConfigViewModel(session);
         Log = new LogViewModel();
         Settings = new SettingsViewModel(session);
@@ -61,6 +64,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
         ShowTestRunCommand  = new RelayCommand(_ => CurrentView = TestRun);
         ShowManualCommand   = new RelayCommand(_ => CurrentView = Manual);
+        ShowQuickTestCommand = new RelayCommand(_ => CurrentView = QuickTest);
         ShowConfigCommand   = new RelayCommand(_ => CurrentView = Config);
         ShowConfigPlanCommand = new RelayCommand(_ => { Config.SelectedSection = "方案"; CurrentView = Config; });
         ShowConfigSlotsCommand = new RelayCommand(_ => { Config.SelectedSection = "工位"; CurrentView = Config; });
@@ -186,6 +190,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         Session.DevicesRebuilt -= OnSessionDevicesRebuilt;
         TestRun.Dispose();
         Manual.Dispose();
+        QuickTest.Dispose();
         Log.Dispose();
         foreach (var device in Devices)
             device.Dispose();

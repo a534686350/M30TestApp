@@ -93,6 +93,9 @@
                                  GroupName="MainNav" Content="{DynamicResource Nav.Manual}"
                                  Command="{Binding ShowManualCommand}"/>
                     <RadioButton Style="{DynamicResource NavButton}"
+                                 GroupName="MainNav" Content="快速测试"
+                                 Command="{Binding ShowQuickTestCommand}"/>
+                    <RadioButton Style="{DynamicResource NavButton}"
                                  GroupName="MainNav" Content="{DynamicResource Nav.Config}"
                                  Command="{Binding ShowConfigCommand}"/>
                     <RadioButton Style="{DynamicResource NavButton}"
