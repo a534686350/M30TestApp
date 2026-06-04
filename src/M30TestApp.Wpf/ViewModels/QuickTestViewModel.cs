@@ -57,6 +57,7 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
         new(Enumerable.Range(0, 32).Select(i => i.ToString(CultureInfo.InvariantCulture)));
     public ObservableCollection<string> PressureAddrs { get; } =
         new(Enumerable.Range(0, 32).Select(i => i.ToString(CultureInfo.InvariantCulture)));
+    public ObservableCollection<string> PressureUnits { get; } = new() { "kPa", "MPa" };
     public ObservableCollection<string> PressureModels { get; } = new();
 
     private string _status = "就绪";
@@ -123,13 +124,13 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
     {
         _session = session;
         _pressureUnit = string.IsNullOrWhiteSpace(session.Plan.PressureUnit) ? "kPa" : session.Plan.PressureUnit;
-        _spanMin = session.Plan.Specs.Span.Min;
-        _spanMax = session.Plan.Specs.Span.Max;
-        _linearityMin = session.Plan.Specs.Linearity.Min;
-        _linearityMax = session.Plan.Specs.Linearity.Max;
+        _spanMin = "60";
+        _spanMax = "140";
+        _linearityMin = "-2";
+        _linearityMax = "2";
         _pressurePrecision = session.Plan.Precision.ToString(CultureInfo.InvariantCulture);
         _holdSeconds = LoadPressureHoldSeconds(session.Context.Settings).ToString(CultureInfo.InvariantCulture);
-        EndSlot = Math.Min(8, Math.Max(1, session.Slots.Entries.Count));
+        EndSlot = Math.Max(1, session.Slots.Entries.Count);
         LoadPressureOptions();
         LoadPressureProfileFromSession();
         RefreshRows();
@@ -145,10 +146,10 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
     {
         OnPropertyChanged(nameof(SensorName));
         PressureUnit = string.IsNullOrWhiteSpace(_session.Plan.PressureUnit) ? PressureUnit : _session.Plan.PressureUnit;
-        SpanMin = _session.Plan.Specs.Span.Min;
-        SpanMax = _session.Plan.Specs.Span.Max;
-        LinearityMin = _session.Plan.Specs.Linearity.Min;
-        LinearityMax = _session.Plan.Specs.Linearity.Max;
+        SpanMin = "60";
+        SpanMax = "140";
+        LinearityMin = "-2";
+        LinearityMax = "2";
         PressurePrecision = _session.Plan.Precision.ToString(CultureInfo.InvariantCulture);
         HoldSeconds = LoadPressureHoldSeconds(_session.Context.Settings).ToString(CultureInfo.InvariantCulture);
         LoadPressureOptions();
