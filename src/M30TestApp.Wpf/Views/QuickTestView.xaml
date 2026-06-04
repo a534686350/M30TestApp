@@ -187,6 +187,8 @@
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="工位" Binding="{Binding Slot}" Width="80"/>
                         <DataGridTextColumn Header="序列号" Binding="{Binding SerialNo}" Width="120"/>
+                        <DataGridTextColumn Header="板卡位" Binding="{Binding Board}" Width="70"/>
+                        <DataGridTextColumn Header="板卡工位号" Binding="{Binding BoardSlotNo}" Width="90"/>
                         <DataGridTextColumn Header="Usig P0" Binding="{Binding P0}" Width="95"/>
                         <DataGridTextColumn Header="Usig P50" Binding="{Binding P50}" Width="95"/>
                         <DataGridTextColumn Header="Usig P100" Binding="{Binding P100}" Width="95"/>

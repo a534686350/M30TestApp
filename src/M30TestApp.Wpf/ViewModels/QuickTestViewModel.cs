@@ -21,6 +21,8 @@ public sealed class QuickTestRowVm : ViewModelBase
 {
     public string Slot { get; init; } = "";
     public string SerialNo { get; init; } = "";
+    public string Board { get; init; } = "";
+    public string BoardSlotNo { get; init; } = "";
 
     private string _p0 = "";
     public string P0 { get => _p0; set => SetField(ref _p0, value); }
@@ -74,13 +76,13 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
     private int _endSlot = 8;
     public int EndSlot { get => _endSlot; set => SetField(ref _endSlot, Math.Max(1, value)); }
 
-    private string _p0 = "0";
+    private string _p0 = "";
     public string P0 { get => _p0; set => SetField(ref _p0, value); }
 
-    private string _p50 = "50";
+    private string _p50 = "";
     public string P50 { get => _p50; set => SetField(ref _p50, value); }
 
-    private string _p100 = "100";
+    private string _p100 = "";
     public string P100 { get => _p100; set => SetField(ref _p100, value); }
 
     private string _pressureUnit = "";
@@ -161,7 +163,7 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
         for (var i = StartSlot; i <= Math.Max(StartSlot, EndSlot); i++)
         {
             if (lookup.TryGetValue(i, out var slot))
-                Rows.Add(new QuickTestRowVm { Slot = slot.Slot, SerialNo = slot.SerialNo });
+                Rows.Add(new QuickTestRowVm { Slot = slot.Slot, SerialNo = slot.SerialNo, Board = slot.Board, BoardSlotNo = slot.BoardSlotNo });
             else
                 Rows.Add(new QuickTestRowVm { Slot = $"Slot{i}", SerialNo = "-" });
         }
@@ -241,6 +243,12 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
 
     private async Task StartAsync()
     {
+        if (string.IsNullOrWhiteSpace(P0) || string.IsNullOrWhiteSpace(P50) || string.IsNullOrWhiteSpace(P100))
+        {
+            Status = "请先填写 P0 / P50 / P100 压力点值";
+            Log("请先填写 P0 / P50 / P100 压力点值");
+            return;
+        }
         if (!TryFloat(P0, out var p0) || !TryFloat(P50, out var p50) || !TryFloat(P100, out var p100))
         {
             Status = "压力点输入无效";
@@ -400,12 +408,12 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
         var sensor = SafeFileName(SensorName);
         var path = Path.Combine(desktop, $"{DateTime.Now:yyyy-MM-dd HH时mm分ss秒}_{sensor}_快速测试.csv");
         using var sw = new StreamWriter(path, false, Encoding.UTF8);
-        sw.WriteLine("SensorType,Slot,SerialNo,P0,P50,P100,Usig_P0,Usig_P50,Usig_P100,Span,NL,FailedMetrics,TestResult");
+        sw.WriteLine("SensorType,Slot,SerialNo,Board,BoardSlotNo,P0,P50,P100,Usig_P0,Usig_P50,Usig_P100,Span,NL,FailedMetrics,TestResult");
         foreach (var row in Rows)
         {
             sw.WriteLine(string.Join(",", new[]
             {
-                Csv(SensorName), Csv(row.Slot), Csv(row.SerialNo), Csv(P0), Csv(P50), Csv(P100),
+                Csv(SensorName), Csv(row.Slot), Csv(row.SerialNo), Csv(row.Board), Csv(row.BoardSlotNo), Csv(P0), Csv(P50), Csv(P100),
                 Csv(row.P0), Csv(row.P50), Csv(row.P100), Csv(row.Span), Csv(row.Linearity),
                 Csv(row.FailedMetrics), Csv(row.TestResult)
             }));

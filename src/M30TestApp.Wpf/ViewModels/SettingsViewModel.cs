@@ -4,11 +4,13 @@ using System.Net;
 using System.Net.Http;
 using System.Reflection;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using M30TestApp.Core;
 using M30TestApp.Core.Common;
 using M30TestApp.Wpf.Mvvm;
+using M30TestApp.Wpf.Services;
 using M30TestApp.Wpf.Themes;
 
 namespace M30TestApp.Wpf.ViewModels;
@@ -18,6 +20,9 @@ public sealed class SettingsViewModel : ViewModelBase
     public const string RepoOwner = "a534686350";
     public const string RepoName = "M30TestApp";
     public static string RepoUrl => $"https://github.com/{RepoOwner}/{RepoName}";
+
+    private const string GiteeOwner = "hl515";
+    private const string GiteeRepo = "m30-test-app";
 
     private static readonly HttpClient _http = new()
     {
@@ -106,54 +111,101 @@ public sealed class SettingsViewModel : ViewModelBase
     {
         IsCheckingUpdate = true;
         UpdateStatus = Language == "zh-CN" ? "正在检查更新…" : "Checking for updates…";
+        var currentVersion = AppVersion;
         try
         {
-            var url = $"https://api.github.com/repos/{RepoOwner}/{RepoName}/releases/latest";
-            var json = await _http.GetStringAsync(url);
-            using var doc = JsonDocument.Parse(json);
-            var tagName = doc.RootElement.GetProperty("tag_name").GetString() ?? "";
-            var latest = tagName.TrimStart('v', 'V');
-            var current = AppVersion;
-
-            if (string.Compare(latest, current, StringComparison.OrdinalIgnoreCase) > 0)
+            // Try GitHub first, fall back to Gitee
+            (string tag, string assetUrl, string assetName) release;
+            try
+            {
+                using var ghCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                release = await TryFetchLatestReleaseAsync("github", ghCts.Token);
+            }
+            catch (Exception)
             {
                 UpdateStatus = Language == "zh-CN"
-                    ? $"发现新版本 v{latest}（当前 v{current}）"
-                    : $"New version v{latest} available (current v{current})";
-
-                var msg = Language == "zh-CN"
-                    ? $"发现新版本 v{latest}，是否打开下载页面？"
-                    : $"New version v{latest} found. Open download page?";
-
-                if (MessageBox.Show(msg, "M30TestApp", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
-                {
-                    var releaseUrl = $"https://github.com/{RepoOwner}/{RepoName}/releases/latest";
-                    Process.Start(new ProcessStartInfo(releaseUrl) { UseShellExecute = true });
-                }
+                    ? "GitHub 不可达，切换到 Gitee 镜像…"
+                    : "GitHub unreachable, switching to Gitee mirror…";
+                release = await TryFetchLatestReleaseAsync("gitee", CancellationToken.None);
             }
-            else
+
+            var latest = release.tag.TrimStart('v', 'V');
+            if (!Version.TryParse(latest, out var latestVer)
+                || !Version.TryParse(currentVersion, out var currentVer))
             {
                 UpdateStatus = Language == "zh-CN"
-                    ? $"已是最新版本 v{current}"
-                    : $"Up to date (v{current})";
+                    ? $"版本号解析失败 (latest={latest}, current={currentVersion})"
+                    : $"Version parse error (latest={latest}, current={currentVersion})";
+                return;
             }
-        }
-        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
-        {
+
+            if (latestVer <= currentVer)
+            {
+                UpdateStatus = Language == "zh-CN"
+                    ? $"已是最新版本 v{currentVersion}"
+                    : $"Up to date (v{currentVersion})";
+                return;
+            }
+
             UpdateStatus = Language == "zh-CN"
-                ? "当前仓库暂无发布版本，请到 GitHub 查看"
-                : "No published release yet. Please check GitHub.";
+                ? $"发现新版本 v{latest}（当前 v{currentVersion}）"
+                : $"New version v{latest} available (current v{currentVersion})";
+
+            var msg = Language == "zh-CN"
+                ? $"发现新版本 v{latest}，是否下载并自动安装？"
+                : $"New version v{latest} found. Download and install?";
+
+            if (MessageBox.Show(msg, "M30TestApp", MessageBoxButton.YesNo, MessageBoxImage.Information) != MessageBoxResult.Yes)
+                return;
+
+            UpdateStatus = Language == "zh-CN" ? "正在下载…" : "Downloading…";
+            var progress = new Progress<int>(p =>
+                UpdateStatus = (Language == "zh-CN" ? "正在下载 " : "Downloading ") + p + "%");
+
+            var zipPath = await SelfUpdater.DownloadAsync(release.assetUrl, release.assetName, progress);
+
+            UpdateStatus = Language == "zh-CN" ? "下载完成，即将重启应用…" : "Download complete, restarting…";
+            SelfUpdater.LaunchUpdaterAndExit(zipPath, AppPaths.BaseDir);
         }
         catch (Exception ex)
         {
-            UpdateStatus = Language == "zh-CN"
-                ? $"检查更新失败: {ex.Message}"
-                : $"Update check failed: {ex.Message}";
+            UpdateStatus = (Language == "zh-CN" ? "检查更新失败: " : "Update check failed: ") + ex.Message;
         }
         finally
         {
             IsCheckingUpdate = false;
         }
+    }
+
+    private static async Task<(string tag, string assetUrl, string assetName)> TryFetchLatestReleaseAsync(
+        string host, CancellationToken ct)
+    {
+        string owner, repo, url;
+        if (host == "github")
+        {
+            owner = RepoOwner; repo = RepoName;
+            url = $"https://api.github.com/repos/{owner}/{repo}/releases/latest";
+        }
+        else
+        {
+            owner = GiteeOwner; repo = GiteeRepo;
+            url = $"https://gitee.com/api/v5/repos/{owner}/{repo}/releases/latest";
+        }
+
+        var json = await _http.GetStringAsync(url, ct);
+        using var doc = JsonDocument.Parse(json);
+        var tag = doc.RootElement.GetProperty("tag_name").GetString() ?? "";
+        var assets = doc.RootElement.GetProperty("assets");
+        foreach (var asset in assets.EnumerateArray())
+        {
+            var name = asset.GetProperty("name").GetString() ?? "";
+            if (name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            {
+                var downloadUrl = asset.GetProperty("browser_download_url").GetString() ?? "";
+                return (tag, downloadUrl, name);
+            }
+        }
+        throw new InvalidOperationException("No .zip asset found in the latest release");
     }
 
     private void ApplyLanguage(string lang)
