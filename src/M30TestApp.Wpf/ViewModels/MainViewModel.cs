@@ -73,6 +73,21 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
         session.Reconfigured += OnSessionReconfigured;
         session.DevicesRebuilt += OnSessionDevicesRebuilt;
+
+        // 启动后异步检查更新（不阻塞主界面），Gitee 优先 GitHub 备用
+        _ = System.Threading.Tasks.Task.Run(async () =>
+        {
+            try
+            {
+                await System.Threading.Tasks.Task.Delay(3000);
+                if (Settings.CheckUpdateCommand.CanExecute(null))
+                    Settings.CheckUpdateCommand.Execute(null);
+            }
+            catch (Exception ex)
+            {
+                AppLog.Warn("Startup", $"自动检查更新失败: {ex.Message}");
+            }
+        });
     }
 
     private void OnSessionReconfigured(object? sender, EventArgs e)

@@ -114,19 +114,19 @@ public sealed class SettingsViewModel : ViewModelBase
         var currentVersion = AppVersion;
         try
         {
-            // Try GitHub first, fall back to Gitee
+            // Try Gitee first (国内访问快), fall back to GitHub
             (string tag, string assetUrl, string assetName) release;
             try
             {
-                using var ghCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                release = await TryFetchLatestReleaseAsync("github", ghCts.Token);
+                using var giteeCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                release = await TryFetchLatestReleaseAsync("gitee", giteeCts.Token);
             }
             catch (Exception)
             {
                 UpdateStatus = Language == "zh-CN"
-                    ? "GitHub 不可达，切换到 Gitee 镜像…"
-                    : "GitHub unreachable, switching to Gitee mirror…";
-                release = await TryFetchLatestReleaseAsync("gitee", CancellationToken.None);
+                    ? "Gitee 不可达，切换到 GitHub 镜像…"
+                    : "Gitee unreachable, switching to GitHub mirror…";
+                release = await TryFetchLatestReleaseAsync("github", CancellationToken.None);
             }
 
             var latest = release.tag.TrimStart('v', 'V');
