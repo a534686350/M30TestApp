@@ -166,7 +166,7 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
             if (lookup.TryGetValue(i, out var slot))
                 Rows.Add(new QuickTestRowVm { Slot = slot.Slot, SerialNo = slot.SerialNo, Board = slot.Board, BoardSlotNo = slot.BoardSlotNo });
             else
-                Rows.Add(new QuickTestRowVm { Slot = $"Slot{i}", SerialNo = "-" });
+                Rows.Add(new QuickTestRowVm { Slot = $"Slot{i}", SerialNo = $"DEMO_{i:D3}", Board = "1", BoardSlotNo = i.ToString() });
         }
     }
 

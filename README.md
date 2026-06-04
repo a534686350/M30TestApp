@@ -135,6 +135,14 @@ dotnet run --project src/M30TestApp.Wpf/M30TestApp.Wpf.csproj
 - ✅ 续测/断点恢复
 - ✅ 运行前方案确认 + 扫码枪
 - ✅ 全局异常捕获（不崩溃）
+- ✅ 快速测试（Usig 三压点 + Span/NL 判定）
+- ✅ 应用内自动更新（GitHub 优先、Gitee 备用，下载替换重启）
+- ✅ Git 双远程镜像（GitHub + Gitee）
+
+## 源码仓库
+
+- GitHub: https://github.com/a534686350/M30TestApp
+- Gitee: https://gitee.com/hl515/m30-test-app
 
 ## 待办
 
