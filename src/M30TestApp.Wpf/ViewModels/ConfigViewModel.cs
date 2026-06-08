@@ -347,7 +347,7 @@ public sealed class ConfigViewModel : ViewModelBase
         get
         {
             var v = Assembly.GetEntryAssembly()?.GetName().Version;
-            return v is null ? "1.2.6" : $"{v.Major}.{v.Minor}.{v.Build}";
+            return v is null ? "1.2.7" : $"{v.Major}.{v.Minor}.{v.Build}";
         }
     }
     public string Changelog { get; }
@@ -656,7 +656,7 @@ public sealed class ConfigViewModel : ViewModelBase
                         !string.IsNullOrWhiteSpace(r.Extra))
             .ToList();
         if (inputs.Count == 0)
-            throw new FormatException("请至少录入一行点位。");
+            return Array.Empty<(int Index, float Value, string Extra, string Source)>();
 
         var singleInput = inputs.Count == 1;
         var values = new SortedDictionary<int, (float Value, string Extra, string Source)>();

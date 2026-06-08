@@ -193,7 +193,8 @@ public partial class PointBatchEditorWindow : Window, INotifyPropertyChanged
         var activeRows = Rules.Where(r => !r.IsBlank).ToList();
         if (activeRows.Count == 0)
         {
-            MessageBox.Show("请至少录入一行点位。", Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+            ResultRules = Array.Empty<PointBatchRuleInput>();
+            DialogResult = true;
             return;
         }
 
