@@ -44,6 +44,8 @@ public static class AppPreferences
 
     public static string LastPlan(IniFile ini) => Get(ini, "LastPlan", "");
 
+    public static string LastPlanFolder(IniFile ini) => Get(ini, "LastPlanFolder", "");
+
     public static void PruneOldLogs(IniFile ini)
     {
         var days = LogRetainDays(ini);

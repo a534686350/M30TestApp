@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -38,7 +39,7 @@ public static class SelfUpdater
         {
             var buf = new byte[81920];
             long read = 0;
-            int last = -1;
+            var last = -1;
             int n;
             while ((n = await src.ReadAsync(buf, ct)) > 0)
             {
@@ -47,7 +48,11 @@ public static class SelfUpdater
                 if (total > 0 && progress is not null)
                 {
                     var pct = (int)(read * 100 / total);
-                    if (pct != last) { progress.Report(pct); last = pct; }
+                    if (pct != last)
+                    {
+                        progress.Report(pct);
+                        last = pct;
+                    }
                 }
             }
         }
@@ -60,16 +65,17 @@ public static class SelfUpdater
     {
         var info = new FileInfo(zipPath);
         if (!info.Exists || info.Length == 0)
-            throw new InvalidDataException("下载文件为空");
+            throw new InvalidDataException("Downloaded update package is empty.");
+
         using var z = ZipFile.OpenRead(zipPath);
         if (z.Entries.Count == 0)
-            throw new InvalidDataException("压缩包内容为空");
+            throw new InvalidDataException("Downloaded update package has no files.");
     }
 
     public static void LaunchUpdaterAndExit(string zipPath, string targetDir)
     {
         var cmdPath = Path.Combine(WorkDir, "updater.cmd");
-        File.WriteAllText(cmdPath, BuildUpdaterScript(), System.Text.Encoding.Default);
+        File.WriteAllText(cmdPath, BuildUpdaterScript(), Encoding.UTF8);
 
         Process.Start(new ProcessStartInfo
         {
@@ -80,29 +86,43 @@ public static class SelfUpdater
             WindowStyle = ProcessWindowStyle.Hidden,
         });
 
-        AppLog.Info("Updater", $"Launched updater for {zipPath} → {targetDir}");
+        AppLog.Info("Updater", $"Launched updater for {zipPath} -> {targetDir}");
         Application.Current.Shutdown();
     }
 
-    private static string BuildUpdaterScript() => string.Join("\r\n", new[]
+    private static string BuildUpdaterScript()
     {
-        "@echo off",
-        "chcp 65001 >nul",
-        "timeout /t 3 /nobreak >nul",
-        "if exist \"%~2\\setting\\Setting.ini\" copy /Y \"%~2\\setting\\Setting.ini\" \"%~dp0Setting.ini.bak\" >nul",
-        "powershell -NoProfile -Command \"Expand-Archive -Path '%~1' -DestinationPath '%~2' -Force\"",
-        "if errorlevel 1 (",
-        "    echo Update failed: extraction error.",
-        "    pause",
-        "    exit /b 1",
-        ")",
-        "if exist \"%~dp0Setting.ini.bak\" (",
-        "    copy /Y \"%~dp0Setting.ini.bak\" \"%~2\\setting\\Setting.ini\" >nul",
-        "    del \"%~dp0Setting.ini.bak\"",
-        ")",
-        "start \"\" \"%~2\\M30TestApp.V2.exe\"",
-        "del \"%~1\"",
-        "(goto) 2>nul & del \"%~f0\"",
-        ""
-    });
+        const string slotCsv = "\u5DE5\u4F4D\u5BF9\u5E94\u8868.csv";
+        return string.Join("\r\n", new[]
+        {
+            "@echo off",
+            "chcp 65001 >nul",
+            "timeout /t 3 /nobreak >nul",
+            "set \"ZIP=%~1\"",
+            "set \"TARGET=%~2\"",
+            "set \"BACKUP=%~dp0local-setting-backup\"",
+            "if exist \"%BACKUP%\" rd /s /q \"%BACKUP%\"",
+            "mkdir \"%BACKUP%\\setting\" >nul 2>nul",
+            "if exist \"%TARGET%\\setting\\Setting.ini\" copy /Y \"%TARGET%\\setting\\Setting.ini\" \"%BACKUP%\\setting\\Setting.ini\" >nul",
+            "if exist \"%TARGET%\\setting\\Config.ini\" copy /Y \"%TARGET%\\setting\\Config.ini\" \"%BACKUP%\\setting\\Config.ini\" >nul",
+            $"if exist \"%TARGET%\\setting\\{slotCsv}\" copy /Y \"%TARGET%\\setting\\{slotCsv}\" \"%BACKUP%\\setting\\{slotCsv}\" >nul",
+            "if exist \"%TARGET%\\setting\\TestConfig\" xcopy /E /I /Y \"%TARGET%\\setting\\TestConfig\" \"%BACKUP%\\setting\\TestConfig\" >nul",
+            "powershell -NoProfile -Command \"Expand-Archive -Path '%~1' -DestinationPath '%~2' -Force\"",
+            "if errorlevel 1 (",
+            "    echo Update failed: extraction error.",
+            "    pause",
+            "    exit /b 1",
+            ")",
+            "if not exist \"%TARGET%\\setting\" mkdir \"%TARGET%\\setting\" >nul 2>nul",
+            "if exist \"%BACKUP%\\setting\\Setting.ini\" copy /Y \"%BACKUP%\\setting\\Setting.ini\" \"%TARGET%\\setting\\Setting.ini\" >nul",
+            "if exist \"%BACKUP%\\setting\\Config.ini\" copy /Y \"%BACKUP%\\setting\\Config.ini\" \"%TARGET%\\setting\\Config.ini\" >nul",
+            $"if exist \"%BACKUP%\\setting\\{slotCsv}\" copy /Y \"%BACKUP%\\setting\\{slotCsv}\" \"%TARGET%\\setting\\{slotCsv}\" >nul",
+            "if exist \"%BACKUP%\\setting\\TestConfig\" xcopy /E /I /Y \"%BACKUP%\\setting\\TestConfig\" \"%TARGET%\\setting\\TestConfig\" >nul",
+            "if exist \"%BACKUP%\" rd /s /q \"%BACKUP%\"",
+            "start \"\" \"%TARGET%\\M30TestApp.V2.exe\"",
+            "del \"%ZIP%\"",
+            "(goto) 2>nul & del \"%~f0\"",
+            ""
+        });
+    }
 }

@@ -86,15 +86,25 @@
                 <StackPanel Margin="10,16,10,10">
                     <TextBlock Text="{DynamicResource Nav.Label}" Foreground="{DynamicResource MutedBrush}" Margin="8,0,0,10"
                                FontSize="11" FontWeight="SemiBold" Opacity="0.7"/>
+                    <TextBlock Text="{DynamicResource Nav.TestGroup}"
+                               Style="{DynamicResource NavGroupTitle}"
+                               Margin="8,4,0,4"/>
                     <RadioButton Style="{DynamicResource NavButton}" IsChecked="True"
                                  GroupName="MainNav" Content="{DynamicResource Nav.TestRun}"
-                                 Command="{Binding ShowTestRunCommand}"/>
+                                 Command="{Binding ShowTestRunCommand}"
+                                 Margin="14,1,0,0"/>
+                    <RadioButton Style="{DynamicResource NavButton}"
+                                 GroupName="MainNav" Content="{DynamicResource Nav.LongTermStability}"
+                                 Command="{Binding ShowLongTermStabilityCommand}"
+                                 Margin="14,1,0,0"/>
                     <RadioButton Style="{DynamicResource NavButton}"
                                  GroupName="MainNav" Content="{DynamicResource Nav.Manual}"
-                                 Command="{Binding ShowManualCommand}"/>
+                                 Command="{Binding ShowManualCommand}"
+                                 Margin="14,1,0,0"/>
                     <RadioButton Style="{DynamicResource NavButton}"
-                                 GroupName="MainNav" Content="快速测试"
-                                 Command="{Binding ShowQuickTestCommand}"/>
+                                 GroupName="MainNav" Content="{DynamicResource Nav.QuickTest}"
+                                 Command="{Binding ShowQuickTestCommand}"
+                                 Margin="14,1,0,8"/>
                     <RadioButton Style="{DynamicResource NavButton}"
                                  GroupName="MainNav" Content="{DynamicResource Nav.Config}"
                                  Command="{Binding ShowConfigCommand}"/>

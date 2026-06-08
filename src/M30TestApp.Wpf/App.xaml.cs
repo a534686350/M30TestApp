@@ -61,16 +61,24 @@ public partial class App : Application
             ? Directory.GetFiles(AppPaths.TestConfigDir, "*.ini", SearchOption.AllDirectories) : Array.Empty<string>();
         TestPlan plan;
         var lastPlanName = AppPreferences.LastPlan(settingIni);
-        // Search in root and all sub-folders for the last plan
+        var lastPlanFolder = AppPreferences.LastPlanFolder(settingIni);
+        // Search the saved folder first, then fall back to root and all sub-folders.
         string? lastPlanPath = null;
-        if (!string.IsNullOrWhiteSpace(lastPlanName))
+        if (!string.IsNullOrWhiteSpace(lastPlanName) && Directory.Exists(AppPaths.TestConfigDir))
         {
-            var candidate = Path.Combine(AppPaths.TestConfigDir, lastPlanName + ".ini");
-            if (File.Exists(candidate))
-                lastPlanPath = candidate;
-            else
+            if (!string.IsNullOrWhiteSpace(lastPlanFolder))
             {
-                // Search sub-folders
+                var folderCandidate = Path.Combine(AppPaths.TestConfigDir, lastPlanFolder, lastPlanName + ".ini");
+                if (File.Exists(folderCandidate))
+                    lastPlanPath = folderCandidate;
+            }
+
+            var candidate = Path.Combine(AppPaths.TestConfigDir, lastPlanName + ".ini");
+            if (lastPlanPath is null && File.Exists(candidate))
+                lastPlanPath = candidate;
+
+            if (lastPlanPath is null)
+            {
                 foreach (var dir in Directory.GetDirectories(AppPaths.TestConfigDir))
                 {
                     candidate = Path.Combine(dir, lastPlanName + ".ini");

@@ -7,8 +7,11 @@
     <sys:String x:Key="App.Name">M30 Test System</sys:String>
 
     <!-- Navigation -->
+    <sys:String x:Key="Nav.TestGroup">Test</sys:String>
     <sys:String x:Key="Nav.TestRun">Auto Test</sys:String>
+    <sys:String x:Key="Nav.LongTermStability">Long Stability</sys:String>
     <sys:String x:Key="Nav.Manual">Manual</sys:String>
+    <sys:String x:Key="Nav.QuickTest">Quick Test</sys:String>
     <sys:String x:Key="Nav.Config">Config</sys:String>
     <sys:String x:Key="Nav.Plan">Plan</sys:String>
     <sys:String x:Key="Nav.Slots">Slots</sys:String>

@@ -1,10 +1,12 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows;
 using M30TestApp.Core;
 using M30TestApp.Core.Common;
@@ -67,6 +69,7 @@ public sealed class ModelCommandsVm
 {
     public string Kind { get; init; } = "";
     public string Model { get; init; } = "";
+    public string DisplayName => $"{Kind} · {Model}";
     public ObservableCollection<CommandTemplateVm> Templates { get; } = new();
 }
 
@@ -133,6 +136,7 @@ public sealed class ConfigViewModel : ViewModelBase
     public ObservableCollection<string> StopBits { get; } = new() { "1", "1.5", "2" };
     public ObservableCollection<string> GpibAddresses { get; } = new(Enumerable.Range(0, 31).Select(i => i.ToString()));
     public ObservableCollection<string> Ports { get; } = new(Enumerable.Range(0, 8).Select(i => i.ToString()));
+    public ObservableCollection<string> DmmModels { get; } = new() { "Keysight-DAQ970A", "Keysight-DAQ973A", "Keysight-34970A" };
     public ObservableCollection<string> CardChannels { get; } = new(Enumerable.Range(301, 16).Select(i => i.ToString()));
     public ObservableCollection<string> ValveChannels { get; } = new(Enumerable.Range(101, 9).Select(i => i.ToString()));
     public ObservableCollection<string> TempChannels { get; } = new(Enumerable.Range(201, 4).Select(i => i.ToString()));
@@ -164,6 +168,7 @@ public sealed class ConfigViewModel : ViewModelBase
     }
     public string TempGpibAddress { get; set; } = "9";
     public string TempGpibPort { get; set; } = "0";
+    public string DmmModelName { get; set; } = "Keysight-DAQ973A";
 
     public ObservableCollection<SettingPairVm> SwitchUnitCards { get; } = new();
     public ObservableCollection<SettingPairVm> ValveSettings { get; } = new();
@@ -284,6 +289,26 @@ public sealed class ConfigViewModel : ViewModelBase
 
     // ������ ��ָ�� ��������������������������������������������������������������������������������������������������������������������������
     public ObservableCollection<ModelCommandsVm> ModelCommands { get; } = new();
+    public ObservableCollection<string> CommandDeviceKinds { get; } = new();
+    public ObservableCollection<ModelCommandsVm> CommandModels { get; } = new();
+
+    private string _selectedCommandDeviceKind = "";
+    public string SelectedCommandDeviceKind
+    {
+        get => _selectedCommandDeviceKind;
+        set
+        {
+            if (!SetField(ref _selectedCommandDeviceKind, value)) return;
+            RefreshCommandModels();
+        }
+    }
+
+    private ModelCommandsVm? _selectedModelCommand;
+    public ModelCommandsVm? SelectedModelCommand
+    {
+        get => _selectedModelCommand;
+        set => SetField(ref _selectedModelCommand, value);
+    }
 
     // ── 测试流程 ────────────────────────────────────────────────────────
     public ObservableCollection<TaskStepVm> TaskSteps { get; } = new();
@@ -315,7 +340,14 @@ public sealed class ConfigViewModel : ViewModelBase
     };
 
     // ������ ��汾��Ϣ ������������������������������������������������������������������������������������������������������������������
-    public string AppVersion => "3.0.0.25 (V2 MVP)";
+    public string AppVersion
+    {
+        get
+        {
+            var v = Assembly.GetEntryAssembly()?.GetName().Version;
+            return v is null ? "1.2.3" : $"{v.Major}.{v.Minor}.{v.Build}";
+        }
+    }
     public string Changelog { get; }
 
     // ������ ��ϵͳ���� ������������������������������������������������������������������������������������������������������������������
@@ -535,7 +567,9 @@ public sealed class ConfigViewModel : ViewModelBase
     private void BulkEditPressurePoints()
     {
         var text = string.Join(Environment.NewLine, PressurePoints.Select(p => $"{p.Name},{p.Value.ToString(CultureInfo.InvariantCulture)}"));
-        var dlg = new Views.BulkPointEditorWindow("批量录入压力点", text) { Owner = Application.Current.MainWindow };
+        var hint = "压力录入说明：按“范围 压力值”录入，可一行写多段，也可逐行写。例：1-5 0kPa   6-40 100kPa   41-45 0kPa。也兼容 P1,0 和 20@100; 1-3=0。录入后仍可在表格中单独修改。";
+        var sample = string.IsNullOrWhiteSpace(text) ? "1-5 0kPa\r\n6-40 100kPa\r\n41-45 0kPa" : text;
+        var dlg = new Views.BulkPointEditorWindow("批量录入压力点", sample, hint) { Owner = Application.Current.MainWindow };
         if (dlg.ShowDialog() != true) return;
         try
         {
@@ -556,7 +590,9 @@ public sealed class ConfigViewModel : ViewModelBase
             string.IsNullOrWhiteSpace(t.SoakMinutesText)
                 ? $"{t.Name},{t.Celsius.ToString(CultureInfo.InvariantCulture)}"
                 : $"{t.Name},{t.Celsius.ToString(CultureInfo.InvariantCulture)},{t.SoakMinutesText}"));
-        var dlg = new Views.BulkPointEditorWindow("批量录入温度点", text) { Owner = Application.Current.MainWindow };
+        var hint = "温度录入说明：按“范围 温度值”录入，可一行写多段，也可逐行写。例：1-5 25℃   6-40 85℃   41-45 25℃。保温时间可写在温度后面，如 1-5 25℃,30。录入后仍可在表格中单独修改。";
+        var sample = string.IsNullOrWhiteSpace(text) ? "1-5 25℃\r\n6-40 85℃\r\n41-45 25℃" : text;
+        var dlg = new Views.BulkPointEditorWindow("批量录入温度点", sample, hint) { Owner = Application.Current.MainWindow };
         if (dlg.ShowDialog() != true) return;
         try
         {
@@ -573,36 +609,216 @@ public sealed class ConfigViewModel : ViewModelBase
 
     private static IEnumerable<PressurePoint> ParsePressurePoints(string text)
     {
+        var lines = ExpandPointBatchLines(text);
+        if (lines.Any(IsPointBatchRule))
+            return ParsePointBatchValues(lines, "P").Select(v => new PressurePoint($"P{v.Index}", v.Value)).ToList();
+
         var index = 1;
-        foreach (var line in SplitPointLines(text))
+        var points = new List<PressurePoint>();
+        foreach (var line in lines)
         {
             var parts = SplitPointParts(line);
             if (parts.Length == 1)
-                yield return new PressurePoint($"P{index}", ParseFloat(parts[0], line));
+                points.Add(new PressurePoint($"P{index}", ParseFloat(parts[0], line)));
             else
-                yield return new PressurePoint(parts[0], ParseFloat(parts[1], line));
+                points.Add(new PressurePoint(parts[0], ParseFloat(parts[1], line)));
             index++;
         }
+        return points;
     }
 
     private static IEnumerable<TempPoint> ParseTempPoints(string text)
     {
+        var lines = ExpandPointBatchLines(text);
+        if (lines.Any(IsPointBatchRule))
+            return ParsePointBatchValues(lines, "T").Select(v => new TempPoint($"T{v.Index}", v.Value, v.Extra)).ToList();
+
         var index = 1;
-        foreach (var line in SplitPointLines(text))
+        var points = new List<TempPoint>();
+        foreach (var line in lines)
         {
             var parts = SplitPointParts(line);
             if (parts.Length == 1)
             {
-                yield return new TempPoint($"T{index}", ParseFloat(parts[0], line));
+                points.Add(new TempPoint($"T{index}", ParseFloat(parts[0], line)));
             }
             else
             {
                 int? soak = parts.Length >= 3 && int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var minutes) ? minutes : null;
-                yield return new TempPoint(parts[0], ParseFloat(parts[1], line), soak);
+                points.Add(new TempPoint(parts[0], ParseFloat(parts[1], line), soak));
             }
             index++;
         }
+        return points;
     }
+
+    private static readonly Regex PointBatchSeedRegex = new(
+        @"^\s*(?:[PT])?(?<count>\d+)\s*(?:@|\*|x|X)\s*(?<value>[-+]?\d+(?:\.\d+)?)\s*(?:[,，]\s*(?<extra>\d+))?\s*(?:℃|°C|C)?\s*$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex PointBatchDefaultRegex = new(
+        @"^\s*(?:default|rest|默认|其余)\s*[:=]\s*(?<value>[-+]?\d+(?:\.\d+)?)\s*(?:[,，]\s*(?<extra>\d+))?\s*(?:℃|°C|C)?\s*$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex PointBatchRuleRegex = new(
+        @"^\s*(?<range>.+?)\s*[:=]\s*(?<value>[-+]?\d+(?:\.\d+)?)\s*(?:[,，]\s*(?<extra>\d+))?\s*(?:℃|°C|C)?\s*$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex PointRangeTokenRegex = new(
+        @"^[PT]?\d+\s*[-~至到]\s*[PT]?\d+$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex PointValueTokenRegex = new(
+        @"^(?<value>[-+]?\d+(?:\.\d+)?)(?:℃|°C|C|kPa|MPa|Pa)?(?:[,，](?<extra>\d+))?$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex PointBatchIndexRegex = new(
+        @"[PT]?\s*(?<start>\d+)\s*(?:[-~至到]\s*[PT]?\s*(?<end>\d+))?",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static List<string> ExpandPointBatchLines(string text)
+    {
+        var result = new List<string>();
+        foreach (var line in SplitPointLines(text))
+        {
+            var expanded = TryExpandSpacePointRules(line);
+            if (expanded.Count > 0)
+                result.AddRange(expanded);
+            else
+                result.Add(line);
+        }
+        return result;
+    }
+
+    private static List<string> TryExpandSpacePointRules(string line)
+    {
+        var tokens = NormalizePointBatchLine(line)
+            .Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var result = new List<string>();
+        if (tokens.Length < 2) return result;
+
+        var i = 0;
+        while (i < tokens.Length)
+        {
+            var range = tokens[i];
+            if (!PointRangeTokenRegex.IsMatch(range)) return new List<string>();
+            i++;
+            if (i >= tokens.Length) return new List<string>();
+
+            var value = tokens[i];
+            if (!PointValueTokenRegex.IsMatch(value)) return new List<string>();
+            i++;
+
+            result.Add($"{range}={value}");
+        }
+
+        return result;
+    }
+
+    private static bool IsPointBatchRule(string line)
+    {
+        var normalized = NormalizePointBatchLine(line);
+        return PointBatchSeedRegex.IsMatch(normalized) ||
+               PointBatchDefaultRegex.IsMatch(normalized) ||
+               (normalized.Contains('=') || normalized.Contains(':')) && PointBatchRuleRegex.IsMatch(normalized);
+    }
+
+    private static IReadOnlyList<(int Index, float Value, int? Extra)> ParsePointBatchValues(IReadOnlyList<string> lines, string prefix)
+    {
+        int? count = null;
+        float? defaultValue = null;
+        int? defaultExtra = null;
+        var overrides = new List<(int Index, float Value, int? Extra)>();
+
+        foreach (var rawLine in lines)
+        {
+            var line = NormalizePointBatchLine(rawLine);
+            var seed = PointBatchSeedRegex.Match(line);
+            if (seed.Success)
+            {
+                count = int.Parse(seed.Groups["count"].Value, CultureInfo.InvariantCulture);
+                defaultValue = ParseFloat(seed.Groups["value"].Value, rawLine);
+                defaultExtra = ParseOptionalInt(seed.Groups["extra"].Value);
+                continue;
+            }
+
+            var defaultMatch = PointBatchDefaultRegex.Match(line);
+            if (defaultMatch.Success)
+            {
+                defaultValue = ParseFloat(defaultMatch.Groups["value"].Value, rawLine);
+                defaultExtra = ParseOptionalInt(defaultMatch.Groups["extra"].Value);
+                continue;
+            }
+
+            var rule = PointBatchRuleRegex.Match(line);
+            if (!rule.Success)
+                throw new FormatException($"无法识别批量规则：{rawLine}");
+
+            var value = ParseFloat(rule.Groups["value"].Value, rawLine);
+            var extra = ParseOptionalInt(rule.Groups["extra"].Value);
+            var indexes = ParsePointIndexes(rule.Groups["range"].Value, rawLine).ToList();
+            if (indexes.Count == 0)
+                throw new FormatException($"无法识别点位序号：{rawLine}");
+
+            foreach (var i in indexes)
+                overrides.Add((i, value, extra));
+            count = Math.Max(count ?? 0, indexes.Max());
+        }
+
+        if (!count.HasValue || count.Value <= 0)
+            throw new FormatException($"请先指定点位数量，例如：20@{(prefix == "T" ? "85" : "100")}");
+
+        var result = Enumerable.Range(1, count.Value)
+            .Select(i => (Index: i, Value: defaultValue, Extra: defaultExtra))
+            .ToList();
+
+        foreach (var item in overrides)
+        {
+            if (item.Index < 1 || item.Index > result.Count)
+                throw new FormatException($"点位序号超出范围：{prefix}{item.Index}");
+            result[item.Index - 1] = item;
+        }
+
+        var missing = result.FirstOrDefault(x => !x.Value.HasValue);
+        if (missing.Index > 0)
+            throw new FormatException($"点位 {prefix}{missing.Index} 没有录入数值。请补齐范围，或先写默认值，例如 45@{(prefix == "T" ? "85" : "100")}。");
+
+        return result.Select(x => (x.Index, x.Value!.Value, x.Extra)).ToList();
+    }
+
+    private static string NormalizePointBatchLine(string line) =>
+        line.Replace('，', ',')
+            .Replace('：', ':')
+            .Replace("℃", "")
+            .Replace("°C", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("摄氏度", "")
+            .Replace("kPa", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("MPa", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("Pa", "", StringComparison.OrdinalIgnoreCase)
+            .Trim();
+
+    private static IEnumerable<int> ParsePointIndexes(string text, string line)
+    {
+        foreach (Match match in PointBatchIndexRegex.Matches(text))
+        {
+            var start = int.Parse(match.Groups["start"].Value, CultureInfo.InvariantCulture);
+            var end = match.Groups["end"].Success
+                ? int.Parse(match.Groups["end"].Value, CultureInfo.InvariantCulture)
+                : start;
+            if (start <= 0 || end <= 0)
+                throw new FormatException($"点位序号必须大于 0：{line}");
+
+            var step = start <= end ? 1 : -1;
+            for (var i = start; ; i += step)
+            {
+                yield return i;
+                if (i == end) break;
+            }
+        }
+    }
+
+    private static int? ParseOptionalInt(string value) =>
+        int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var result) ? result : null;
 
     private static IEnumerable<string> SplitPointLines(string text) =>
         text.Split(new[] { "\r\n", "\n", "\r", ";" }, StringSplitOptions.RemoveEmptyEntries)
@@ -614,7 +830,8 @@ public sealed class ConfigViewModel : ViewModelBase
 
     private static float ParseFloat(string value, string line)
     {
-        if (float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result))
+        var normalized = NormalizePointBatchLine(value);
+        if (float.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out var result))
             return result;
         throw new FormatException($"�޷�������ֵ��{line}");
     }
@@ -719,15 +936,8 @@ public sealed class ConfigViewModel : ViewModelBase
         Plan.SensorType = name;
 
         var folderName = CleanPathName(string.IsNullOrWhiteSpace(_selectedPlanFolder) ? "M30测试" : _selectedPlanFolder);
-        var oldFolder = string.IsNullOrWhiteSpace(_loadedPlanFolder) ? folderName : _loadedPlanFolder;
-        var oldFolderPath = Path.Combine(AppPaths.TestConfigDir, oldFolder);
+        Plan.FolderName = folderName;
         var folder = Path.Combine(AppPaths.TestConfigDir, folderName);
-        if (!string.Equals(oldFolder, folderName, StringComparison.OrdinalIgnoreCase) &&
-            Directory.Exists(oldFolderPath) &&
-            !Directory.Exists(folder))
-        {
-            Directory.Move(oldFolderPath, folder);
-        }
         Directory.CreateDirectory(folder);
         var oldName = string.IsNullOrWhiteSpace(_loadedSensorModelFile) ? name : _loadedSensorModelFile;
         var oldPath = Path.Combine(folder, oldName + ".ini");
@@ -887,6 +1097,7 @@ public sealed class ConfigViewModel : ViewModelBase
         _settingIni.Set("Slots", "StartSerial", _startSerial.ToString());
         _settingIni.Set("Slots", "AutoNumber", _autoNumber.ToString());
         _settingIni.Set("Slots", "LastPlan", Plan.Name);
+        _settingIni.Set("Slots", "LastPlanFolder", _selectedPlanFolder);
     }
 
     private void LoadDeviceSettings()
@@ -912,6 +1123,7 @@ public sealed class ConfigViewModel : ViewModelBase
         PressureGpibAddress = pressureAddress;
 
         var dmm = _session.Station.Get(DeviceKind.Dmm);
+        DmmModelName = _settingIni.Get("Device.Dmm", "Model", dmm?.Model ?? DmmModelName);
         ParseGpibAddress(_settingIni.Get("Device.Dmm", "Address", dmm?.Address ?? ""), out var tempPort, out var tempAddress);
         TempGpibPort = tempPort;
         TempGpibAddress = tempAddress;
@@ -1064,6 +1276,7 @@ public sealed class ConfigViewModel : ViewModelBase
         AppPreferences.SetBool(_settingIni, "SaveCheckpointOnAbort", SaveCheckpointOnAbort);
         AppPreferences.SetBool(_settingIni, "FallbackSimOnDisconnect", FallbackSimOnDisconnect);
         AppPreferences.Set(_settingIni, "LastPlan", Plan.Name);
+        AppPreferences.Set(_settingIni, "LastPlanFolder", _selectedPlanFolder);
     }
 
     private void SyncMetricsFromPlan()
@@ -1122,6 +1335,7 @@ public sealed class ConfigViewModel : ViewModelBase
 
         _settingIni.Set("Device.Pressure", "Model", PressureModelName);
         _settingIni.Set("Device.Pressure", "Address", BuildGpibAddress(PressureGpibPort, PressureGpibAddress));
+        _settingIni.Set("Device.Dmm", "Model", DmmModelName);
         _settingIni.Set("Device.Dmm", "Address", BuildGpibAddress(TempGpibPort, TempGpibAddress));
     }
 
@@ -1145,6 +1359,11 @@ public sealed class ConfigViewModel : ViewModelBase
 
     private void BuildModelCommands(CommandDictionary commands)
     {
+        ModelCommands.Clear();
+        CommandDeviceKinds.Clear();
+        CommandModels.Clear();
+        SelectedModelCommand = null;
+
         // Surface a representative slice of Command.ini per device kind.
         var pressureModels = commands.Models
             .Where(m => commands.Has(m, "SetPressure") || commands.Has(m, "ReadPressure"))
@@ -1157,7 +1376,7 @@ public sealed class ConfigViewModel : ViewModelBase
                         "ZeroCheck", "ReadPressure", "SetMeasure", "SelfTest", "ReadStatus", "SetGaug", "SetDiff" }),
             ("烘箱",      new[] { "GWSEBWT1670", "GWNMC2000" },
                 new[] { "Open", "Set", "Read", "Stop", "SelfTest" }),
-            ("数字万用表", new[] { "Keysight-34970A", "Keysight-DAQ973A" },
+            ("数字万用表", new[] { "Keysight-34970A", "Keysight-DAQ970A", "Keysight-DAQ973A" },
                 new[] { "Open", "Close", "SetVol", "SetRes", "ReadValue", "SelfTest" }),
             ("采集卡",    new[] { "M30-DAC" },
                 new[] { "Open", "Usig", "Usource", "Isource", "UT", "SelfTest" }),
@@ -1190,6 +1409,24 @@ public sealed class ConfigViewModel : ViewModelBase
             }
             ModelCommands.Add(vm);
         }
+
+        foreach (var kind in ModelCommands.Select(x => x.Kind).Distinct().OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
+            CommandDeviceKinds.Add(kind);
+
+        SelectedCommandDeviceKind = CommandDeviceKinds.FirstOrDefault() ?? "";
+    }
+
+    private void RefreshCommandModels()
+    {
+        CommandModels.Clear();
+        foreach (var model in ModelCommands
+                     .Where(x => string.Equals(x.Kind, SelectedCommandDeviceKind, StringComparison.OrdinalIgnoreCase))
+                     .OrderBy(x => x.Model, StringComparer.OrdinalIgnoreCase))
+        {
+            CommandModels.Add(model);
+        }
+
+        SelectedModelCommand = CommandModels.FirstOrDefault();
     }
 
     private void LoadPressureModels(CommandDictionary commands)

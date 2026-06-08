@@ -51,10 +51,10 @@
     </LinearGradientBrush>
 
     <!-- Card shadow effect -->
-    <DropShadowEffect x:Key="CardShadow" BlurRadius="12" ShadowDepth="2"
-                      Direction="270" Color="#1A94A3B8" Opacity="0.4"/>
-    <DropShadowEffect x:Key="CardShadowHover" BlurRadius="20" ShadowDepth="4"
-                      Direction="270" Color="#2094A3B8" Opacity="0.6"/>
+    <DropShadowEffect x:Key="CardShadow" BlurRadius="10" ShadowDepth="1"
+                      Direction="270" Color="#1A94A3B8" Opacity="0.26"/>
+    <DropShadowEffect x:Key="CardShadowHover" BlurRadius="16" ShadowDepth="3"
+                      Direction="270" Color="#2094A3B8" Opacity="0.45"/>
     <DropShadowEffect x:Key="NavShadow" BlurRadius="16" ShadowDepth="2"
                       Direction="270" Color="#1A94A3B8" Opacity="0.35"/>
 
@@ -148,11 +148,18 @@
     <!-- ────────── Card (rounded surface with shadow) ────────── -->
     <Style x:Key="Card" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
-        <Setter Property="BorderBrush" Value="Transparent"/>
-        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="8"/>
-        <Setter Property="Padding" Value="14"/>
+        <Setter Property="Padding" Value="16"/>
         <Setter Property="Effect" Value="{DynamicResource CardShadow}"/>
+    </Style>
+
+    <Style x:Key="NavGroupTitle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
     </Style>
 
     <!-- ────────── Nav button (sidebar, Cockpit-style pill) ────────── -->
@@ -287,23 +294,24 @@
     </Style>
 
     <Style TargetType="TabItem">
-        <Setter Property="Padding" Value="16,8"/>
+        <Setter Property="Padding" Value="18,9"/>
         <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
         <Setter Property="FontSize" Value="{StaticResource FontSizeNormal}"/>
+        <Setter Property="FontWeight" Value="Medium"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
                     <Border x:Name="Bd" Background="Transparent"
-                            CornerRadius="8,8,0,0"
-                            BorderBrush="Transparent" BorderThickness="0,0,0,2"
-                            Padding="{TemplateBinding Padding}" Margin="2,0">
+                            CornerRadius="8"
+                            BorderBrush="Transparent" BorderThickness="1"
+                            Padding="{TemplateBinding Padding}" Margin="2,0,2,6">
                         <ContentPresenter ContentSource="Header" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
-                            <Setter TargetName="Bd" Property="Background" Value="#0A3B82F6"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentLightBrush}"/>
                             <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
                             <Setter Property="FontWeight" Value="SemiBold"/>
                         </Trigger>

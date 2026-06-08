@@ -28,6 +28,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public object CurrentView { get => _currentView; set => SetField(ref _currentView, value); }
 
     public RelayCommand ShowTestRunCommand  { get; }
+    public RelayCommand ShowLongTermStabilityCommand { get; }
     public RelayCommand ShowManualCommand   { get; }
     public RelayCommand ShowQuickTestCommand { get; }
     public RelayCommand ShowConfigCommand   { get; }
@@ -62,7 +63,8 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
         _currentView = TestRun;
 
-        ShowTestRunCommand  = new RelayCommand(_ => CurrentView = TestRun);
+        ShowTestRunCommand  = new RelayCommand(_ => { TestRun.ActivateAutoTest(); CurrentView = TestRun; });
+        ShowLongTermStabilityCommand = new RelayCommand(_ => { TestRun.ActivateLongTermStabilityTest(); CurrentView = TestRun; });
         ShowManualCommand   = new RelayCommand(_ => CurrentView = Manual);
         ShowQuickTestCommand = new RelayCommand(_ => CurrentView = QuickTest);
         ShowConfigCommand   = new RelayCommand(_ => CurrentView = Config);
@@ -80,8 +82,10 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             try
             {
                 await System.Threading.Tasks.Task.Delay(3000);
-                if (Settings.CheckUpdateCommand.CanExecute(null))
-                    Settings.CheckUpdateCommand.Execute(null);
+                await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    _ = Settings.CheckAndInstallUpdateOnStartupAsync();
+                });
             }
             catch (Exception ex)
             {

@@ -448,9 +448,14 @@ public sealed class HwPressureController : DeviceBase, IPressureController
 
 public sealed class HwDmm : DeviceBase, IDmm
 {
+    private readonly CommandDictionary _commands;
     private readonly VisaSession _visa;
 
-    public HwDmm(DeviceProfile profile) : base(DeviceKind.Dmm, profile.Model, profile.Address) => _visa = new VisaSession(profile.Model, profile.Address);
+    public HwDmm(DeviceProfile profile, CommandDictionary commands) : base(DeviceKind.Dmm, profile.Model, profile.Address)
+    {
+        _commands = commands;
+        _visa = new VisaSession(profile.Model, profile.Address);
+    }
 
     protected override Task<bool> OnOpenAsync(CancellationToken ct)
     {
@@ -467,13 +472,13 @@ public sealed class HwDmm : DeviceBase, IDmm
 
     public Task OpenRelayAsync(string channel, CancellationToken ct = default)
     {
-        _visa.Write($"ROUT:OPEN (@{channel})");
+        _visa.Write(Render("Open", channel, $"ROUT:OPEN (@{channel})"));
         return Task.CompletedTask;
     }
 
     public Task CloseRelayAsync(string channel, CancellationToken ct = default)
     {
-        _visa.Write($"ROUT:CLOSE (@{channel})");
+        _visa.Write(Render("Close", channel, $"ROUT:CLOSE (@{channel})"));
         return Task.CompletedTask;
     }
 
@@ -489,8 +494,8 @@ public sealed class HwDmm : DeviceBase, IDmm
     {
         try
         {
-            _visa.Write($"CONF:VOLT:DC 10,(@{channel})");
-            return Task.FromResult(_visa.QueryNumber("READ?"));
+            _visa.Write(Render("SetVol", channel, $"CONF:VOLT (@{channel})"));
+            return Task.FromResult(_visa.QueryNumber(Render("ReadValue", channel, "READ?")));
         }
         catch (Exception ex)
         {
@@ -503,8 +508,8 @@ public sealed class HwDmm : DeviceBase, IDmm
     {
         try
         {
-            _visa.Write($"CONF:RES (@{channel})");
-            return Task.FromResult(_visa.QueryNumber("READ?"));
+            _visa.Write(Render("SetRes", channel, $"CONF:RES (@{channel})"));
+            return Task.FromResult(_visa.QueryNumber(Render("ReadValue", channel, "READ?")));
         }
         catch (Exception ex)
         {
@@ -514,6 +519,12 @@ public sealed class HwDmm : DeviceBase, IDmm
     }
 
     public override Task<bool> SelfTestAsync(CancellationToken ct = default) => Task.FromResult(State == ConnectionState.Connected);
+
+    private string Render(string action, string channel, string fallback)
+    {
+        var command = _commands.Render(Model, action, channel);
+        return string.IsNullOrWhiteSpace(command) ? fallback : command;
+    }
 }
 
 public sealed class HwPowerSupply : DeviceBase, IPowerSupply

@@ -1,7 +1,7 @@
 <Window x:Class="M30TestApp.Wpf.Views.BulkPointEditorWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="批量录入点表" Height="520" Width="620"
+        Title="批量录入点表" Height="520" Width="680"
         WindowStartupLocation="CenterOwner" ResizeMode="CanResize">
     <Grid Margin="14">
         <Grid.RowDefinitions>
@@ -9,14 +9,23 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
+
         <StackPanel>
-            <TextBlock Text="每行一个点。支持：名称,数值 或 名称 数值；温度点还支持第三列保温时间。只写数值时自动生成 P1/T1。" TextWrapping="Wrap"/>
-            <TextBlock Text="示例：T1,25,30" Margin="0,8,0,0" Foreground="#64748B"/>
+            <TextBlock x:Name="HintTextBlock"
+                       Text="按范围和值录入，例如：1-5 25。"
+                       TextWrapping="Wrap"/>
+            <TextBlock x:Name="ExampleTextBlock"
+                       Text="录入后仍可在表格中单独修改每个点。"
+                       Margin="0,8,0,0"
+                       Foreground="#64748B"
+                       TextWrapping="Wrap"/>
         </StackPanel>
+
         <TextBox x:Name="InputTextBox" Grid.Row="1" Margin="0,12,0,12"
                  AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
                  FontFamily="Consolas" FontSize="14"/>
+
         <DockPanel Grid.Row="2">
             <Button Content="取消" Width="90" Height="30" DockPanel.Dock="Right" Margin="8,0,0,0" Click="Cancel_Click"/>
             <Button Content="确定" Width="90" Height="30" DockPanel.Dock="Right" Click="Ok_Click"/>

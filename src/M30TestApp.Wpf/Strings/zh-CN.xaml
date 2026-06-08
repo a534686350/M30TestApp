@@ -7,8 +7,11 @@
     <sys:String x:Key="App.Name">M30测试专用</sys:String>
 
     <!-- Navigation -->
+    <sys:String x:Key="Nav.TestGroup">测试</sys:String>
     <sys:String x:Key="Nav.TestRun">自动测试</sys:String>
+    <sys:String x:Key="Nav.LongTermStability">长期稳定性测试</sys:String>
     <sys:String x:Key="Nav.Manual">手动调试</sys:String>
+    <sys:String x:Key="Nav.QuickTest">快速测试</sys:String>
     <sys:String x:Key="Nav.Config">配置</sys:String>
     <sys:String x:Key="Nav.Plan">方案</sys:String>
     <sys:String x:Key="Nav.Slots">工位</sys:String>

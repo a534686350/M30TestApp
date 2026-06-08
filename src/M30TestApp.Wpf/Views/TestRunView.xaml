@@ -104,6 +104,9 @@
 
                 <StackPanel Orientation="Vertical">
                     <WrapPanel>
+                        <TextBlock Text="测试类型：" Foreground="{StaticResource MutedBrush}"/>
+                        <TextBlock Text="{Binding RunModeTitle}" FontWeight="SemiBold" Margin="4,0,16,0"
+                                   Foreground="{StaticResource AccentBrush}"/>
                         <TextBlock Text="测试方案：" Foreground="{StaticResource MutedBrush}"/>
                         <TextBlock Text="{Binding PlanName}" FontWeight="SemiBold" Margin="4,0,16,0"/>
                         <TextBlock Text="型号：" Foreground="{StaticResource MutedBrush}"/>
@@ -150,7 +153,7 @@
                     <Border DockPanel.Dock="Top" Background="{StaticResource HeaderBgBrush}"
                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
                             Padding="12,8">
-                        <TextBlock Text="板卡采集数据矩阵" FontWeight="SemiBold"
+                        <TextBlock Text="{Binding MatrixTitle}" FontWeight="SemiBold"
                                    FontSize="{StaticResource FontSizeTitle}"/>
                     </Border>
                     <views:DataMatrixGrid Rows="{Binding Rows}" Columns="{Binding Columns}"/>

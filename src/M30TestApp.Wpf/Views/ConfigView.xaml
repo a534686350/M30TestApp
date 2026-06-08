@@ -11,42 +11,30 @@
     <UserControl.Resources>
         <Style x:Key="SectionTitle" TargetType="TextBlock">
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize"   Value="{StaticResource FontSizeTitle}"/>
-            <Setter Property="Margin"     Value="0,0,0,8"/>
+            <Setter Property="FontSize"   Value="15"/>
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="Margin"     Value="0,0,0,12"/>
         </Style>
         <Style x:Key="GroupTitle" TargetType="TextBlock">
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize"   Value="13"/>
-            <Setter Property="Foreground" Value="#2B6CB0"/>
-            <Setter Property="Margin"     Value="0,12,0,4"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="Margin"     Value="0,14,0,6"/>
         </Style>
         <Style x:Key="FieldLabel" TargetType="TextBlock">
             <Setter Property="FontSize"   Value="12"/>
-            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
-            <Setter Property="Margin"     Value="0,0,0,4"/>
-        </Style>
-        <Style TargetType="TextBox">
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
-        <Style TargetType="ComboBox">
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
-        <Style TargetType="DataGrid">
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
-        <Style TargetType="DataGridCell">
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
-        <Style TargetType="DataGridColumnHeader">
-            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
+            <Setter Property="Margin"     Value="0,0,0,5"/>
         </Style>
         <DataTemplate x:Key="OptionSettingTemplate">
-            <Grid Margin="0,0,12,8">
+            <Grid Margin="0,0,16,10">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="100"/>
+                    <ColumnDefinition Width="112"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontSize="12"/>
+                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontSize="12"
+                           FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}"/>
                 <ComboBox Grid.Column="1" ItemsSource="{Binding Options}" SelectedItem="{Binding Value}" FontSize="12"/>
             </Grid>
         </DataTemplate>
@@ -62,7 +50,7 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid Margin="12">
+    <Grid Margin="16,14,16,12">
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
@@ -73,7 +61,7 @@
             <!-- 0. 方案 (置首，默认选中) -->
             <!-- ════════════════════════════════════════════════════════ -->
             <TabItem Header="方案">
-                <Grid Margin="4">
+                <Grid Margin="0,4,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="320"/>
                         <ColumnDefinition Width="*"/>
@@ -381,7 +369,7 @@
 
             <TabItem Header="参数控制">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <Grid Margin="4">
+                    <Grid Margin="0,4,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
@@ -454,6 +442,11 @@
                         <Border Style="{StaticResource Card}" Grid.Column="1" Margin="0,0,0,8">
                             <StackPanel>
                                 <TextBlock Text="温度采集/切换单元 Temp. Acquisition/Switch Unit" Style="{StaticResource SectionTitle}"/>
+                                <TextBlock Text="数字万用表型号 DMM Model" Style="{StaticResource FieldLabel}"/>
+                                <ComboBox ItemsSource="{Binding DmmModels}"
+                                          Text="{Binding DmmModelName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          IsEditable="True"
+                                          Margin="0,0,0,8"/>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -541,7 +534,7 @@
             <!-- 1. 设备 -->
             <!-- ════════════════════════════════════════════════════════ -->
             <TabItem Header="设备">
-                <Grid Margin="4">
+                <Grid Margin="0,4,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="360"/>
@@ -611,41 +604,51 @@
                                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,8">
                             <TextBlock Text="设备指令模板 (Command.ini)" Style="{StaticResource SectionTitle}"/>
                         </Border>
-                        <TabControl ItemsSource="{Binding ModelCommands}" BorderThickness="0">
-                            <TabControl.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding Kind}" Foreground="{StaticResource MutedBrush}"/>
-                                        <TextBlock Text=" · "/>
-                                        <TextBlock Text="{Binding Model}" FontWeight="SemiBold"/>
-                                    </StackPanel>
-                                </DataTemplate>
-                            </TabControl.ItemTemplate>
-                            <TabControl.ContentTemplate>
-                                <DataTemplate>
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
-                                        <ItemsControl ItemsSource="{Binding Templates}">
-                                            <ItemsControl.ItemsPanel>
-                                                <ItemsPanelTemplate>
-                                                    <UniformGrid Columns="2"/>
-                                                </ItemsPanelTemplate>
-                                            </ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <StackPanel Margin="0,0,12,12">
-                                                        <TextBlock Text="{Binding Action}" FontWeight="SemiBold"/>
-                                                        <TextBox Text="{Binding Template, UpdateSourceTrigger=PropertyChanged}"
-                                                                 FontFamily="Consolas" FontSize="12"
-                                                                 TextWrapping="Wrap" AcceptsReturn="True"
-                                                                 MinHeight="32"/>
-                                                    </StackPanel>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </ScrollViewer>
-                                </DataTemplate>
-                            </TabControl.ContentTemplate>
-                        </TabControl>
+                        <Grid DockPanel.Dock="Top" Margin="12,12,12,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="240"/>
+                                <ColumnDefinition Width="280"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="设备类型" Style="{StaticResource FieldLabel}"/>
+                                <ComboBox ItemsSource="{Binding CommandDeviceKinds}"
+                                          SelectedItem="{Binding SelectedCommandDeviceKind, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                                <TextBlock Text="设备型号" Style="{StaticResource FieldLabel}"/>
+                                <ComboBox ItemsSource="{Binding CommandModels}"
+                                          SelectedItem="{Binding SelectedModelCommand, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          DisplayMemberPath="Model"/>
+                            </StackPanel>
+                            <TextBlock Grid.Column="2"
+                                       Text="{Binding SelectedModelCommand.DisplayName}"
+                                       VerticalAlignment="Bottom"
+                                       Foreground="{StaticResource MutedBrush}"
+                                       FontSize="12"
+                                       Margin="12,0,0,4"/>
+                        </Grid>
+
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
+                            <ItemsControl ItemsSource="{Binding SelectedModelCommand.Templates}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="2"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0,0,12,12">
+                                            <TextBlock Text="{Binding Action}" FontWeight="SemiBold"/>
+                                            <TextBox Text="{Binding Template, UpdateSourceTrigger=PropertyChanged}"
+                                                     FontFamily="Consolas" FontSize="12"
+                                                     TextWrapping="Wrap" AcceptsReturn="True"
+                                                     MinHeight="34"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
                     </DockPanel>
                 </Border>
             </TabItem>
@@ -654,7 +657,7 @@
             <!-- 3. 工位 -->
             <!-- ════════════════════════════════════════════════════════ -->
             <TabItem Header="工位">
-                <Grid Margin="4">
+                <Grid Margin="0,4,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -921,32 +924,11 @@
             <!-- ════════════════════════════════════════════════════════ -->
             <TabItem Header="版本信息">
                 <Border Style="{StaticResource Card}">
-                    <DockPanel>
-                        <Grid DockPanel.Dock="Top" Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Border Background="{StaticResource AccentBrush}" CornerRadius="6" Padding="16,10">
-                                <StackPanel>
-                                    <TextBlock Text="当前版本" Foreground="#CCFFFFFF" FontSize="11"/>
-                                    <TextBlock Text="{Binding AppVersion}" Foreground="White"
-                                               FontWeight="Bold" FontSize="22"/>
-                                </StackPanel>
-                            </Border>
-                            <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
-                                <TextBlock Text="M30 传感器测试上位机" FontWeight="SemiBold" FontSize="14"/>
-                                <TextBlock Text="基于 .NET 8 + WPF MVVM 架构，由原 ASLab 重构而来"
-                                           Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0"/>
-                            </StackPanel>
-                        </Grid>
-                        <Border Background="{StaticResource HeaderBgBrush}" CornerRadius="4">
-                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="14">
-                                <TextBlock Text="{Binding Changelog}" TextWrapping="Wrap"
-                                           FontFamily="Consolas" FontSize="12"/>
-                            </ScrollViewer>
-                        </Border>
-                    </DockPanel>
+                    <StackPanel HorizontalAlignment="Left">
+                        <TextBlock Text="当前版本" Foreground="{StaticResource MutedBrush}" FontSize="12"/>
+                        <TextBlock Text="{Binding AppVersion}" Foreground="{StaticResource AccentBrush}"
+                                   FontWeight="Bold" FontSize="28" Margin="0,4,0,0"/>
+                    </StackPanel>
                 </Border>
             </TabItem>
 
@@ -999,9 +981,11 @@
         </TabControl>
 
         <!-- ────────── Bottom action bar ────────── -->
-        <Border Grid.Row="1" Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0"
-                Padding="12,8" Margin="0,8,0,0">
+        <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                CornerRadius="8"
+                Padding="12,9" Margin="0,10,0,0"
+                Effect="{DynamicResource CardShadow}">
             <DockPanel>
                 <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center"
                            Foreground="{StaticResource MutedBrush}"

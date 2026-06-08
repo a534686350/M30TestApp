@@ -63,10 +63,13 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel>
-                                <TextBlock Text="测试方案" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
-                                <ComboBox ItemsSource="{Binding Plans}"
-                                          SelectedItem="{Binding SelectedPlan}"
-                                          DisplayMemberPath="Name"
+                                <TextBlock Text="方案" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
+                                <ComboBox ItemsSource="{Binding PlanFolders}"
+                                          SelectedItem="{Binding SelectedPlanFolder}"
+                                          Width="320" HorizontalAlignment="Left"/>
+                                <TextBlock Text="传感器型号" Foreground="{StaticResource MutedBrush}" Margin="0,10,0,4"/>
+                                <ComboBox ItemsSource="{Binding SensorModels}"
+                                          SelectedItem="{Binding SelectedSensorModel}"
                                           Width="320" HorizontalAlignment="Left"/>
                             </StackPanel>
                             <Border Grid.Column="1" Background="{StaticResource HeaderBgBrush}" CornerRadius="6"
@@ -78,8 +81,10 @@
                                         <CheckBox Content="烘箱" IsChecked="{Binding UseOven}" Margin="0,0,10,0"/>
                                         <CheckBox Content="探漏" IsChecked="{Binding UseLeakCheck}"/>
                                     </StackPanel>
-                                    <TextBlock Text="采集项启用" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,8,0,4"/>
-                                    <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="采集项启用" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,8,0,4"
+                                               Visibility="{Binding ShowCollectionOptions, Converter={StaticResource BoolToVis}}"/>
+                                    <StackPanel Orientation="Horizontal"
+                                                Visibility="{Binding ShowCollectionOptions, Converter={StaticResource BoolToVis}}">
                                         <CheckBox Content="UT" IsChecked="{Binding CollectUt}" Margin="0,0,10,0"/>
                                         <CheckBox Content="USC" IsChecked="{Binding CollectUsc}" Margin="0,0,10,0"/>
                                         <CheckBox Content="ISC" IsChecked="{Binding CollectIsc}" Margin="0,0,10,0"/>
@@ -228,7 +233,7 @@
                             <TextBlock HorizontalAlignment="Right" Margin="0,8,0,0"
                                        Foreground="{StaticResource MutedBrush}" FontSize="11">
                                 <Run Text="工位上限"/>
-                                <Run Text="256"/>
+                                <Run Text="{Binding SlotLimit, Mode=OneWay}"/>
                                 <Run Text=" · 当前预览"/>
                                 <Run Text="{Binding PreviewCount, Mode=OneWay}"/>
                                 <Run Text="行"/>

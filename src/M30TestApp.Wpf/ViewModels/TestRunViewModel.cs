@@ -32,6 +32,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     private readonly Dictionary<string, CellStatus> _rowStatusBySlot = new(StringComparer.OrdinalIgnoreCase);
     private bool _logFlushPending;
     private readonly DispatcherTimer _timer;
+    private bool _isLongTermStabilityMode;
 
     public ObservableCollection<MatrixRowVm> Rows { get; } = new();
     public ObservableCollection<string> Columns { get; } = new();
@@ -56,6 +57,8 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
 
     public string PlanName => _session.Plan.Name;
     public string SensorType => _session.Plan.SensorType;
+    public string RunModeTitle => _isLongTermStabilityMode ? "长期稳定性测试" : "自动测试";
+    public string MatrixTitle => _isLongTermStabilityMode ? "DAQ973A 电压数据矩阵" : "采集数据矩阵";
     public int TotalSlots => Rows.Count;
 
     private string _currentT = "—";
@@ -115,6 +118,20 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
             System.Windows.Input.CommandManager.InvalidateRequerySuggested();
         };
         _timer.Start();
+    }
+
+    public void ActivateAutoTest()
+    {
+        _isLongTermStabilityMode = false;
+        OnPropertyChanged(nameof(RunModeTitle));
+        OnPropertyChanged(nameof(MatrixTitle));
+    }
+
+    public void ActivateLongTermStabilityTest()
+    {
+        _isLongTermStabilityMode = true;
+        OnPropertyChanged(nameof(RunModeTitle));
+        OnPropertyChanged(nameof(MatrixTitle));
     }
 
     private void OnAppLogLogged(object? sender, LogEvent e) => QueueLogLine(e.ToString());
@@ -260,6 +277,8 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
             OnPropertyChanged(nameof(ErrPercent));
             OnPropertyChanged(nameof(PlanName));
             OnPropertyChanged(nameof(SensorType));
+            OnPropertyChanged(nameof(RunModeTitle));
+            OnPropertyChanged(nameof(MatrixTitle));
         }));
     }
 
@@ -423,7 +442,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var setupVm = new RunSetupViewModel(_session);
+        var setupVm = new RunSetupViewModel(_session, _isLongTermStabilityMode);
         if (resumePrompt.Resume.HasValue)
             setupVm.ResumeFromCheckpoint = resumePrompt.Resume.Value && setupVm.CanResumeCheckpoint;
         var dlg = new Views.RunSetupWindow(setupVm)
@@ -452,6 +471,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         var savedSkipOvenTemp = _session.Context.SkipOvenTemp;
         var savedPauseWaiter = _session.Context.PauseWaiter;
         var savedResumeSoakMinutesOverride = _session.Context.ResumeSoakMinutesOverride;
+        var savedTaskScript = _session.Plan.TaskScript;
 
         _session.Context.PauseWaiter = WaitIfPausedAsync;
         _session.Context.ResumeSoakMinutesOverride = setupVm.ResumeFromCheckpoint ? resumePrompt.ResumeSoakMinutes : null;
@@ -473,17 +493,26 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         }
 
         // Set data acquisition skip flags
-        _session.Context.SkipUt = !setupVm.CollectUt;
-        _session.Context.SkipUsc = !setupVm.CollectUsc;
-        _session.Context.SkipIsc = !setupVm.CollectIsc;
-        _session.Context.SkipUsg = !setupVm.CollectUsg;
-        _session.Context.SkipOvenTemp = !setupVm.CollectOvenTemp;
+        _session.Context.SkipUt = _isLongTermStabilityMode || !setupVm.CollectUt;
+        _session.Context.SkipUsc = _isLongTermStabilityMode || !setupVm.CollectUsc;
+        _session.Context.SkipIsc = _isLongTermStabilityMode || !setupVm.CollectIsc;
+        _session.Context.SkipUsg = _isLongTermStabilityMode || !setupVm.CollectUsg;
+        _session.Context.SkipOvenTemp = _isLongTermStabilityMode || !setupVm.CollectOvenTemp;
 
-        if (!setupVm.CollectUt) AppLog.Info("Run", "已跳过UT采集");
-        if (!setupVm.CollectUsc) AppLog.Info("Run", "已跳过USC采集");
-        if (!setupVm.CollectIsc) AppLog.Info("Run", "已跳过ISC采集");
-        if (!setupVm.CollectUsg) AppLog.Info("Run", "已跳过USG采集");
-        if (!setupVm.CollectOvenTemp) AppLog.Info("Run", "已跳过烘箱温度采集");
+        if (_isLongTermStabilityMode)
+        {
+            _session.Plan.TaskScript = "Run:LongTermStabilityTest";
+            _session.Context.Plan = _session.Plan;
+            AppLog.Info("Run", "测试模式：长期稳定性测试，仅使用 DAQ973A/DMM 采集电压");
+        }
+        else
+        {
+            if (!setupVm.CollectUt) AppLog.Info("Run", "已跳过UT采集");
+            if (!setupVm.CollectUsc) AppLog.Info("Run", "已跳过USC采集");
+            if (!setupVm.CollectIsc) AppLog.Info("Run", "已跳过ISC采集");
+            if (!setupVm.CollectUsg) AppLog.Info("Run", "已跳过USG采集");
+            if (!setupVm.CollectOvenTemp) AppLog.Info("Run", "已跳过烘箱温度采集");
+        }
 
         _session.Runner.ThrowOnUnknown = true;
         _session.Runner.MaxConsecutiveErrors = GetRunnerMaxConsecutiveErrors();
@@ -537,6 +566,8 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
             _session.Context.SkipOvenTemp = savedSkipOvenTemp;
             _session.Context.PauseWaiter = savedPauseWaiter;
             _session.Context.ResumeSoakMinutesOverride = savedResumeSoakMinutesOverride;
+            _session.Plan.TaskScript = savedTaskScript;
+            _session.Context.Plan = _session.Plan;
             IsPaused = false;
             _pauseTcs?.TrySetResult();
             _pauseTcs = null;

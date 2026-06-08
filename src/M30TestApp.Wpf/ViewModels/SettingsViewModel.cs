@@ -1,6 +1,5 @@
 using System;
 using System.Diagnostics;
-using System.Net;
 using System.Net.Http;
 using System.Reflection;
 using System.Text.Json;
@@ -30,7 +29,6 @@ public sealed class SettingsViewModel : ViewModelBase
         DefaultRequestHeaders = { { "User-Agent", "M30TestApp" } }
     };
 
-    // ── Version ──
     public string AppVersion
     {
         get
@@ -40,7 +38,6 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
-    // ── Language ──
     private string _language = "zh-CN";
     public string Language
     {
@@ -52,7 +49,6 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
-    // ── Theme (reserved for future dark mode) ──
     private string _theme = "Light";
     public string Theme
     {
@@ -75,14 +71,12 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
-    // ── Update check ──
     private string _updateStatus = "";
     public string UpdateStatus { get => _updateStatus; set => SetField(ref _updateStatus, value); }
 
     private bool _isCheckingUpdate;
     public bool IsCheckingUpdate { get => _isCheckingUpdate; set => SetField(ref _isCheckingUpdate, value); }
 
-    // ── Commands ──
     public RelayCommand OpenRepoCommand { get; }
     public AsyncRelayCommand CheckUpdateCommand { get; }
 
@@ -91,10 +85,7 @@ public sealed class SettingsViewModel : ViewModelBase
     public SettingsViewModel(TestSession session)
     {
         _session = session;
-
-        // Load saved language preference
         _language = LanguageHelper.Normalize(AppPreferences.Language(session.Context.Settings));
-
         _theme = ThemeHelper.Normalize(AppPreferences.Theme(session.Context.Settings));
         _debugMode = AppPreferences.DebugMode(session.Context.Settings);
 
@@ -104,37 +95,28 @@ public sealed class SettingsViewModel : ViewModelBase
             catch (Exception ex) { AppLog.Warn("Settings", $"无法打开浏览器: {ex.Message}"); }
         });
 
-        CheckUpdateCommand = new AsyncRelayCommand(CheckForUpdateAsync);
+        CheckUpdateCommand = new AsyncRelayCommand(() => CheckForUpdateAsync(autoInstall: false));
     }
 
-    private async Task CheckForUpdateAsync()
+    public Task CheckAndInstallUpdateOnStartupAsync() => CheckForUpdateAsync(autoInstall: true);
+
+    private async Task CheckForUpdateAsync(bool autoInstall)
     {
+        if (IsCheckingUpdate) return;
+
         IsCheckingUpdate = true;
-        UpdateStatus = Language == "zh-CN" ? "正在检查更新…" : "Checking for updates…";
+        UpdateStatus = Language == "zh-CN" ? "正在检查更新..." : "Checking for updates...";
         var currentVersion = AppVersion;
+
         try
         {
-            // Try Gitee first (国内访问快), fall back to GitHub
-            (string tag, string assetUrl, string assetName) release;
-            try
-            {
-                using var giteeCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                release = await TryFetchLatestReleaseAsync("gitee", giteeCts.Token);
-            }
-            catch (Exception)
+            var release = await FetchLatestReleaseWithFallbackAsync();
+            var latest = release.Tag.TrimStart('v', 'V');
+            if (!Version.TryParse(latest, out var latestVer) ||
+                !Version.TryParse(currentVersion, out var currentVer))
             {
                 UpdateStatus = Language == "zh-CN"
-                    ? "Gitee 不可达，切换到 GitHub 镜像…"
-                    : "Gitee unreachable, switching to GitHub mirror…";
-                release = await TryFetchLatestReleaseAsync("github", CancellationToken.None);
-            }
-
-            var latest = release.tag.TrimStart('v', 'V');
-            if (!Version.TryParse(latest, out var latestVer)
-                || !Version.TryParse(currentVersion, out var currentVer))
-            {
-                UpdateStatus = Language == "zh-CN"
-                    ? $"版本号解析失败 (latest={latest}, current={currentVersion})"
+                    ? $"版本号解析失败(latest={latest}, current={currentVersion})"
                     : $"Version parse error (latest={latest}, current={currentVersion})";
                 return;
             }
@@ -147,29 +129,32 @@ public sealed class SettingsViewModel : ViewModelBase
                 return;
             }
 
+            if (!autoInstall)
+            {
+                var message = Language == "zh-CN"
+                    ? $"发现新版本 v{latest}，是否下载并自动安装？"
+                    : $"New version v{latest} found. Download and install?";
+                if (MessageBox.Show(message, "M30TestApp", MessageBoxButton.YesNo, MessageBoxImage.Information) != MessageBoxResult.Yes)
+                    return;
+            }
+
             UpdateStatus = Language == "zh-CN"
-                ? $"发现新版本 v{latest}（当前 v{currentVersion}）"
-                : $"New version v{latest} available (current v{currentVersion})";
-
-            var msg = Language == "zh-CN"
-                ? $"发现新版本 v{latest}，是否下载并自动安装？"
-                : $"New version v{latest} found. Download and install?";
-
-            if (MessageBox.Show(msg, "M30TestApp", MessageBoxButton.YesNo, MessageBoxImage.Information) != MessageBoxResult.Yes)
-                return;
-
-            UpdateStatus = Language == "zh-CN" ? "正在下载…" : "Downloading…";
+                ? $"发现新版本 v{latest}，正在下载..."
+                : $"New version v{latest} found. Downloading...";
             var progress = new Progress<int>(p =>
                 UpdateStatus = (Language == "zh-CN" ? "正在下载 " : "Downloading ") + p + "%");
 
-            var zipPath = await SelfUpdater.DownloadAsync(release.assetUrl, release.assetName, progress);
+            var zipPath = await SelfUpdater.DownloadAsync(release.AssetUrl, release.AssetName, progress);
 
-            UpdateStatus = Language == "zh-CN" ? "下载完成，即将重启应用…" : "Download complete, restarting…";
+            UpdateStatus = Language == "zh-CN"
+                ? "下载完成，即将重启应用..."
+                : "Download complete, restarting...";
             SelfUpdater.LaunchUpdaterAndExit(zipPath, AppPaths.BaseDir);
         }
         catch (Exception ex)
         {
             UpdateStatus = (Language == "zh-CN" ? "检查更新失败: " : "Update check failed: ") + ex.Message;
+            AppLog.Warn("Update", UpdateStatus);
         }
         finally
         {
@@ -177,34 +162,45 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
-    private static async Task<(string tag, string assetUrl, string assetName)> TryFetchLatestReleaseAsync(
+    private static async Task<(string Tag, string AssetUrl, string AssetName)> FetchLatestReleaseWithFallbackAsync()
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            return await TryFetchLatestReleaseAsync("gitee", cts.Token);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("Update", $"Gitee update check failed, fallback to GitHub: {ex.Message}");
+            return await TryFetchLatestReleaseAsync("github", CancellationToken.None);
+        }
+    }
+
+    private static async Task<(string Tag, string AssetUrl, string AssetName)> TryFetchLatestReleaseAsync(
         string host, CancellationToken ct)
     {
-        string owner, repo, url;
-        if (host == "github")
-        {
-            owner = RepoOwner; repo = RepoName;
-            url = $"https://api.github.com/repos/{owner}/{repo}/releases/latest";
-        }
-        else
-        {
-            owner = GiteeOwner; repo = GiteeRepo;
-            url = $"https://gitee.com/api/v5/repos/{owner}/{repo}/releases/latest";
-        }
+        string url = host == "github"
+            ? $"https://api.github.com/repos/{RepoOwner}/{RepoName}/releases/latest"
+            : $"https://gitee.com/api/v5/repos/{GiteeOwner}/{GiteeRepo}/releases/latest";
 
         var json = await _http.GetStringAsync(url, ct);
         using var doc = JsonDocument.Parse(json);
         var tag = doc.RootElement.GetProperty("tag_name").GetString() ?? "";
         var assets = doc.RootElement.GetProperty("assets");
+
         foreach (var asset in assets.EnumerateArray())
         {
             var name = asset.GetProperty("name").GetString() ?? "";
-            if (name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-            {
-                var downloadUrl = asset.GetProperty("browser_download_url").GetString() ?? "";
+            if (!name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)) continue;
+
+            var downloadUrl = asset.TryGetProperty("browser_download_url", out var browserUrl)
+                ? browserUrl.GetString() ?? ""
+                : asset.TryGetProperty("url", out var urlProp) ? urlProp.GetString() ?? "" : "";
+
+            if (!string.IsNullOrWhiteSpace(downloadUrl))
                 return (tag, downloadUrl, name);
-            }
         }
+
         throw new InvalidOperationException("No .zip asset found in the latest release");
     }
 
@@ -233,7 +229,7 @@ public sealed class SettingsViewModel : ViewModelBase
         {
             _session.RebuildDevices(enabled);
             UpdateStatus = enabled
-                ? "调试模式已开启：不连接真实硬件，指令记录发送并模拟接收。"
+                ? "调试模式已开启：不连接真实硬件，使用模拟设备。"
                 : "调试模式已关闭：后续连接按设备配置执行。";
         }
         catch (Exception ex)

@@ -59,6 +59,7 @@ public sealed class TaskRunner
         Register(new ReadUsignAction());
         Register(new ReadDmmSampleAction());
         Register(new RunPerformanceTestAction());
+        Register(new RunLongTermStabilityTestAction());
         Register(new SaveTestDataAction());
         Register(new CalTestAction());
         return this;

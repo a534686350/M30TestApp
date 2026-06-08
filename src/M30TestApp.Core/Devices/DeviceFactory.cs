@@ -38,7 +38,7 @@ public sealed class DeviceFactory
 
     public IDmm CreateDmm(DeviceProfile p)
         => UseHw(p)
-            ? new HwDmm(p)
+            ? new HwDmm(p, _commands)
             : new SimDmm(p.Model, p.Address, _commands);
 
     public IDac CreateDac(DeviceProfile p)

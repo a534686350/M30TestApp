@@ -37,3 +37,4 @@ publish/
 # Release zip (tracked via GitHub Releases, not in repo)
 *.zip
 publish-self/
+artifacts/
