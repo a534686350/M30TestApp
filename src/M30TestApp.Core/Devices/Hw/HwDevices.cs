@@ -17,6 +17,7 @@ internal sealed class VisaSession : IDisposable
 {
     private readonly string _device;
     private readonly string _address;
+    private readonly object _gate = new();
     private FormattedIO488? _io;
     private ResourceManager? _rm;
 
@@ -28,12 +29,15 @@ internal sealed class VisaSession : IDisposable
 
     public void Open()
     {
-        if (_io is not null) return;
-        _rm = new ResourceManager();
-        var session = (IMessage)_rm.Open(_address, AccessMode.NO_LOCK, 2000, string.Empty);
-        session.Timeout = 10000;
-        _io = new FormattedIO488 { IO = session };
-        DeviceBus.Info(_device, "VISA open " + _address);
+        lock (_gate)
+        {
+            if (_io is not null) return;
+            _rm = new ResourceManager();
+            var session = (IMessage)_rm.Open(_address, AccessMode.NO_LOCK, 2000, string.Empty);
+            session.Timeout = 10000;
+            _io = new FormattedIO488 { IO = session };
+            DeviceBus.Info(_device, "VISA open " + _address);
+        }
     }
 
     public void Write(string command)
@@ -73,6 +77,38 @@ internal sealed class VisaSession : IDisposable
             throw new InvalidOperationException($"{_device} @ {_address} 返回值无法解析为数字：{reply}");
         DeviceBus.Rx(_device, value.ToString("G9", CultureInfo.InvariantCulture));
         return value;
+    }
+
+    public string QueryStringWithTimeout(string command, int timeoutMs)
+    {
+        lock (_gate)
+        {
+            Open();
+            var session = _io!.IO as IMessage;
+            var shouldRestoreTimeout = session is not null;
+            var previousTimeout = shouldRestoreTimeout ? session!.Timeout : 0;
+
+            try
+            {
+                if (shouldRestoreTimeout)
+                    session!.Timeout = timeoutMs;
+
+                DeviceBus.Tx(_device, command);
+                _io!.WriteString(command, true);
+                var reply = (_io!.ReadString() ?? string.Empty).Trim();
+                DeviceBus.Rx(_device, reply);
+                return reply;
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"{_device} @ {_address} query failed: {command}: {ex.Message}", ex);
+            }
+            finally
+            {
+                if (shouldRestoreTimeout)
+                    session!.Timeout = previousTimeout;
+            }
+        }
     }
 
     public void TryClear()
@@ -484,10 +520,14 @@ public sealed class HwDmm : DeviceBase, IDmm
 
     public Task<bool> QueryRelayStateAsync(string channel, CancellationToken ct = default)
     {
-        var reply = _visa.QueryString($"ROUT:OPEN? (@{channel})").Trim();
-        // ROUT:OPEN? 返回 "1" = 通道已断开(阀关), "0" = 通道已闭合(阀开)
-        // 但实测部分型号返回值相反，此处以 "1" = 阀开 为准
-        return Task.FromResult(reply.StartsWith("1"));
+        return Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            var reply = _visa.QueryStringWithTimeout($"ROUT:OPEN? (@{channel})", 1200).Trim();
+            // ROUT:OPEN? 返回 "1" = 通道已断开(阀关), "0" = 通道已闭合(阀开)
+            // 但实测部分型号返回值相反，此处以 "1" = 阀开 为准
+            return reply.StartsWith("1");
+        }, ct);
     }
 
     public Task<double> ReadVoltageAsync(string channel, CancellationToken ct = default)

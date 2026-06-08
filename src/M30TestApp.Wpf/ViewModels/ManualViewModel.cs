@@ -659,24 +659,32 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
     /// <summary>从DMM读取所有阀门通道(101-109)的实际继电器状态，更新 UI。</summary>
     public async Task RefreshValveStatesAsync()
     {
+        var targets = Valves
+            .Select(v => (v.Index, Channel: GetValveChannel(v.Index)))
+            .ToList();
+
         try
         {
-            if (_session.Dmm.State != ConnectionState.Connected)
-                await _session.Dmm.OpenAsync();
-
-            foreach (var valve in Valves)
+            Hist("刷新阀门状态...");
+            var states = await Task.Run(async () =>
             {
-                var channel = GetValveChannel(valve.Index);
-                try
+                var result = new List<(int Index, bool IsOn)>();
+                foreach (var target in targets)
                 {
-                    var isClosed = await _session.Dmm.QueryRelayStateAsync(channel);
-                    valve.SetState(isClosed); // closed = 闭合 = 阀开
+                    var isClosed = await _session.Dmm.QueryRelayStateAsync(target.Channel).ConfigureAwait(false);
+                    result.Add((target.Index, isClosed)); // closed = 闭合 = 阀开
                 }
-                catch { /* 单个通道查询失败不影响其他 */ }
-            }
+                return result;
+            }).ConfigureAwait(true);
+
+            foreach (var state in states)
+                Valves.First(v => v.Index == state.Index).SetState(state.IsOn);
+
+            Hist($"阀门状态刷新完成 ({states.Count})");
         }
         catch (Exception ex)
         {
+            Hist("阀门状态刷新失败：切换设备未连接或地址不通");
             AppLog.Warn("Valve", $"读取阀门状态失败: {ex.Message}");
         }
     }
