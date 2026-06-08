@@ -266,6 +266,9 @@ public sealed class RunSetupViewModel : ViewModelBase
     private bool _useOven = true;
     public bool UseOven { get => _useOven; set => SetField(ref _useOven, value); }
 
+    private bool _usePower = true;
+    public bool UsePower { get => _usePower; set => SetField(ref _usePower, value); }
+
     private bool _useLeakCheck = false;
     public bool UseLeakCheck { get => _useLeakCheck; set => SetField(ref _useLeakCheck, value); }
 
@@ -363,6 +366,8 @@ public sealed class RunSetupViewModel : ViewModelBase
 
         LoadPlanFolders(session.Plan);
         SeedFromCurrentSlots(session.Slots);
+        if (_isLongTermStabilityMode)
+            _usePower = false;
         DetectCheckpoint(session);
         Regenerate();
 
@@ -556,6 +561,7 @@ public sealed class RunSetupViewModel : ViewModelBase
 
         if (bool.TryParse(ini.Get("Slots", "UsePressure", ""), out var up)) _usePressure = up;
         if (bool.TryParse(ini.Get("Slots", "UseOven", ""), out var uo)) _useOven = uo;
+        if (bool.TryParse(ini.Get("Slots", "UsePower", ""), out var uw)) _usePower = uw;
         if (bool.TryParse(ini.Get("Slots", "UseLeakCheck", ""), out var ul)) _useLeakCheck = ul;
         if (bool.TryParse(ini.Get("Slots", "CollectUt", ""), out var cut)) _collectUt = cut;
         if (bool.TryParse(ini.Get("Slots", "CollectUsc", ""), out var cusc)) _collectUsc = cusc;
@@ -688,6 +694,8 @@ public sealed class RunSetupViewModel : ViewModelBase
             ini.Set("Slots", "LastPlanFolder", SelectedPlanFolder);
             ini.Set("Slots", "UsePressure", UsePressure.ToString());
             ini.Set("Slots", "UseOven", UseOven.ToString());
+            if (!_isLongTermStabilityMode)
+                ini.Set("Slots", "UsePower", UsePower.ToString());
             ini.Set("Slots", "UseLeakCheck", UseLeakCheck.ToString());
             ini.Set("Slots", "CollectUt", CollectUt.ToString());
             ini.Set("Slots", "CollectUsc", CollectUsc.ToString());
