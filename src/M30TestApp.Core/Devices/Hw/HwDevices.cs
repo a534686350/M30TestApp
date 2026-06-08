@@ -495,9 +495,13 @@ public sealed class HwDmm : DeviceBase, IDmm
 
     protected override Task<bool> OnOpenAsync(CancellationToken ct)
     {
-        _visa.Open();
-        _visa.QueryString("*IDN?");
-        return Task.FromResult(true);
+        return Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            _visa.Open();
+            _visa.QueryString("*IDN?");
+            return true;
+        }, ct);
     }
 
     protected override Task OnCloseAsync(CancellationToken ct)
@@ -532,30 +536,38 @@ public sealed class HwDmm : DeviceBase, IDmm
 
     public Task<double> ReadVoltageAsync(string channel, CancellationToken ct = default)
     {
-        try
+        return Task.Run(() =>
         {
-            _visa.Write(Render("SetVol", channel, $"CONF:VOLT (@{channel})"));
-            return Task.FromResult(_visa.QueryNumber(Render("ReadValue", channel, "READ?")));
-        }
-        catch (Exception ex)
-        {
-            AppLog.Error("DMM", $"ReadVoltage({channel}) failed: {ex.Message}");
-            return Task.FromResult(double.NaN);
-        }
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+                _visa.Write(Render("SetVol", channel, $"CONF:VOLT (@{channel})"));
+                return _visa.QueryNumber(Render("ReadValue", channel, "READ?"));
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error("DMM", $"ReadVoltage({channel}) failed: {ex.Message}");
+                return double.NaN;
+            }
+        }, ct);
     }
 
     public Task<double> ReadResistanceAsync(string channel, CancellationToken ct = default)
     {
-        try
+        return Task.Run(() =>
         {
-            _visa.Write(Render("SetRes", channel, $"CONF:RES (@{channel})"));
-            return Task.FromResult(_visa.QueryNumber(Render("ReadValue", channel, "READ?")));
-        }
-        catch (Exception ex)
-        {
-            AppLog.Error("DMM", $"ReadResistance({channel}) failed: {ex.Message}");
-            return Task.FromResult(double.NaN);
-        }
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+                _visa.Write(Render("SetRes", channel, $"CONF:RES (@{channel})"));
+                return _visa.QueryNumber(Render("ReadValue", channel, "READ?"));
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error("DMM", $"ReadResistance({channel}) failed: {ex.Message}");
+                return double.NaN;
+            }
+        }, ct);
     }
 
     public override Task<bool> SelfTestAsync(CancellationToken ct = default) => Task.FromResult(State == ConnectionState.Connected);

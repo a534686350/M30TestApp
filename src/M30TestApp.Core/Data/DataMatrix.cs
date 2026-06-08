@@ -50,9 +50,20 @@ public sealed class DataMatrix
         return sb.ToString();
     }
 
+    public static string NormalizeColumnKey(string key)
+    {
+        var sanitized = SanitizeKey(key);
+        return sanitized.EndsWith("DMM_V", StringComparison.OrdinalIgnoreCase)
+            ? sanitized[..^"DMM_V".Length] + "DMM_mV"
+            : sanitized;
+    }
+
     public Cell Set(string slot, string key, double value, CellStatus status = CellStatus.Ok)
     {
-        key = SanitizeKey(key);
+        var sanitizedKey = SanitizeKey(key);
+        key = NormalizeColumnKey(sanitizedKey);
+        if (!key.Equals(sanitizedKey, StringComparison.Ordinal) && !double.IsNaN(value))
+            value *= 1000.0;
         var row = _rows.GetOrAdd(slot, _ => new ConcurrentDictionary<string, Cell>());
         var cell = row.AddOrUpdate(key,
             _ => new Cell { Key = key, Value = value.ToString("G6", CultureInfo.InvariantCulture), Status = status, UpdatedAt = DateTime.Now },
@@ -63,6 +74,7 @@ public sealed class DataMatrix
 
     public Cell? Get(string slot, string key)
     {
+        key = NormalizeColumnKey(key);
         if (_rows.TryGetValue(slot, out var row) && row.TryGetValue(key, out var c))
             return c;
         return null;
@@ -87,7 +99,7 @@ public sealed class DataMatrix
         IReadOnlyDictionary<string, string>? slotSerialMap = null)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var cols = orderedColumns.ToArray();
+        var cols = orderedColumns.Select(NormalizeColumnKey).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         using var sw = new StreamWriter(path, false, Encoding.UTF8);
         var header = slotSerialMap != null ? "slot,SerialNo," : "slot,";
         sw.WriteLine(header + string.Join(",", cols));
@@ -113,7 +125,7 @@ public sealed class DataMatrix
         IReadOnlyDictionary<string, string>? slotSerialMap = null)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var cols = orderedColumns.ToArray();
+        var cols = orderedColumns.Select(NormalizeColumnKey).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         using var fs = new FileStream(path, FileMode.Create, FileAccess.ReadWrite);
         using var zip = new ZipArchive(fs, ZipArchiveMode.Create);
 

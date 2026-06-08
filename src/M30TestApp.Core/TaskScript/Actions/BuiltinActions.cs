@@ -230,6 +230,7 @@ internal static class ReadHelper
     {
         var col = $"{ctx.CurrentTemp}{ctx.CurrentPressure}_{measure}";
         if (!ctx.Columns.Contains(col)) ctx.Columns.Add(col);
+        var dmmSlotDelayMs = dmmRead is null ? 0 : GetDmmSlotDelayMs(ctx);
 
         foreach (var slot in ctx.Slots.Entries)
         {
@@ -245,16 +246,26 @@ internal static class ReadHelper
                 {
                     value = await dmmRead(ctx.Dmm, slot, ct);
                 }
-                ctx.Matrix.Set(slot.Slot, col, value, CellStatus.Ok);
+                var ok = !double.IsNaN(value);
+                ctx.Matrix.Set(slot.Slot, col, value, ok ? CellStatus.Ok : CellStatus.Error);
+                AppLog.Info("Read", $"{slot.Slot} SN={slot.SerialNo} CH={slot.Channel} {col}={value:G6}");
             }
             catch (Exception ex)
             {
                 AppLog.Error("Read", $"{measure} {slot.Slot} failed: {ex.Message}");
                 ctx.Matrix.Set(slot.Slot, col, double.NaN, CellStatus.Error);
             }
+
+            if (dmmSlotDelayMs > 0)
+                await Task.Delay(dmmSlotDelayMs, ct);
         }
         AppLog.Info("Read", $"{measure} @ {col} for {ctx.Slots.Entries.Count} slots");
     }
+
+    private static int GetDmmSlotDelayMs(TaskContext ctx) =>
+        int.TryParse(ctx.Settings.Get("DelaySettings", "DmmSlotDelayMs", "100"), out var ms)
+            ? Math.Max(0, ms)
+            : 100;
 }
 public sealed class ReadRAction : IAction
 {
@@ -1103,6 +1114,7 @@ public sealed class RunLongTermStabilityTestAction : IAction
     {
         var col = $"{tp.Name}{pp.Name}_DMM_mV";
         if (!ctx.Columns.Contains(col)) ctx.Columns.Add(col);
+        var slotDelayMs = GetDmmSlotDelayMs(ctx);
 
         if (ctx.Dmm is null)
         {
@@ -1112,7 +1124,7 @@ public sealed class RunLongTermStabilityTestAction : IAction
             return;
         }
 
-        AppLog.Info("Read", $"长期稳定性：开始采集 {tp.Name}-{pp.Name} DAQ973A 电压 mV（全部工位）");
+        AppLog.Info("Read", $"长期稳定性：开始采集 {tp.Name}-{pp.Name} DAQ973A 电压 mV（全部工位，工位间隔 {slotDelayMs}ms）");
         foreach (var slot in ctx.Slots.Entries)
         {
             ct.ThrowIfCancellationRequested();
@@ -1121,15 +1133,23 @@ public sealed class RunLongTermStabilityTestAction : IAction
             {
                 var value = await ctx.Dmm.ReadVoltageAsync(slot.Channel, ct) * 1000.0;
                 ctx.Matrix.Set(slot.Slot, col, value, double.IsNaN(value) ? CellStatus.Error : CellStatus.Ok);
+                AppLog.Info("Read", $"长期稳定性：{tp.Name}-{pp.Name} {slot.Slot} SN={slot.SerialNo} CH={slot.Channel} = {value:G6} mV");
             }
             catch (Exception ex)
             {
                 AppLog.Error("Read", $"长期稳定性电压 {slot.Slot} channel={slot.Channel} failed: {ex.Message}");
                 ctx.Matrix.Set(slot.Slot, col, double.NaN, CellStatus.Error);
             }
+            if (slotDelayMs > 0)
+                await Task.Delay(slotDelayMs, ct);
         }
         AppLog.Info("Read", $"长期稳定性：采集完成 {tp.Name}-{pp.Name} DAQ973A 电压 mV");
     }
+
+    private static int GetDmmSlotDelayMs(TaskContext ctx) =>
+        int.TryParse(ctx.Settings.Get("DelaySettings", "DmmSlotDelayMs", "100"), out var ms)
+            ? Math.Max(0, ms)
+            : 100;
 }
 
 // ─── Save:* / Cal:* ─────────────────────────────────────────────────────────

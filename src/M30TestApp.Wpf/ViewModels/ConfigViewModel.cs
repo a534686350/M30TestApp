@@ -347,7 +347,7 @@ public sealed class ConfigViewModel : ViewModelBase
         get
         {
             var v = Assembly.GetEntryAssembly()?.GetName().Version;
-            return v is null ? "1.2.10" : $"{v.Major}.{v.Minor}.{v.Build}";
+            return v is null ? "1.2.11" : $"{v.Major}.{v.Minor}.{v.Build}";
         }
     }
     public string Changelog { get; }

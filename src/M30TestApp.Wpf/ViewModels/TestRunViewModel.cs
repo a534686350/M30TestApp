@@ -59,7 +59,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     public string PlanName => _session.Plan.Name;
     public string SensorType => _session.Plan.SensorType;
     public string RunModeTitle => _isLongTermStabilityMode ? "长期稳定性测试" : "自动测试";
-    public string MatrixTitle => _isLongTermStabilityMode ? "DAQ973A 电压数据矩阵" : "采集数据矩阵";
+    public string MatrixTitle => _isLongTermStabilityMode ? "DAQ973A 电压数据矩阵 (mV)" : "采集数据矩阵";
     public int TotalSlots => Rows.Count;
 
     private string _currentT = "—";
