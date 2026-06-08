@@ -277,12 +277,14 @@ public sealed class ConfigViewModel : ViewModelBase
         };
         set
         {
-            Plan.DefaultPressureType = value switch
-            {
-                "绝压" => Core.Config.PressureType.Absolute,
-                "差压" => Core.Config.PressureType.Differential,
-                _      => Core.Config.PressureType.Gauge,
-            };
+            var previous = Plan.DefaultPressureType;
+            var next = ParsePressureTypeDisplay(value, Core.Config.PressureType.Gauge);
+            if (previous == next) return;
+
+            Plan.DefaultPressureType = next;
+            foreach (var pp in PressurePoints.Where(p => p.PressureType == previous))
+                pp.PressureType = next;
+            RefreshPressurePointRows();
             OnPropertyChanged();
         }
     }
@@ -345,7 +347,7 @@ public sealed class ConfigViewModel : ViewModelBase
         get
         {
             var v = Assembly.GetEntryAssembly()?.GetName().Version;
-            return v is null ? "1.2.4" : $"{v.Major}.{v.Minor}.{v.Build}";
+            return v is null ? "1.2.5" : $"{v.Major}.{v.Minor}.{v.Build}";
         }
     }
     public string Changelog { get; }
@@ -566,14 +568,24 @@ public sealed class ConfigViewModel : ViewModelBase
 
     private void BulkEditPressurePoints()
     {
-        var text = string.Join(Environment.NewLine, PressurePoints.Select(p => $"{p.Name},{p.Value.ToString(CultureInfo.InvariantCulture)}"));
-        var hint = "压力录入说明：按“范围 压力值”录入，可一行写多段，也可逐行写。例：1-5 0kPa   6-40 100kPa   41-45 0kPa。也兼容 P1,0 和 20@100; 1-3=0。录入后仍可在表格中单独修改。";
-        var sample = string.IsNullOrWhiteSpace(text) ? "1-5 0kPa\r\n6-40 100kPa\r\n41-45 0kPa" : text;
-        var dlg = new Views.BulkPointEditorWindow("批量录入压力点", sample, hint) { Owner = Application.Current.MainWindow };
+        var rows = PressurePoints
+            .Select((p, index) => new Views.PointBatchRuleInput(
+                PointRangeForName(p.Name, "P", index + 1),
+                p.Value.ToString(CultureInfo.InvariantCulture),
+                PressureTypeToDisplay(p.PressureType)))
+            .ToList();
+        if (rows.Count == 0)
+            rows.Add(new Views.PointBatchRuleInput("1-3", "0", PlanDefaultPressureTypeDisplay));
+
+        var hint = "压力录入：每行只填 3 格。范围/序号示例 1-5、6-40、41-45；压力值示例 0、100；压力类型可填表压、绝压、差压，留空则使用默认压力类型。录入后仍可在表格中单独修改。";
+        var dlg = new Views.PointBatchEditorWindow("批量录入压力点", "压力值", "压力类型", hint, rows)
+        {
+            Owner = Application.Current.MainWindow
+        };
         if (dlg.ShowDialog() != true) return;
         try
         {
-            var points = ParsePressurePoints(dlg.Text).ToList();
+            var points = BuildPressurePoints(dlg.ResultRules, Plan.DefaultPressureType).ToList();
             PressurePoints.Clear();
             foreach (var p in points) PressurePoints.Add(p);
             AppLog.Info("Config", $"批量录入压力点 {points.Count} 个");
@@ -586,17 +598,24 @@ public sealed class ConfigViewModel : ViewModelBase
 
     private void BulkEditTempPoints()
     {
-        var text = string.Join(Environment.NewLine, TempPoints.Select(t =>
-            string.IsNullOrWhiteSpace(t.SoakMinutesText)
-                ? $"{t.Name},{t.Celsius.ToString(CultureInfo.InvariantCulture)}"
-                : $"{t.Name},{t.Celsius.ToString(CultureInfo.InvariantCulture)},{t.SoakMinutesText}"));
-        var hint = "温度录入说明：按“范围 温度值”录入，可一行写多段，也可逐行写。例：1-5 25℃   6-40 85℃   41-45 25℃。保温时间可写在温度后面，如 1-5 25℃,30。录入后仍可在表格中单独修改。";
-        var sample = string.IsNullOrWhiteSpace(text) ? "1-5 25℃\r\n6-40 85℃\r\n41-45 25℃" : text;
-        var dlg = new Views.BulkPointEditorWindow("批量录入温度点", sample, hint) { Owner = Application.Current.MainWindow };
+        var rows = TempPoints
+            .Select((t, index) => new Views.PointBatchRuleInput(
+                PointRangeForName(t.Name, "T", index + 1),
+                t.Celsius.ToString(CultureInfo.InvariantCulture),
+                t.SoakMinutesText))
+            .ToList();
+        if (rows.Count == 0)
+            rows.Add(new Views.PointBatchRuleInput("1-3", "25", "30"));
+
+        var hint = "温度录入：每行只填 3 格。范围/序号示例 1-5、6-40、41-45；温度示例 25、85；保温分钟示例 30，可留空。录入后仍可在表格中单独修改。";
+        var dlg = new Views.PointBatchEditorWindow("批量录入温度点", "温度 (°C)", "保温分钟", hint, rows)
+        {
+            Owner = Application.Current.MainWindow
+        };
         if (dlg.ShowDialog() != true) return;
         try
         {
-            var points = ParseTempPoints(dlg.Text).ToList();
+            var points = BuildTempPoints(dlg.ResultRules).ToList();
             TempPoints.Clear();
             foreach (var p in points) TempPoints.Add(p);
             AppLog.Info("Config", $"批量录入温度点 {points.Count} 个");
@@ -605,6 +624,137 @@ public sealed class ConfigViewModel : ViewModelBase
         {
             MessageBox.Show(ex.Message, "温度点录入", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+    private static IEnumerable<PressurePoint> BuildPressurePoints(
+        IEnumerable<Views.PointBatchRuleInput> rows,
+        Core.Config.PressureType defaultPressureType)
+    {
+        return ParseStructuredPointRows(rows, "P")
+            .Select(p => new PressurePoint(
+                $"P{p.Index}",
+                p.Value,
+                ParsePressureTypeDisplay(p.Extra, defaultPressureType)))
+            .ToList();
+    }
+
+    private static IEnumerable<TempPoint> BuildTempPoints(IEnumerable<Views.PointBatchRuleInput> rows)
+    {
+        return ParseStructuredPointRows(rows, "T")
+            .Select(p => new TempPoint($"T{p.Index}", p.Value, ParseSoakMinutes(p.Extra, p.Source)))
+            .ToList();
+    }
+
+    private static IReadOnlyList<(int Index, float Value, string Extra, string Source)> ParseStructuredPointRows(
+        IEnumerable<Views.PointBatchRuleInput> rows,
+        string prefix)
+    {
+        var inputs = rows
+            .Select(r => new Views.PointBatchRuleInput(r.Range.Trim(), r.Value.Trim(), r.Extra.Trim()))
+            .Where(r => !string.IsNullOrWhiteSpace(r.Range) ||
+                        !string.IsNullOrWhiteSpace(r.Value) ||
+                        !string.IsNullOrWhiteSpace(r.Extra))
+            .ToList();
+        if (inputs.Count == 0)
+            throw new FormatException("请至少录入一行点位。");
+
+        var singleInput = inputs.Count == 1;
+        var values = new SortedDictionary<int, (float Value, string Extra, string Source)>();
+        foreach (var row in inputs)
+        {
+            var source = $"{row.Range} / {row.Value} / {row.Extra}".Trim();
+            if (string.IsNullOrWhiteSpace(row.Range))
+                throw new FormatException($"范围/序号不能为空：{source}");
+            if (string.IsNullOrWhiteSpace(row.Value))
+                throw new FormatException($"数值不能为空：{source}");
+
+            var value = ParseFloat(row.Value, source);
+            var indexes = ParseStructuredPointIndexes(row.Range, source, singleInput).ToList();
+            if (indexes.Count == 0)
+                throw new FormatException($"无法识别点位范围：{source}");
+
+            foreach (var index in indexes)
+                values[index] = (value, row.Extra, source);
+        }
+
+        return values
+            .Select(kv => (kv.Key, kv.Value.Value, kv.Value.Extra, kv.Value.Source))
+            .ToList();
+    }
+
+    private static IEnumerable<int> ParseStructuredPointIndexes(string text, string line, bool singleInput)
+    {
+        var normalized = NormalizePointBatchLine(text);
+        if (singleInput &&
+            Regex.IsMatch(normalized, @"^\d+$") &&
+            int.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out var count))
+        {
+            if (count <= 0)
+                throw new FormatException($"点位数量必须大于 0：{line}");
+            return Enumerable.Range(1, count);
+        }
+
+        return ParsePointIndexes(normalized, line).ToList();
+    }
+
+    private static int? ParseSoakMinutes(string text, string line)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        var normalized = NormalizePointBatchLine(text);
+        if (int.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out var minutes))
+            return minutes;
+        throw new FormatException($"保温时间请输入整数分钟：{line}");
+    }
+
+    private static string PointRangeForName(string name, string prefix, int fallback)
+    {
+        var match = Regex.Match(name ?? "", $@"^{Regex.Escape(prefix)}(?<index>\d+)$", RegexOptions.IgnoreCase);
+        return match.Success
+            ? match.Groups["index"].Value
+            : fallback.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private void RefreshPressurePointRows()
+    {
+        if (PressurePoints.Count == 0) return;
+        var rows = PressurePoints.ToList();
+        PressurePoints.Clear();
+        foreach (var row in rows) PressurePoints.Add(row);
+    }
+
+    private static Core.Config.PressureType ParsePressureTypeDisplay(
+        string? text,
+        Core.Config.PressureType fallback)
+    {
+        var normalized = NormalizeComboText(text);
+        if (string.IsNullOrWhiteSpace(normalized)) return fallback;
+        if (normalized.Contains("绝压", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("Absolute", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Equals("ABS", StringComparison.OrdinalIgnoreCase))
+            return Core.Config.PressureType.Absolute;
+        if (normalized.Contains("差压", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("Differential", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Equals("DIFF", StringComparison.OrdinalIgnoreCase))
+            return Core.Config.PressureType.Differential;
+        if (normalized.Contains("表压", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("Gauge", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Equals("GAUG", StringComparison.OrdinalIgnoreCase))
+            return Core.Config.PressureType.Gauge;
+        return fallback;
+    }
+
+    private static string PressureTypeToDisplay(Core.Config.PressureType pressureType) => pressureType switch
+    {
+        Core.Config.PressureType.Absolute     => "绝压",
+        Core.Config.PressureType.Differential => "差压",
+        _                                     => "表压",
+    };
+
+    private static string NormalizeComboText(string? text)
+    {
+        var normalized = (text ?? "").Trim();
+        var colon = normalized.LastIndexOf(':');
+        return colon >= 0 ? normalized[(colon + 1)..].Trim() : normalized;
     }
 
     private static IEnumerable<PressurePoint> ParsePressurePoints(string text)

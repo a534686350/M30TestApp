@@ -122,7 +122,9 @@
                                 </Grid>
 
                                 <TextBlock Text="默认压力类型" Style="{StaticResource FieldLabel}" Margin="0,8,0,4"/>
-                                <ComboBox SelectedItem="{Binding PlanDefaultPressureTypeDisplay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FontSize="12">
+                                <ComboBox SelectedValue="{Binding PlanDefaultPressureTypeDisplay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          SelectedValuePath="Content"
+                                          FontSize="12">
                                     <ComboBoxItem Content="表压"/>
                                     <ComboBoxItem Content="绝压"/>
                                     <ComboBoxItem Content="差压"/>
@@ -183,7 +185,8 @@
                                             </DataGridTemplateColumn.CellTemplate>
                                             <DataGridTemplateColumn.CellEditingTemplate>
                                                 <DataTemplate>
-                                                    <ComboBox SelectedItem="{Binding PressureTypeDisplay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                    <ComboBox SelectedValue="{Binding PressureTypeDisplay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              SelectedValuePath="Content"
                                                               FontSize="12">
                                                         <ComboBoxItem Content="表压"/>
                                                         <ComboBoxItem Content="绝压"/>

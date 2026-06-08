@@ -598,7 +598,8 @@ public sealed class RunSetupViewModel : ViewModelBase
     public void Regenerate()
     {
         var preserved = SlotLayoutHelper.CollectSerialMap(PreviewSlots);
-        SlotLayoutHelper.MergeSerialMaps(preserved, _configSerials);
+        if (!UsesFixedDmmSlotMap || !AutoNumber)
+            SlotLayoutHelper.MergeSerialMaps(preserved, _configSerials);
 
         NormalizeFixedDmmLayout();
 
