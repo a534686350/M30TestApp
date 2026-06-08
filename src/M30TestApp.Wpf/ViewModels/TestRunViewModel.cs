@@ -356,7 +356,6 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
 
     private async Task ShutdownGracefullyAsync(bool saveData)
     {
-        var noCt = CancellationToken.None;
         if (saveData)
         {
             try
@@ -372,7 +371,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
             if (_session.Context.Oven is not null)
             {
                 AppLog.Info("Run", "关闭烘箱…");
-                await _session.Context.Oven.StopAsync(noCt);
+                await RunShutdownStepAsync("关闭烘箱", ct => _session.Context.Oven.StopAsync(ct));
             }
         }
         catch (Exception ex) { AppLog.Error("Run", $"关闭烘箱失败: {ex.Message}"); }
@@ -382,7 +381,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
             if (_session.Context.Pressure is not null)
             {
                 AppLog.Info("Run", "泄压…");
-                await _session.Context.Pressure.VentAsync(noCt);
+                await RunShutdownStepAsync("泄压", ct => _session.Context.Pressure.VentAsync(ct));
             }
         }
         catch (Exception ex) { AppLog.Error("Run", $"泄压失败: {ex.Message}"); }
@@ -392,10 +391,25 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
             if (_session.Context.Power is not null)
             {
                 AppLog.Info("Run", "关闭电源…");
-                await _session.Context.Power.OutputOffAsync(noCt);
+                await RunShutdownStepAsync("关闭电源", ct => _session.Context.Power.OutputOffAsync(ct));
             }
         }
         catch (Exception ex) { AppLog.Error("Run", $"关闭电源失败: {ex.Message}"); }
+    }
+
+    private static async Task RunShutdownStepAsync(string name, Func<CancellationToken, Task> action)
+    {
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var task = Task.Run(async () => await action(timeoutCts.Token).ConfigureAwait(false));
+        var completed = await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(false);
+        if (completed != task)
+        {
+            timeoutCts.Cancel();
+            AppLog.Warn("Run", $"{name}超时，已跳过");
+            return;
+        }
+
+        await task.ConfigureAwait(false);
     }
 
     private int GetRunnerMaxConsecutiveErrors()
@@ -467,6 +481,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
 
         var savedPressure = _session.Context.Pressure;
         var savedOven = _session.Context.Oven;
+        var savedPower = _session.Context.Power;
         var savedSkipLeak = _session.Context.SkipLeakCheck;
         var savedSkipUt = _session.Context.SkipUt;
         var savedSkipUsc = _session.Context.SkipUsc;
@@ -489,6 +504,11 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         {
             _session.Context.Oven = null;
             AppLog.Info("Run", "已跳过烘箱");
+        }
+        if (!setupVm.UsePower)
+        {
+            _session.Context.Power = null;
+            AppLog.Info("Run", "已跳过电源");
         }
         if (!setupVm.UseLeakCheck)
         {
@@ -562,6 +582,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         {
             _session.Context.Pressure = savedPressure;
             _session.Context.Oven = savedOven;
+            _session.Context.Power = savedPower;
             _session.Context.SkipLeakCheck = savedSkipLeak;
             _session.Context.SkipUt = savedSkipUt;
             _session.Context.SkipUsc = savedSkipUsc;

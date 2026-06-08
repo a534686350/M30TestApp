@@ -79,6 +79,7 @@
                                     <StackPanel Orientation="Horizontal">
                                         <CheckBox Content="压力控制器" IsChecked="{Binding UsePressure}" Margin="0,0,10,0"/>
                                         <CheckBox Content="烘箱" IsChecked="{Binding UseOven}" Margin="0,0,10,0"/>
+                                        <CheckBox Content="电源" IsChecked="{Binding UsePower}" Margin="0,0,10,0"/>
                                         <CheckBox Content="探漏" IsChecked="{Binding UseLeakCheck}"/>
                                     </StackPanel>
                                     <TextBlock Text="采集项启用" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,8,0,4"
