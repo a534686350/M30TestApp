@@ -380,7 +380,19 @@
             <!-- 阀门控制 + 通道 + 烘箱温度 (中) -->
             <Border Style="{StaticResource Card}" Grid.Column="1" Margin="0,0,8,0">
                 <StackPanel>
-                    <TextBlock Text="阀门控制" Style="{StaticResource GroupTitle}"/>
+                    <DockPanel Margin="0,0,0,8">
+                        <Button DockPanel.Dock="Right"
+                                Content="刷新状态"
+                                Style="{StaticResource MutedActionButton}"
+                                Command="{Binding RefreshValveStatesCommand}"
+                                Padding="8,3"
+                                MinWidth="68"
+                                Margin="0"
+                                HorizontalAlignment="Right"/>
+                        <TextBlock Text="阀门控制"
+                                   Style="{StaticResource GroupTitle}"
+                                   Margin="0,0,8,0"/>
+                    </DockPanel>
                     <ItemsControl ItemsSource="{Binding Valves}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>

@@ -295,6 +295,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
 
     public AsyncRelayCommand SwitchVoltageCommand { get; }
     public AsyncRelayCommand SwitchUtPowerCommand { get; }
+    public AsyncRelayCommand RefreshValveStatesCommand { get; }
 
     public AsyncRelayCommand ReadDriveVCommand { get; }
     public AsyncRelayCommand ReadDriveICommand { get; }
@@ -328,9 +329,6 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         Valves.Add(new ValveVm(this, 0));
         for (int i = 1; i <= 8; i++)
             Valves.Add(new ValveVm(this, i));
-
-        // 异步读取继电器实际状态来刷新阀门 UI
-        _ = RefreshValveStatesAsync();
 
         RefreshComPortsCommand = new RelayCommand(_ => RefreshComPorts());
         RefreshComPorts();
@@ -522,6 +520,8 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
             OnPropertyChanged(nameof(UtPowerText));
             Hist($"切换 UT 电源 → {(closeSelected ? "关闭" : "默认开启")} (采集卡{CardAddr}={channel}，其余板卡默认开启)");
         });
+
+        RefreshValveStatesCommand = Wrap("刷新阀门状态", RefreshValveStatesAsync);
 
         ReadDriveVCommand = Wrap("读驱动电压", async () =>
             await ReadDacValueAsync(2, "USource", v => ReadDriveV = $"{v:F7}", "V"));
