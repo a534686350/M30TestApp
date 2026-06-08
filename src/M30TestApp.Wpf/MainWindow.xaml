@@ -66,7 +66,7 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <TextBlock Grid.Column="2" Text="{Binding TestRun.Status}" VerticalAlignment="Center"
+                <TextBlock Grid.Column="2" Text="{Binding CurrentRunStatus}" VerticalAlignment="Center"
                            Margin="0,0,20,0" HorizontalAlignment="Right"
                            Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold"/>
             </Grid>
@@ -136,7 +136,7 @@
             <DockPanel>
                 <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Common.Ready}" Margin="20,0"
                            VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" FontSize="11"/>
-                <TextBlock DockPanel.Dock="Right" Text="{Binding TestRun.CurrentStep}"
+                <TextBlock DockPanel.Dock="Right" Text="{Binding CurrentRunStep}"
                            VerticalAlignment="Center" Margin="20,0"
                            Foreground="{DynamicResource MutedBrush}" FontSize="11"
                            HorizontalAlignment="Right"/>

@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
@@ -18,6 +19,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public ObservableCollection<DeviceStatusVm> Devices { get; } = new();
 
     public TestRunViewModel TestRun { get; }
+    public TestRunViewModel LongTermStability { get; }
     public ManualViewModel Manual { get; }
     public QuickTestViewModel QuickTest { get; }
     public ConfigViewModel Config { get; }
@@ -25,7 +27,19 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public SettingsViewModel Settings { get; }
 
     private object _currentView;
-    public object CurrentView { get => _currentView; set => SetField(ref _currentView, value); }
+    public object CurrentView
+    {
+        get => _currentView;
+        set
+        {
+            if (!SetField(ref _currentView, value)) return;
+            OnPropertyChanged(nameof(CurrentRunStatus));
+            OnPropertyChanged(nameof(CurrentRunStep));
+        }
+    }
+
+    public string CurrentRunStatus => CurrentView is TestRunViewModel run ? run.Status : TestRun.Status;
+    public string CurrentRunStep => CurrentView is TestRunViewModel run ? run.CurrentStep : TestRun.CurrentStep;
 
     public RelayCommand ShowTestRunCommand  { get; }
     public RelayCommand ShowLongTermStabilityCommand { get; }
@@ -55,6 +69,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         Devices.Add(new DeviceStatusVm("通道板", session.Board));
 
         TestRun = new TestRunViewModel(session);
+        LongTermStability = new TestRunViewModel(session, isLongTermStabilityMode: true);
         Manual = new ManualViewModel(session, ovenStatus, dacStatus);
         QuickTest = new QuickTestViewModel(session);
         Config = new ConfigViewModel(session);
@@ -63,8 +78,11 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
         _currentView = TestRun;
 
-        ShowTestRunCommand  = new RelayCommand(_ => { TestRun.ActivateAutoTest(); CurrentView = TestRun; });
-        ShowLongTermStabilityCommand = new RelayCommand(_ => { TestRun.ActivateLongTermStabilityTest(); CurrentView = TestRun; });
+        TestRun.PropertyChanged += OnRunPagePropertyChanged;
+        LongTermStability.PropertyChanged += OnRunPagePropertyChanged;
+
+        ShowTestRunCommand  = new RelayCommand(_ => CurrentView = TestRun);
+        ShowLongTermStabilityCommand = new RelayCommand(_ => CurrentView = LongTermStability);
         ShowManualCommand   = new RelayCommand(_ => CurrentView = Manual);
         ShowQuickTestCommand = new RelayCommand(_ => CurrentView = QuickTest);
         ShowConfigCommand   = new RelayCommand(_ => CurrentView = Config);
@@ -112,6 +130,15 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             Devices[4].SetDevice(Session.Power);
             Devices[5].SetDevice(Session.Board);
         }));
+    }
+
+    private void OnRunPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender != CurrentView) return;
+        if (e.PropertyName == nameof(TestRunViewModel.Status))
+            OnPropertyChanged(nameof(CurrentRunStatus));
+        if (e.PropertyName == nameof(TestRunViewModel.CurrentStep))
+            OnPropertyChanged(nameof(CurrentRunStep));
     }
 
     private void OpenSettingsWithPassword()
@@ -207,7 +234,10 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     {
         Session.Reconfigured -= OnSessionReconfigured;
         Session.DevicesRebuilt -= OnSessionDevicesRebuilt;
+        TestRun.PropertyChanged -= OnRunPagePropertyChanged;
+        LongTermStability.PropertyChanged -= OnRunPagePropertyChanged;
         TestRun.Dispose();
+        LongTermStability.Dispose();
         Manual.Dispose();
         QuickTest.Dispose();
         Log.Dispose();

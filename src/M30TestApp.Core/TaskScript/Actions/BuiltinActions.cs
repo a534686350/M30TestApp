@@ -789,8 +789,14 @@ public sealed class RunPerformanceTestAction : IAction
     // ── 设置压力并等待稳定 ───────────────────────────────────────────────
     internal static async Task SetAndWaitPressureAsync(TaskContext ctx, PressurePoint pp, CancellationToken ct)
     {
+        if (ctx.Pressure is null)
+        {
+            AppLog.Info("Run", $"跳过压力设置：压力控制器未启用（{pp.Name}={pp.Value}{ctx.Plan.PressureUnit}）");
+            return;
+        }
+
         // 自动切换压力类型（绝压/表压/差压）
-        await ctx.Pressure!.SetPressureTypeAsync(pp.PressureType, ct);
+        await ctx.Pressure.SetPressureTypeAsync(pp.PressureType, ct);
         AppLog.Info("Run", $"压力类型切换为 {pp.PressureType} ({pp.PressureTypeDisplay})");
 
         await ctx.Pressure.SetPressureAsync(pp.Value, ctx.Plan.PressureUnit, ctx.Plan.Precision, ct);
@@ -815,6 +821,12 @@ public sealed class RunPerformanceTestAction : IAction
     /// <summary>压力保持等待，带倒计时日志。</summary>
     internal static async Task PressureHoldAsync(TaskContext ctx, PressurePoint pp, CancellationToken ct)
     {
+        if (ctx.Pressure is null)
+        {
+            AppLog.Info("Run", $"跳过保压：压力控制器未启用（{pp.Name}={pp.Value}{ctx.Plan.PressureUnit}）");
+            return;
+        }
+
         var holdMs = GetDelayMs(ctx, "PressureAfterMs", 60000);
         if (holdMs <= 0) return;
         var holdSec = holdMs / 1000;

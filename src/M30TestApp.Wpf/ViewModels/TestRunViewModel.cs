@@ -16,7 +16,9 @@ namespace M30TestApp.Wpf.ViewModels;
 
 public sealed class TestRunViewModel : ViewModelBase, IDisposable
 {
+    private static TestRunViewModel? s_activeRunPage;
     private readonly TestSession _session;
+    private readonly bool _isLongTermStabilityMode;
     private CancellationTokenSource? _cts;
     private TaskCompletionSource? _pauseTcs;
     private bool _isPaused;
@@ -32,7 +34,6 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     private readonly Dictionary<string, CellStatus> _rowStatusBySlot = new(StringComparer.OrdinalIgnoreCase);
     private bool _logFlushPending;
     private readonly DispatcherTimer _timer;
-    private bool _isLongTermStabilityMode;
 
     public ObservableCollection<MatrixRowVm> Rows { get; } = new();
     public ObservableCollection<string> Columns { get; } = new();
@@ -87,9 +88,10 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
 
     public string PauseButtonText => IsPaused ? "继续" : "暂停";
 
-    public TestRunViewModel(TestSession session)
+    public TestRunViewModel(TestSession session, bool isLongTermStabilityMode = false)
     {
         _session = session;
+        _isLongTermStabilityMode = isLongTermStabilityMode;
 
         foreach (var slot in session.Slots.Entries)
             Rows.Add(new MatrixRowVm(slot.Slot, slot.SerialNo));
@@ -100,7 +102,10 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
 
         AppLog.Logged += OnAppLogLogged;
 
-        RunCommand = new AsyncRelayCommand(RunAsync, () => _cts is null) { Source = "测试" };
+        RunCommand = new AsyncRelayCommand(RunAsync, () => _cts is null)
+        {
+            Source = _isLongTermStabilityMode ? "长期稳定性测试" : "自动测试"
+        };
         PauseCommand = new RelayCommand(_ => TogglePause(), _ => _cts is not null);
         CancelCommand = new RelayCommand(_ => _cts?.Cancel(), _ => _cts is not null);
         ClearLogCommand = new RelayCommand(_ => ClearLog());
@@ -120,24 +125,19 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         _timer.Start();
     }
 
-    public void ActivateAutoTest()
-    {
-        _isLongTermStabilityMode = false;
-        OnPropertyChanged(nameof(RunModeTitle));
-        OnPropertyChanged(nameof(MatrixTitle));
-    }
+    private bool IsActiveRunPage => ReferenceEquals(s_activeRunPage, this);
 
-    public void ActivateLongTermStabilityTest()
-    {
-        _isLongTermStabilityMode = true;
-        OnPropertyChanged(nameof(RunModeTitle));
-        OnPropertyChanged(nameof(MatrixTitle));
-    }
+    private void ClaimRunPage() => s_activeRunPage = this;
 
-    private void OnAppLogLogged(object? sender, LogEvent e) => QueueLogLine(e.ToString());
+    private void OnAppLogLogged(object? sender, LogEvent e)
+    {
+        if (!IsActiveRunPage) return;
+        QueueLogLine(e.ToString());
+    }
 
     private void OnProgress(object? sender, Core.TaskScript.TaskProgress e)
     {
+        if (!IsActiveRunPage) return;
         Application.Current.Dispatcher.BeginInvoke(new Action(() =>
         {
             CurrentStep = $"[{e.Index + 1}/{e.Total}] {e.Command}";
@@ -153,6 +153,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
 
     private void OnCellUpdated(object? sender, CellUpdate update)
     {
+        if (!IsActiveRunPage) return;
         Application.Current.Dispatcher.BeginInvoke(new Action(() =>
         {
             EnsureRowMap();
@@ -256,6 +257,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     /// </summary>
     private void OnReconfigured(object? sender, EventArgs e)
     {
+        if (!IsActiveRunPage) return;
         Application.Current.Dispatcher.BeginInvoke(new Action(() =>
         {
             Rows.Clear();
@@ -434,6 +436,8 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
 
     private async Task RunAsync()
     {
+        ClaimRunPage();
+
         // 先弹出"选择运行方案 + 工位"对话框；取消则直接放弃本次运行。
         var resumePrompt = PromptResumeCheckpoint();
         if (resumePrompt.Cancel)
