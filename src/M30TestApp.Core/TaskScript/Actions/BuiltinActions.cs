@@ -314,9 +314,9 @@ public sealed class ReadDmmSampleAction : IAction
 {
     public string Key => "Read:DMMSample";
     public Task ExecuteAsync(TaskContext ctx, TaskCommand cmd, CancellationToken ct) =>
-        ReadHelper.ReadAndStoreAsync(ctx, "DMM",
+        ReadHelper.ReadAndStoreAsync(ctx, "DMM_mV",
             null!,
-            async (dmm, slot, c) => await dmm.ReadVoltageAsync(slot.Channel, c), ct);
+            async (dmm, slot, c) => await dmm.ReadVoltageAsync(slot.Channel, c) * 1000.0, ct);
 }
 
 public sealed class RunPerformanceTestAction : IAction
@@ -1101,7 +1101,7 @@ public sealed class RunLongTermStabilityTestAction : IAction
 
     private static async Task ReadDmmVoltageForAllSlotsAsync(TaskContext ctx, TempPoint tp, PressurePoint pp, CancellationToken ct)
     {
-        var col = $"{tp.Name}{pp.Name}_DMM_V";
+        var col = $"{tp.Name}{pp.Name}_DMM_mV";
         if (!ctx.Columns.Contains(col)) ctx.Columns.Add(col);
 
         if (ctx.Dmm is null)
@@ -1112,14 +1112,14 @@ public sealed class RunLongTermStabilityTestAction : IAction
             return;
         }
 
-        AppLog.Info("Read", $"长期稳定性：开始采集 {tp.Name}-{pp.Name} DAQ973A 电压（全部工位）");
+        AppLog.Info("Read", $"长期稳定性：开始采集 {tp.Name}-{pp.Name} DAQ973A 电压 mV（全部工位）");
         foreach (var slot in ctx.Slots.Entries)
         {
             ct.ThrowIfCancellationRequested();
             await ctx.WaitIfPausedAsync(ct);
             try
             {
-                var value = await ctx.Dmm.ReadVoltageAsync(slot.Channel, ct);
+                var value = await ctx.Dmm.ReadVoltageAsync(slot.Channel, ct) * 1000.0;
                 ctx.Matrix.Set(slot.Slot, col, value, double.IsNaN(value) ? CellStatus.Error : CellStatus.Ok);
             }
             catch (Exception ex)
@@ -1128,7 +1128,7 @@ public sealed class RunLongTermStabilityTestAction : IAction
                 ctx.Matrix.Set(slot.Slot, col, double.NaN, CellStatus.Error);
             }
         }
-        AppLog.Info("Read", $"长期稳定性：采集完成 {tp.Name}-{pp.Name} DAQ973A 电压");
+        AppLog.Info("Read", $"长期稳定性：采集完成 {tp.Name}-{pp.Name} DAQ973A 电压 mV");
     }
 }
 

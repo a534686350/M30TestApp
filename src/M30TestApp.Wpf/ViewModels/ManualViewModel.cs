@@ -210,7 +210,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
     public ObservableCollection<string> SlotNames { get; } = new();
     public ObservableCollection<string> MeasureKinds { get; } = new()
     {
-        "Usig", "UT", "Usource", "Isource", "DMM_V", "DMM_R"
+        "Usig", "UT", "Usource", "Isource", "DMM_mV", "DMM_R"
     };
 
     private string _selectedSlot = "1";

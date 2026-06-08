@@ -347,7 +347,7 @@ public sealed class ConfigViewModel : ViewModelBase
         get
         {
             var v = Assembly.GetEntryAssembly()?.GetName().Version;
-            return v is null ? "1.2.9" : $"{v.Major}.{v.Minor}.{v.Build}";
+            return v is null ? "1.2.10" : $"{v.Major}.{v.Minor}.{v.Build}";
         }
     }
     public string Changelog { get; }
@@ -1618,7 +1618,7 @@ public sealed class ConfigViewModel : ViewModelBase
         ### ����
         - WPF ������� + ��ɫ���� + ��ർ��
         - 256 ��λ���ޣ�SIM �Զ����� + ??�����⻯
-        - �ֶ����� TX/RX ���� + �����Ͳ�??(Usig/UT/Usource/Isource/DMM_V/DMM_R)
+        - �ֶ����� TX/RX ���� + �����Ͳ�??(Usig/UT/Usource/Isource/DMM_mV/DMM_R)
         - �������� 8 ��ģ��ռ??        ### �޸�
         - AsyncRelayCommand �쳣���� ??���� + ��־����������
         - �������� DMM-V ���� Binding ���� ??DataMatrix.SanitizeKey

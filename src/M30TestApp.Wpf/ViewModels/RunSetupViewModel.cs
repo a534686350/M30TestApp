@@ -154,7 +154,7 @@ public sealed class RunSetupViewModel : ViewModelBase
             foreach (var pp in plan.PressurePoints)
             {
                 lines.Add($"    ── 压力点 {pp.Name} = {pp.Value} {plan.PressureUnit} [{pp.PressureTypeDisplay}]");
-                lines.Add("       设置压力 → 稳定 → 保压 → DAQ973A 逐工位采集电压");
+                lines.Add("       设置压力 → 稳定 → 保压 → DAQ973A 逐工位采集电压 mV");
             }
             lines.Add("");
         }
@@ -170,7 +170,7 @@ public sealed class RunSetupViewModel : ViewModelBase
         lines.Add("");
         lines.Add("工位上限 16；电压通道 101-116；电阻通道 201-216；切换通道预留 301-304。");
         lines.Add("保温、保压、压力点和温度点流程与自动测试一致。");
-        lines.Add("电压写入 USG 指标列，电阻写入 DMM_R 并优先用于 TCR。");
+        lines.Add("电压按 mV 写入 USG 指标列，电阻写入 DMM_R 并优先用于 TCR。");
         lines.Add("");
 
         foreach (var tp in plan.TempPoints)
