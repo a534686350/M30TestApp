@@ -538,7 +538,7 @@
                               GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                               CanUserAddRows="False" CanUserDeleteRows="False"
                               RowBackground="Transparent" AlternatingRowBackground="{StaticResource HeaderBgBrush}"
-                              Padding="0" MaxHeight="200"
+                              Padding="0" MaxHeight="120"
                               ClipboardCopyMode="IncludeHeader">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="时间" Binding="{Binding Time}" Width="80"/>
@@ -547,6 +547,75 @@
                             <DataGridTextColumn Header="UT" Binding="{Binding UtValue}" Width="80"/>
                             <DataGridTextColumn Header="Usource" Binding="{Binding UsourceValue}" Width="80"/>
                             <DataGridTextColumn Header="Isource" Binding="{Binding IsourceValue}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <Separator Margin="0,10,0,8"/>
+                    <DockPanel Margin="0,0,0,8">
+                        <TextBlock Text="1KHz频率测试" Style="{StaticResource GroupTitle}" Margin="0,0,8,0"/>
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding FrequencyStatus}"
+                                   Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                    </DockPanel>
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="110"/>
+                            <ColumnDefinition Width="110"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,6,0">
+                            <TextBlock Text="工位" Style="{StaticResource Lbl}"/>
+                            <TextBox Text="{Binding FrequencySlot, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                            <TextBlock Text="DMM通道" Style="{StaticResource Lbl}"/>
+                            <TextBox Text="{Binding FrequencyDmmChannel, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Margin="0,0,8,0">
+                            <TextBlock Text="频率(点/秒)" Style="{StaticResource Lbl}"/>
+                            <TextBox Text="{Binding FrequencyRateText, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="3" Margin="0,0,8,0">
+                            <TextBlock Text="停止时间(s)" Style="{StaticResource Lbl}"/>
+                            <TextBox Text="{Binding FrequencyStopSecondsText, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Bottom">
+                            <CheckBox Content="启用控制器" IsChecked="{Binding FrequencyUsePressureController}"
+                                      VerticalAlignment="Center" Margin="0,0,10,6"/>
+                            <Button Content="▶ 开始" Style="{StaticResource ActionButton}"
+                                    Command="{Binding StartFrequencySampleCommand}" MinWidth="86"
+                                    Margin="0,0,6,0"/>
+                            <Button Content="⏹ 停止" Style="{StaticResource MutedActionButton}"
+                                    Command="{Binding StopFrequencySampleCommand}" MinWidth="86"
+                                    Margin="0,0,6,0"/>
+                            <Button Content="📥 导出" Style="{StaticResource MutedActionButton}"
+                                    Command="{Binding ExportFrequencyResultsCommand}" MinWidth="76"
+                                    Margin="0"/>
+                        </StackPanel>
+                        <TextBlock Grid.Column="5" Text="{Binding FrequencySampleCount, StringFormat=点数：{0}}"
+                                   Foreground="{StaticResource MutedBrush}" VerticalAlignment="Bottom"
+                                   Margin="8,0,0,6"/>
+                    </Grid>
+                    <TextBlock Text="{Binding FrequencyAutoSavePath, StringFormat=自动保存：{0}}"
+                               Foreground="{StaticResource MutedBrush}" FontSize="11"
+                               TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
+                    <DataGrid ItemsSource="{Binding FrequencyResults}" AutoGenerateColumns="False"
+                              BorderThickness="0" Background="{StaticResource SurfaceBrush}"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                              CanUserAddRows="False" CanUserDeleteRows="False"
+                              RowBackground="Transparent" AlternatingRowBackground="{StaticResource HeaderBgBrush}"
+                              Padding="0" MaxHeight="160"
+                              ClipboardCopyMode="IncludeHeader">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="55"/>
+                            <DataGridTextColumn Header="时间" Binding="{Binding Time}" Width="90"/>
+                            <DataGridTextColumn Header="ms" Binding="{Binding ElapsedMs}" Width="80"/>
+                            <DataGridTextColumn Header="工位" Binding="{Binding Slot}" Width="70"/>
+                            <DataGridTextColumn Header="CH" Binding="{Binding Channel}" Width="65"/>
+                            <DataGridTextColumn Header="压力" Binding="{Binding Pressure}" Width="90"/>
+                            <DataGridTextColumn Header="电压mV" Binding="{Binding VoltageMv}" Width="*"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </StackPanel>
