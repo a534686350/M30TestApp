@@ -207,6 +207,21 @@ public sealed class SimDmm : DeviceBase, IDmm
         return Task.FromResult(false); // 模拟：默认断开（阀关）
     }
 
+    public Task ConfigureVoltageChannelAsync(string channel, CancellationToken ct = default)
+    {
+        SimTrace.Tx(_cmds, Model, "SetVol", "@" + channel);
+        return Task.CompletedTask;
+    }
+
+    public async Task<double> ReadConfiguredValueAsync(string channel, CancellationToken ct = default)
+    {
+        SimTrace.Tx(_cmds, Model, "ReadValue");
+        await Task.Delay(1, ct);
+        var v = 0.005 + _rng.NextDouble() * 0.0001;
+        SimTrace.Rx(Model, SimTrace.F(v));
+        return v;
+    }
+
     public async Task<double> ReadVoltageAsync(string channel, CancellationToken ct = default)
     {
         SimTrace.Tx(_cmds, Model, "SetVol", "@" + channel);

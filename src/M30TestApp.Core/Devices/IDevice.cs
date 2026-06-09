@@ -49,6 +49,8 @@ public interface IDmm : IDevice
     Task CloseRelayAsync(string channel, CancellationToken ct = default);
     /// <summary>查询继电器状态，返回 true = 闭合（阀开），false = 断开（阀关）。</summary>
     Task<bool> QueryRelayStateAsync(string channel, CancellationToken ct = default);
+    Task ConfigureVoltageChannelAsync(string channel, CancellationToken ct = default);
+    Task<double> ReadConfiguredValueAsync(string channel, CancellationToken ct = default);
     Task<double> ReadVoltageAsync(string channel, CancellationToken ct = default);
     Task<double> ReadResistanceAsync(string channel, CancellationToken ct = default);
 }

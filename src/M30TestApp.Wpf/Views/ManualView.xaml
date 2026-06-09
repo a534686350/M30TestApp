@@ -558,32 +558,20 @@
                     </DockPanel>
                     <Grid Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="90"/>
-                            <ColumnDefinition Width="100"/>
                             <ColumnDefinition Width="110"/>
                             <ColumnDefinition Width="110"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Margin="0,0,6,0">
-                            <TextBlock Text="工位" Style="{StaticResource Lbl}"/>
-                            <TextBox Text="{Binding FrequencySlot, UpdateSourceTrigger=PropertyChanged}"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Margin="0,0,8,0">
-                            <TextBlock Text="DMM通道" Style="{StaticResource Lbl}"/>
-                            <TextBox Text="{Binding FrequencyDmmChannel, UpdateSourceTrigger=PropertyChanged}"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="2" Margin="0,0,8,0">
                             <TextBlock Text="频率(点/秒)" Style="{StaticResource Lbl}"/>
                             <TextBox Text="{Binding FrequencyRateText, UpdateSourceTrigger=PropertyChanged}"/>
                         </StackPanel>
-                        <StackPanel Grid.Column="3" Margin="0,0,8,0">
+                        <StackPanel Grid.Column="1" Margin="0,0,8,0">
                             <TextBlock Text="停止时间(s)" Style="{StaticResource Lbl}"/>
                             <TextBox Text="{Binding FrequencyStopSecondsText, UpdateSourceTrigger=PropertyChanged}"/>
                         </StackPanel>
-                        <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Bottom">
-                            <CheckBox Content="启用控制器" IsChecked="{Binding FrequencyUsePressureController}"
-                                      VerticalAlignment="Center" Margin="0,0,10,6"/>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Bottom">
                             <Button Content="▶ 开始" Style="{StaticResource ActionButton}"
                                     Command="{Binding StartFrequencySampleCommand}" MinWidth="86"
                                     Margin="0,0,6,0"/>
@@ -594,7 +582,7 @@
                                     Command="{Binding ExportFrequencyResultsCommand}" MinWidth="76"
                                     Margin="0"/>
                         </StackPanel>
-                        <TextBlock Grid.Column="5" Text="{Binding FrequencySampleCount, StringFormat=点数：{0}}"
+                        <TextBlock Grid.Column="3" Text="{Binding FrequencySampleCount, StringFormat=点数：{0}}"
                                    Foreground="{StaticResource MutedBrush}" VerticalAlignment="Bottom"
                                    Margin="8,0,0,6"/>
                     </Grid>
@@ -612,9 +600,6 @@
                             <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="55"/>
                             <DataGridTextColumn Header="时间" Binding="{Binding Time}" Width="90"/>
                             <DataGridTextColumn Header="ms" Binding="{Binding ElapsedMs}" Width="80"/>
-                            <DataGridTextColumn Header="工位" Binding="{Binding Slot}" Width="70"/>
-                            <DataGridTextColumn Header="CH" Binding="{Binding Channel}" Width="65"/>
-                            <DataGridTextColumn Header="压力" Binding="{Binding Pressure}" Width="90"/>
                             <DataGridTextColumn Header="电压mV" Binding="{Binding VoltageMv}" Width="*"/>
                         </DataGrid.Columns>
                     </DataGrid>

@@ -31,9 +31,6 @@ public class FrequencySampleResult
     public long Index { get; set; }
     public string Time { get; set; } = "";
     public string ElapsedMs { get; set; } = "";
-    public string Slot { get; set; } = "";
-    public string Channel { get; set; } = "";
-    public string Pressure { get; set; } = "";
     public string VoltageMv { get; set; } = "";
 }
 
@@ -251,28 +248,11 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
     private string _batchEndSlot = "24";
     public string BatchEndSlot { get => _batchEndSlot; set => SetField(ref _batchEndSlot, value); }
 
-    private string _frequencySlot = "1";
-    public string FrequencySlot
-    {
-        get => _frequencySlot;
-        set
-        {
-            if (!SetField(ref _frequencySlot, value)) return;
-            ApplyFrequencySlotMapping();
-        }
-    }
-
-    private string _frequencyDmmChannel = "";
-    public string FrequencyDmmChannel { get => _frequencyDmmChannel; set => SetField(ref _frequencyDmmChannel, value); }
-
     private string _frequencyRateText = "";
     public string FrequencyRateText { get => _frequencyRateText; set => SetField(ref _frequencyRateText, value); }
 
     private string _frequencyStopSecondsText = "";
     public string FrequencyStopSecondsText { get => _frequencyStopSecondsText; set => SetField(ref _frequencyStopSecondsText, value); }
-
-    private bool _frequencyUsePressureController = true;
-    public bool FrequencyUsePressureController { get => _frequencyUsePressureController; set => SetField(ref _frequencyUsePressureController, value); }
 
     private bool _isFrequencySampling;
     public bool IsFrequencySampling
@@ -395,8 +375,6 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         foreach (var s in session.Slots.Entries) SlotNames.Add(s.Slot);
         if (SlotNames.Count > 0) _selectedSlot = SlotNames[0];
         ApplySelectedSlotMapping();
-        _frequencySlot = _selectedSlot;
-        ApplyFrequencySlotMapping();
 
         Valves.Add(new ValveVm(this, 0));
         for (int i = 1; i <= 8; i++)
@@ -845,22 +823,6 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         if (ChannelAddrs.Contains(channel)) ChannelAddr = channel;
     }
 
-    private void ApplyFrequencySlotMapping()
-    {
-        if (!TryParseSlotNumber(FrequencySlot, out var slotNum))
-            return;
-
-        var slot = ResolveSlotForManual(slotNum);
-        FrequencyDmmChannel = ResolveDmmChannel(slot, slotNum);
-    }
-
-    private static string ResolveDmmChannel(SlotEntry slot, int slotNum)
-    {
-        if (!string.IsNullOrWhiteSpace(slot.Channel) && slot.Channel != "-")
-            return slot.Channel;
-        return (100 + slotNum).ToString(CultureInfo.InvariantCulture);
-    }
-
     /// <summary>解析工位号：支持 "9" 或 "Slot9"。</summary>
     private static bool TryParseSlotNumber(string text, out int slotNum)
     {
@@ -1118,16 +1080,13 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         try
         {
             var csv = new System.Text.StringBuilder();
-            csv.AppendLine("Index,Time,ElapsedMs,Slot,Channel,Pressure,Voltage_mV");
+            csv.AppendLine("Index,Time,ElapsedMs,Voltage_mV");
             foreach (var result in snapshot)
             {
                 csv.AppendLine(string.Join(",",
                     result.Index.ToString(CultureInfo.InvariantCulture),
                     Csv(result.Time),
                     Csv(result.ElapsedMs),
-                    Csv(result.Slot),
-                    Csv(result.Channel),
-                    Csv(result.Pressure),
                     Csv(result.VoltageMv)));
             }
 
@@ -1143,12 +1102,6 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
 
     private async Task StartFrequencySampleAsync()
     {
-        if (!TryParseSlotNumber(FrequencySlot, out var slotNum))
-        {
-            MessageBox.Show("请输入有效的工位号（如 1 或 Slot1）", "1KHz频率测试", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
         var targetIntervalMs = ParseFrequencyIntervalMs();
         if (targetIntervalMs < 0)
         {
@@ -1159,16 +1112,6 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         if (autoStopSeconds < 0)
         {
             MessageBox.Show("停止时间请输入大于0的数字，留空表示手动停止", "1KHz频率测试", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        var slot = ResolveSlotForManual(slotNum);
-        var channel = string.IsNullOrWhiteSpace(FrequencyDmmChannel)
-            ? ResolveDmmChannel(slot, slotNum)
-            : FrequencyDmmChannel.Trim();
-        if (string.IsNullOrWhiteSpace(channel) || channel == "-")
-        {
-            MessageBox.Show("当前工位没有有效的万用表通道，请填写 DMM 通道", "1KHz频率测试", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -1186,18 +1129,13 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         }
         FrequencyResults.Clear();
         FrequencySampleCount = 0;
-        FrequencyStatus = FrequencyUsePressureController ? "初始化设备..." : "初始化万用表...";
+        FrequencyStatus = "初始化万用表...";
         IsFrequencySampling = true;
-        var autoSavePath = BuildFrequencyAutoSavePath(slot.Slot, channel);
+        var autoSavePath = BuildFrequencyAutoSavePath();
         FrequencyAutoSavePath = autoSavePath;
 
         try
         {
-            if (FrequencyUsePressureController)
-                await EnsurePressureModeAsync();
-            else
-                Hist("1KHz频率测试：未启用压力控制器，跳过控制器连接和压力采集");
-
             if (_session.Dmm.State != ConnectionState.Connected)
                 await _session.Dmm.OpenAsync(ct);
 
@@ -1205,7 +1143,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
             {
                 AutoFlush = true
             };
-            autoSave.WriteLine("Index,Time,ElapsedMs,Slot,Channel,Pressure,Voltage_mV");
+            autoSave.WriteLine("Index,Time,ElapsedMs,Voltage_mV");
             var fileGate = new object();
 
             var sw = Stopwatch.StartNew();
@@ -1222,83 +1160,52 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
                 QueueFrequencyRow(result, sw.ElapsedMilliseconds);
             }
 
-            if (FrequencyUsePressureController)
+            void SetProgress(long count, string status)
             {
-                _ = Task.Run(async () =>
+                Application.Current.Dispatcher.BeginInvoke(new Action(() =>
                 {
-                    while (!ct.IsCancellationRequested)
-                    {
-                        try
-                        {
-                            var time = DateTime.Now;
-                            var elapsed = sw.Elapsed.TotalMilliseconds;
-                            var pressure = await _session.Pressure.ReadPressureAsync(CancellationToken.None).ConfigureAwait(false);
-                            if (ct.IsCancellationRequested) break;
-
-                            var result = new FrequencySampleResult
-                            {
-                                Index = System.Threading.Interlocked.Increment(ref index),
-                                Time = time.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture),
-                                ElapsedMs = elapsed.ToString("F3", CultureInfo.InvariantCulture),
-                                Slot = slot.Slot,
-                                Channel = channel,
-                                Pressure = pressure.ToString("G7", CultureInfo.InvariantCulture),
-                                VoltageMv = ""
-                            };
-                            Record(result);
-                        }
-                        catch (Exception ex)
-                        {
-                            if (ct.IsCancellationRequested) break;
-                            AppLog.Warn("Manual", $"1KHz压力后台刷新失败: {ex.Message}");
-                        }
-
-                        await Task.Yield();
-                    }
-                }, CancellationToken.None);
+                    FrequencySampleCount = count;
+                    FrequencyStatus = status;
+                }));
             }
 
-            FrequencyStatus = $"采集中：{slot.Slot} / CH {channel}";
+            FrequencyStatus = "采集中：READ?";
             var rateText = targetIntervalMs == 0 ? "不限速" : $"目标 {FrequencyRateText.Trim()} 点/秒";
             var stopText = autoStopSeconds == 0 ? "手动停止" : $"{autoStopSeconds:G6} 秒自动停止";
-            var pressureText = FrequencyUsePressureController ? "电压/压力独立按时间写入" : "仅连续采集万用表电压";
-            Hist($"1KHz频率测试开始：{slot.Slot}，DMM通道 {channel}，{rateText}，{stopText}，{pressureText}，自动保存：{autoSavePath}");
+            Hist($"1KHz频率测试开始：仅打开万用表，不加压、不切换通道，只循环发送 READ?，{rateText}，{stopText}，自动保存：{autoSavePath}");
 
-            while (!ct.IsCancellationRequested)
+            await Task.Run(async () =>
             {
-                var time = DateTime.Now;
-                var elapsed = sw.Elapsed.TotalMilliseconds;
-                var voltageTask = Task.Run(async () => await _session.Dmm.ReadVoltageAsync(channel, ct).ConfigureAwait(false) * 1000.0, ct);
-                var voltageMv = await voltageTask.ConfigureAwait(true);
-
-                var result = new FrequencySampleResult
+                while (!ct.IsCancellationRequested)
                 {
-                    Index = System.Threading.Interlocked.Increment(ref index),
-                    Time = time.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture),
-                    ElapsedMs = elapsed.ToString("F3", CultureInfo.InvariantCulture),
-                    Slot = slot.Slot,
-                    Channel = channel,
-                    Pressure = "",
-                    VoltageMv = voltageMv.ToString("G7", CultureInfo.InvariantCulture)
-                };
+                    var time = DateTime.Now;
+                    var elapsed = sw.Elapsed.TotalMilliseconds;
+                    var voltageMv = await _session.Dmm.ReadConfiguredValueAsync(string.Empty, ct).ConfigureAwait(false) * 1000.0;
+                    var currentIndex = System.Threading.Interlocked.Increment(ref index);
 
-                Record(result);
-                dmmSamples++;
+                    var result = new FrequencySampleResult
+                    {
+                        Index = currentIndex,
+                        Time = time.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture),
+                        ElapsedMs = elapsed.ToString("F3", CultureInfo.InvariantCulture),
+                        VoltageMv = voltageMv.ToString("G7", CultureInfo.InvariantCulture)
+                    };
 
-                if (index % 25 == 0)
-                {
-                    FrequencySampleCount = index;
-                    FrequencyStatus = $"采集中：{index} 点，最近电压 {result.VoltageMv} mV";
+                    Record(result);
+                    dmmSamples++;
+
+                    if (currentIndex % 25 == 0)
+                        SetProgress(currentIndex, $"采集中：{currentIndex} 点，最近电压 {result.VoltageMv} mV");
+
+                    if (targetIntervalMs > 0)
+                    {
+                        var nextTargetMs = dmmSamples * targetIntervalMs;
+                        var waitMs = nextTargetMs - sw.Elapsed.TotalMilliseconds;
+                        if (waitMs > 0)
+                            await Task.Delay(TimeSpan.FromMilliseconds(waitMs), ct).ConfigureAwait(false);
+                    }
                 }
-
-                if (targetIntervalMs > 0)
-                {
-                    var nextTargetMs = dmmSamples * targetIntervalMs;
-                    var waitMs = nextTargetMs - sw.Elapsed.TotalMilliseconds;
-                    if (waitMs > 0)
-                        await Task.Delay(TimeSpan.FromMilliseconds(waitMs), ct).ConfigureAwait(true);
-                }
-            }
+            }, CancellationToken.None).ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {
@@ -1315,20 +1222,11 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private static string BuildFrequencyAutoSavePath(string slot, string channel)
+    private static string BuildFrequencyAutoSavePath()
     {
         var dir = Path.Combine(AppPaths.DataDir, "1KHz频率测试");
         Directory.CreateDirectory(dir);
-        var safeSlot = SafeFileName(slot);
-        var safeChannel = SafeFileName(channel);
-        return Path.Combine(dir, $"1KHz_{safeSlot}_CH{safeChannel}_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
-    }
-
-    private static string SafeFileName(string text)
-    {
-        var invalid = Path.GetInvalidFileNameChars();
-        var safe = new string((text ?? "").Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim();
-        return string.IsNullOrWhiteSpace(safe) ? "data" : safe;
+        return Path.Combine(dir, $"1KHz_READ_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
     }
 
     private static string ToFrequencyCsvLine(FrequencySampleResult result) =>
@@ -1336,9 +1234,6 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
             result.Index.ToString(CultureInfo.InvariantCulture),
             Csv(result.Time),
             Csv(result.ElapsedMs),
-            Csv(result.Slot),
-            Csv(result.Channel),
-            Csv(result.Pressure),
             Csv(result.VoltageMv));
 
     private double ParseFrequencyIntervalMs()

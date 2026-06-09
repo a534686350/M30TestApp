@@ -534,6 +534,29 @@ public sealed class HwDmm : DeviceBase, IDmm
         }, ct);
     }
 
+    public Task ConfigureVoltageChannelAsync(string channel, CancellationToken ct = default)
+    {
+        return Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            _visa.Write(Render("SetVol", channel, $"CONF:VOLT (@{channel})"));
+        }, ct);
+    }
+
+    public Task<double> ReadConfiguredValueAsync(string channel, CancellationToken ct = default)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            return Task.FromResult(_visa.QueryNumber(Render("ReadValue", channel, "READ?")));
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("DMM", $"ReadConfiguredValue({channel}) failed: {ex.Message}");
+            return Task.FromResult(double.NaN);
+        }
+    }
+
     public Task<double> ReadVoltageAsync(string channel, CancellationToken ct = default)
     {
         return Task.Run(() =>
