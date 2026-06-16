@@ -136,13 +136,28 @@ public sealed class RunSetupViewModel : ViewModelBase
         }
     }
 
-    private static string ExpandLongTermStabilityPreview(TestPlan plan)
+    private string ExpandLongTermStabilityPreview(TestPlan plan)
     {
+        var isResistance = LongTermMeasureMode == LongTermStabilityMeasureMode.Resistance;
+        var dmmLabel = isResistance ? "电阻 Ω" : "电压 mV";
+        var dmmCmd = isResistance ? "CONF:RES (@CH) → READ?" : "CONF:VOLT (@CH) → READ?";
+
         var lines = new List<string>();
         lines.Add("═══ Run:LongTermStabilityTest 长期稳定性测试 ═══");
         lines.Add("");
-        lines.Add("只使用 DAQ973A / 数字万用表采集电压，不采集 UT / USC / ISC / USG / 电阻。");
+        lines.Add($"采集项：DAQ973A {dmmLabel}（{dmmCmd}），通道 101-120 / 201-220 / 301-320（60 工位，电压/电阻共用）。");
+        lines.Add("不采集 UT / USC / ISC / USG。");
+        lines.Add("表格列：每个温度点 → 全部压力点 DMM 列 + 1 列 Temp（全部压力采集完成后读一次烘箱温度）。");
         lines.Add("");
+
+        var tableCols = LongTermStabilityMatrix.BuildColumns(plan, LongTermMeasureMode);
+        if (tableCols.Count > 0)
+        {
+            lines.Add("数据矩阵列预览：");
+            foreach (var col in tableCols)
+                lines.Add($"  · {col.FlatHeader}");
+            lines.Add("");
+        }
 
         for (var ti = 0; ti < plan.TempPoints.Count; ti++)
         {
@@ -154,8 +169,9 @@ public sealed class RunSetupViewModel : ViewModelBase
             foreach (var pp in plan.PressurePoints)
             {
                 lines.Add($"    ── 压力点 {pp.Name} = {pp.Value} {plan.PressureUnit} [{pp.PressureTypeDisplay}]");
-                lines.Add("       设置压力 → 稳定 → 保压 → DAQ973A 逐工位采集电压 mV");
+                lines.Add($"       设置压力 → 稳定 → 保压 → DAQ973A 逐工位采集 {dmmLabel}");
             }
+            lines.Add("    全部压力点完成后 → 读取烘箱温度 Temp（仅一次，写入首工位）");
             lines.Add("");
         }
 
@@ -196,7 +212,7 @@ public sealed class RunSetupViewModel : ViewModelBase
         ? LongTermStabilitySlotMax
         : UseDmmAutoTest ? DmmAutoTestSlotMax : SlotMax;
     public string ChannelHint => _isLongTermStabilityMode
-        ? "DAQ channels: 101-120 / 201-220 / 301-320"
+        ? "DAQ channels: 101-120 / 201-220 / 301-320 (60 slots, same for V/R)"
         : UseDmmAutoTest ? "DMM channels: V=101-116 / R=201-216 / Switch=301-304"
         : "";
 
@@ -322,6 +338,35 @@ public sealed class RunSetupViewModel : ViewModelBase
     }
 
     public bool ShowCollectionOptions => !_isLongTermStabilityMode && !UseDmmAutoTest;
+
+    public bool ShowLongTermMeasureOptions => _isLongTermStabilityMode;
+
+    private LongTermStabilityMeasureMode _longTermMeasureMode = LongTermStabilityMeasureMode.Voltage;
+    public LongTermStabilityMeasureMode LongTermMeasureMode
+    {
+        get => _longTermMeasureMode;
+        set
+        {
+            if (!_isLongTermStabilityMode || _longTermMeasureMode == value) return;
+            _longTermMeasureMode = value;
+            OnPropertyChanged(nameof(LongTermMeasureMode));
+            OnPropertyChanged(nameof(LongTermMeasureVoltage));
+            OnPropertyChanged(nameof(LongTermMeasureResistance));
+            OnPropertyChanged(nameof(PlanTaskPreview));
+        }
+    }
+
+    public bool LongTermMeasureVoltage
+    {
+        get => LongTermMeasureMode == LongTermStabilityMeasureMode.Voltage;
+        set { if (value) LongTermMeasureMode = LongTermStabilityMeasureMode.Voltage; }
+    }
+
+    public bool LongTermMeasureResistance
+    {
+        get => LongTermMeasureMode == LongTermStabilityMeasureMode.Resistance;
+        set { if (value) LongTermMeasureMode = LongTermStabilityMeasureMode.Resistance; }
+    }
 
     private bool UsesFixedDmmSlotMap => _isLongTermStabilityMode || UseDmmAutoTest;
 
@@ -555,7 +600,20 @@ public sealed class RunSetupViewModel : ViewModelBase
         if (int.TryParse(ini.Get("Slots", "FixtureSlotCapacity", ""), out var fsc) && fsc > 0) _fixtureSlotCapacity = fsc;
         if (int.TryParse(ini.Get("Slots", "FixtureCount", ""), out var fc) && fc > 0) _fixtureCount = fc;
         if (int.TryParse(ini.Get("Slots", "StartChannel", ""), out var sc)) _startChannel = sc;
-        if (UsesFixedDmmSlotMap) _startChannel = _isLongTermStabilityMode ? 101 : 101;
+        if (_isLongTermStabilityMode)
+        {
+            var savedMode = ini.Get("Slots", "LongTermMeasureMode", "Voltage");
+            _longTermMeasureMode = savedMode.Equals("Resistance", StringComparison.OrdinalIgnoreCase)
+                ? LongTermStabilityMeasureMode.Resistance
+                : LongTermStabilityMeasureMode.Voltage;
+            _startChannel = LongTermChannelForSlot(_startIndex);
+            OnPropertyChanged(nameof(LongTermMeasureMode));
+            OnPropertyChanged(nameof(LongTermMeasureVoltage));
+            OnPropertyChanged(nameof(LongTermMeasureResistance));
+            OnPropertyChanged(nameof(ChannelHint));
+        }
+        else if (UsesFixedDmmSlotMap)
+            _startChannel = DmmAutoVoltageChannelForSlot(_startIndex);
         if (int.TryParse(ini.Get("Slots", "StartSerial", ""), out var ss)) _startSerial = ss;
         if (bool.TryParse(ini.Get("Slots", "AutoNumber", ""), out var an)) _autoNumber = an;
 
@@ -641,6 +699,9 @@ public sealed class RunSetupViewModel : ViewModelBase
         return result;
     }
 
+    /// <summary>
+    /// Long-term stability: 60 slots → 101-120, 201-220, 301-320 (same channels for voltage and resistance).
+    /// </summary>
     private static int LongTermChannelForSlot(int slotNo) =>
         (((slotNo - 1) / 20) + 1) * 100 + (((slotNo - 1) % 20) + 1);
 
@@ -703,6 +764,8 @@ public sealed class RunSetupViewModel : ViewModelBase
             ini.Set("Slots", "CollectUsg", CollectUsg.ToString());
             ini.Set("Slots", "CollectOvenTemp", CollectOvenTemp.ToString());
             ini.Set("Slots", "AutoTestMode", UseDmmAutoTest ? "Dmm" : "Board");
+            if (_isLongTermStabilityMode)
+                ini.Set("Slots", "LongTermMeasureMode", LongTermMeasureMode.ToString());
             AppPreferences.Set(ini, "LastPlan", SelectedPlan.Name);
             AppPreferences.Set(ini, "LastPlanFolder", SelectedPlanFolder);
             ini.Save(AppPaths.SettingIni);

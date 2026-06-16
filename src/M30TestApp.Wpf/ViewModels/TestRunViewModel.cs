@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
@@ -7,6 +8,7 @@ using System.Windows;
 using System.Windows.Threading;
 using M30TestApp.Core;
 using M30TestApp.Core.Common;
+using M30TestApp.Core.Config;
 using M30TestApp.Core.Data;
 using TestCheckpoint = M30TestApp.Core.Data.TestCheckpoint;
 using M30TestApp.Core.TaskScript.Actions;
@@ -19,6 +21,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     private static TestRunViewModel? s_activeRunPage;
     private readonly TestSession _session;
     private readonly bool _isLongTermStabilityMode;
+    private LongTermStabilityMeasureMode _longTermMeasureMode = LongTermStabilityMeasureMode.Voltage;
     private CancellationTokenSource? _cts;
     private TaskCompletionSource? _pauseTcs;
     private bool _isPaused;
@@ -36,7 +39,8 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     private readonly DispatcherTimer _timer;
 
     public ObservableCollection<MatrixRowVm> Rows { get; } = new();
-    public ObservableCollection<string> Columns { get; } = new();
+    public ObservableCollection<MatrixColumnVm> MatrixColumns { get; } = new();
+    public ObservableCollection<LongTermMatrixColumnVm> LongTermColumns { get; } = new();
     public ObservableCollection<string> LogLines { get; } = new();
 
     private string _logText = "";
@@ -59,7 +63,10 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     public string PlanName => _session.Plan.Name;
     public string SensorType => _session.Plan.SensorType;
     public string RunModeTitle => _isLongTermStabilityMode ? "长期稳定性测试" : "自动测试";
-    public string MatrixTitle => _isLongTermStabilityMode ? "DAQ973A 电压数据矩阵 (mV)" : "采集数据矩阵";
+    public string MatrixTitle => _isLongTermStabilityMode
+        ? LongTermStabilityMatrix.MatrixTitle(_longTermMeasureMode)
+        : "采集数据矩阵";
+    public bool IsLongTermStabilityMode => _isLongTermStabilityMode;
     public int TotalSlots => Rows.Count;
 
     private string _currentT = "—";
@@ -93,8 +100,13 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         _session = session;
         _isLongTermStabilityMode = isLongTermStabilityMode;
 
+        _longTermMeasureMode = session.Context.LongTermMeasureMode;
+
         foreach (var slot in session.Slots.Entries)
             Rows.Add(new MatrixRowVm(slot.Slot, slot.SerialNo));
+
+        if (_isLongTermStabilityMode)
+            ApplyLongTermColumns();
 
         session.Matrix.CellUpdated += OnCellUpdated;
         session.Runner.Progress += OnProgress;
@@ -160,7 +172,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
             if (_rowBySlot!.TryGetValue(update.Slot, out var row))
             {
                 row.Cells[update.Cell.Key] = update.Cell;
-                if (!Columns.Contains(update.Cell.Key)) Columns.Add(update.Cell.Key);
+                EnsureMatrixColumn(update.Cell.Key);
                 ApplyRowStatus(row);
             }
         }));
@@ -257,17 +269,24 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     /// </summary>
     private void OnReconfigured(object? sender, EventArgs e)
     {
-        if (!IsActiveRunPage) return;
         Application.Current.Dispatcher.BeginInvoke(new Action(() =>
         {
             Rows.Clear();
-            Columns.Clear();
+            MatrixColumns.Clear();
+            LongTermColumns.Clear();
             _rowStatusBySlot.Clear();
             _rowBySlot = null;
             foreach (var slot in _session.Slots.Entries)
                 Rows.Add(new MatrixRowVm(slot.Slot, slot.SerialNo));
+            if (_isLongTermStabilityMode)
+            {
+                _longTermMeasureMode = _session.Context.LongTermMeasureMode;
+                ApplyLongTermColumns();
+            }
+
+            if (!IsActiveRunPage) return;
+
             OkCount = WarnCount = ErrCount = 0;
-            _rowStatusBySlot.Clear();
             LastError = "";
             CurrentT = "—";
             CurrentP = "—";
@@ -282,6 +301,19 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
             OnPropertyChanged(nameof(RunModeTitle));
             OnPropertyChanged(nameof(MatrixTitle));
         }));
+    }
+
+    private void ApplyLongTermColumns()
+    {
+        LongTermStabilityMatrixSync.Apply(LongTermColumns, _session.Plan, _longTermMeasureMode);
+        OnPropertyChanged(nameof(MatrixTitle));
+    }
+
+    private void EnsureMatrixColumn(string columnKey)
+    {
+        if (_isLongTermStabilityMode) return;
+        if (MatrixColumns.Any(c => c.Key == columnKey)) return;
+        MatrixColumns.Add(new MatrixColumnVm(columnKey, columnKey));
     }
 
     private void ClearLog()
@@ -476,6 +508,13 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
 
         ClearLog();
 
+        if (_isLongTermStabilityMode)
+        {
+            _longTermMeasureMode = setupVm.LongTermMeasureMode;
+            _session.Context.LongTermMeasureMode = setupVm.LongTermMeasureMode;
+            ApplyLongTermColumns();
+        }
+
         _cts = new CancellationTokenSource();
         _startedAt = DateTime.Now;
 
@@ -527,7 +566,8 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         {
             _session.Plan.TaskScript = "Run:LongTermStabilityTest";
             _session.Context.Plan = _session.Plan;
-            AppLog.Info("Run", "测试模式：长期稳定性测试，仅使用 DAQ973A/DMM 采集电压");
+            var measureLabel = setupVm.LongTermMeasureMode == LongTermStabilityMeasureMode.Resistance ? "电阻" : "电压";
+            AppLog.Info("Run", $"测试模式：长期稳定性测试，DAQ973A 采集{measureLabel}");
         }
         else
         {

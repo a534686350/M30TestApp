@@ -53,6 +53,10 @@ public sealed class TaskContext
     /// <summary>When true, skip oven temperature data collection.</summary>
     public bool SkipOvenTemp { get; set; }
 
+    /// <summary>Long-term stability DMM measure mode (voltage mV or resistance Ω).</summary>
+    public Data.LongTermStabilityMeasureMode LongTermMeasureMode { get; set; } =
+        Data.LongTermStabilityMeasureMode.Voltage;
+
     /// <summary>The current ordered column list (TnPm_* keys).</summary>
     public List<string> Columns { get; } = new();
 

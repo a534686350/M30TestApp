@@ -3,15 +3,13 @@ using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using M30TestApp.Wpf.ViewModels;
 
 namespace M30TestApp.Wpf.Views;
 
 /// <summary>
-/// DataGrid with dynamic columns. Columns are observed via <see cref="Columns"/>
-/// (an INotifyCollectionChanged-backed list of strings). The first two columns
-/// (Slot, SerialNo) are static and frozen.
-///
-/// Cells bind via a custom path "Cells[ColumnKey].Value" on each MatrixRowVm.
+/// DataGrid with dynamic columns. Columns are observed via <see cref="MatrixColumns"/>.
+/// The first two columns (Slot, SerialNo) are static and frozen.
 /// </summary>
 public partial class DataMatrixGrid : UserControl
 {
@@ -21,7 +19,6 @@ public partial class DataMatrixGrid : UserControl
         BuildStaticColumns();
     }
 
-    // ─── Rows DP ────────────────────────────────────────────────────────────
     public static readonly DependencyProperty RowsProperty = DependencyProperty.Register(
         nameof(Rows), typeof(IEnumerable), typeof(DataMatrixGrid),
         new PropertyMetadata(null, OnRowsChanged));
@@ -37,30 +34,30 @@ public partial class DataMatrixGrid : UserControl
         if (d is DataMatrixGrid g) g.Grid.ItemsSource = e.NewValue as IEnumerable;
     }
 
-    // ─── Columns DP ─────────────────────────────────────────────────────────
-    public static readonly DependencyProperty ColumnsProperty = DependencyProperty.Register(
-        nameof(Columns), typeof(IEnumerable), typeof(DataMatrixGrid),
-        new PropertyMetadata(null, OnColumnsChanged));
+    public static readonly DependencyProperty MatrixColumnsProperty = DependencyProperty.Register(
+        nameof(MatrixColumns), typeof(IEnumerable), typeof(DataMatrixGrid),
+        new PropertyMetadata(null, OnMatrixColumnsChanged));
 
-    public IEnumerable? Columns
+    public IEnumerable? MatrixColumns
     {
-        get => (IEnumerable?)GetValue(ColumnsProperty);
-        set => SetValue(ColumnsProperty, value);
+        get => (IEnumerable?)GetValue(MatrixColumnsProperty);
+        set => SetValue(MatrixColumnsProperty, value);
     }
 
-    private static void OnColumnsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    private static void OnMatrixColumnsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is not DataMatrixGrid g) return;
-        if (e.OldValue is INotifyCollectionChanged oldNcc) oldNcc.CollectionChanged -= g.OnColumnsCollectionChanged;
-        if (e.NewValue is INotifyCollectionChanged newNcc) newNcc.CollectionChanged += g.OnColumnsCollectionChanged;
+        if (e.OldValue is INotifyCollectionChanged oldNcc) oldNcc.CollectionChanged -= g.OnMatrixColumnsCollectionChanged;
+        if (e.NewValue is INotifyCollectionChanged newNcc) newNcc.CollectionChanged += g.OnMatrixColumnsCollectionChanged;
         g.RebuildColumns();
     }
 
-    private void OnColumnsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    private void OnMatrixColumnsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         if (e.Action == NotifyCollectionChangedAction.Add && e.NewItems is not null)
         {
-            foreach (string col in e.NewItems) AddDynamicColumn(col);
+            foreach (MatrixColumnVm col in e.NewItems)
+                AddDynamicColumn(col.Key, col.Header);
         }
         else
         {
@@ -88,17 +85,21 @@ public partial class DataMatrixGrid : UserControl
     private void RebuildColumns()
     {
         BuildStaticColumns();
-        if (Columns is null) return;
-        foreach (var c in Columns)
-            if (c is string s) AddDynamicColumn(s);
+        if (MatrixColumns is null) return;
+        foreach (var item in MatrixColumns)
+        {
+            if (item is MatrixColumnVm col)
+                AddDynamicColumn(col.Key, col.Header);
+        }
     }
 
-    private void AddDynamicColumn(string columnKey)
+    private void AddDynamicColumn(string columnKey, string header)
     {
         var col = new DataGridTextColumn
         {
-            Header = columnKey,
-            Width = 90,
+            Header = header,
+            Width = new DataGridLength(1, DataGridLengthUnitType.Auto),
+            MinWidth = 88,
             Binding = new Binding($"Cells[{columnKey}].Value")
             {
                 Mode = BindingMode.OneWay,

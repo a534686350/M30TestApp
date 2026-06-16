@@ -3,12 +3,15 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:M30TestApp.Wpf.ViewModels"
              xmlns:views="clr-namespace:M30TestApp.Wpf.Views"
+             xmlns:conv="clr-namespace:M30TestApp.Wpf.Converters"
              d:DataContext="{d:DesignInstance vm:TestRunViewModel}"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d">
 
     <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <conv:InverseBooleanToVisibilityConverter x:Key="BoolToVisInv"/>
         <Style x:Key="KpiCard" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
@@ -156,7 +159,14 @@
                         <TextBlock Text="{Binding MatrixTitle}" FontWeight="SemiBold"
                                    FontSize="{StaticResource FontSizeTitle}"/>
                     </Border>
-                    <views:DataMatrixGrid Rows="{Binding Rows}" Columns="{Binding Columns}"/>
+                    <Grid>
+                        <views:LongTermMatrixGrid Rows="{Binding Rows}"
+                                                  LongTermColumns="{Binding LongTermColumns}"
+                                                  Visibility="{Binding IsLongTermStabilityMode, Converter={StaticResource BoolToVis}}"/>
+                        <views:DataMatrixGrid Rows="{Binding Rows}"
+                                              MatrixColumns="{Binding MatrixColumns}"
+                                              Visibility="{Binding IsLongTermStabilityMode, Converter={StaticResource BoolToVisInv}}"/>
+                    </Grid>
                 </DockPanel>
             </Border>
 

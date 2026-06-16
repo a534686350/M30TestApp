@@ -96,13 +96,14 @@ public sealed class DataMatrix
     }
 
     public void ExportCsv(string path, IEnumerable<string> orderedColumns,
-        IReadOnlyDictionary<string, string>? slotSerialMap = null)
+        IReadOnlyDictionary<string, string>? slotSerialMap = null,
+        IReadOnlyDictionary<string, string>? columnHeaders = null)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var cols = orderedColumns.Select(NormalizeColumnKey).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         using var sw = new StreamWriter(path, false, Encoding.UTF8);
         var header = slotSerialMap != null ? "slot,SerialNo," : "slot,";
-        sw.WriteLine(header + string.Join(",", cols));
+        sw.WriteLine(header + string.Join(",", cols.Select(c => HeaderLabel(c, columnHeaders))));
         foreach (var slot in _rows.Keys.OrderBy(k => NaturalSortKey(k)))
         {
             var row = _rows[slot];
@@ -122,7 +123,8 @@ public sealed class DataMatrix
     }
 
     public void ExportXlsx(string path, IEnumerable<string> orderedColumns,
-        IReadOnlyDictionary<string, string>? slotSerialMap = null)
+        IReadOnlyDictionary<string, string>? slotSerialMap = null,
+        IReadOnlyDictionary<string, string>? columnHeaders = null)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var cols = orderedColumns.Select(NormalizeColumnKey).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -169,8 +171,8 @@ public sealed class DataMatrix
         sheet.AppendLine("<sheetData>");
 
         var headers = slotSerialMap != null
-            ? new[] { "slot", "SerialNo" }.Concat(cols).ToArray()
-            : new[] { "slot" }.Concat(cols).ToArray();
+            ? new[] { "slot", "SerialNo" }.Concat(cols.Select(c => HeaderLabel(c, columnHeaders))).ToArray()
+            : new[] { "slot" }.Concat(cols.Select(c => HeaderLabel(c, columnHeaders))).ToArray();
 
         WriteXlsxRow(sheet, 1, headers);
         var rowIndex = 2;
@@ -220,6 +222,13 @@ public sealed class DataMatrix
             index /= 26;
         }
         return name;
+    }
+
+    private static string HeaderLabel(string columnKey, IReadOnlyDictionary<string, string>? columnHeaders)
+    {
+        if (columnHeaders is not null && columnHeaders.TryGetValue(columnKey, out var label) && !string.IsNullOrWhiteSpace(label))
+            return label;
+        return columnKey;
     }
 
     private static string XmlEscape(string? value) => (value ?? "")
