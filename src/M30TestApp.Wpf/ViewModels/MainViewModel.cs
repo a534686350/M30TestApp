@@ -94,7 +94,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         session.Reconfigured += OnSessionReconfigured;
         session.DevicesRebuilt += OnSessionDevicesRebuilt;
 
-        // 启动后异步检查更新（不阻塞主界面），Gitee 优先 GitHub 备用
+        // 启动后异步检查更新（不阻塞主界面）；发现新版时弹窗提示，不强制安装
         _ = System.Threading.Tasks.Task.Run(async () =>
         {
             try
@@ -102,12 +102,12 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
                 await System.Threading.Tasks.Task.Delay(3000);
                 await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
                 {
-                    _ = Settings.CheckAndInstallUpdateOnStartupAsync();
+                    _ = Settings.CheckForUpdateOnStartupAsync();
                 });
             }
             catch (Exception ex)
             {
-                AppLog.Warn("Startup", $"自动检查更新失败: {ex.Message}");
+                AppLog.Warn("Startup", $"检查更新失败: {ex.Message}");
             }
         });
     }

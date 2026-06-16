@@ -95,12 +95,12 @@ public sealed class SettingsViewModel : ViewModelBase
             catch (Exception ex) { AppLog.Warn("Settings", $"无法打开浏览器: {ex.Message}"); }
         });
 
-        CheckUpdateCommand = new AsyncRelayCommand(() => CheckForUpdateAsync(autoInstall: false));
+        CheckUpdateCommand = new AsyncRelayCommand(CheckForUpdateAsync);
     }
 
-    public Task CheckAndInstallUpdateOnStartupAsync() => CheckForUpdateAsync(autoInstall: true);
+    public Task CheckForUpdateOnStartupAsync() => CheckForUpdateAsync();
 
-    private async Task CheckForUpdateAsync(bool autoInstall)
+    private async Task CheckForUpdateAsync()
     {
         if (IsCheckingUpdate) return;
 
@@ -129,13 +129,15 @@ public sealed class SettingsViewModel : ViewModelBase
                 return;
             }
 
-            if (!autoInstall)
+            var message = Language == "zh-CN"
+                ? $"发现新版本 v{latest}（当前 v{currentVersion}）。\n\n是否立即下载并安装？\n选择「否」可继续使用当前版本。"
+                : $"New version v{latest} is available (current v{currentVersion}).\n\nDownload and install now?\nChoose No to keep using the current version.";
+            if (MessageBox.Show(message, "M30TestApp", MessageBoxButton.YesNo, MessageBoxImage.Information) != MessageBoxResult.Yes)
             {
-                var message = Language == "zh-CN"
-                    ? $"发现新版本 v{latest}，是否下载并自动安装？"
-                    : $"New version v{latest} found. Download and install?";
-                if (MessageBox.Show(message, "M30TestApp", MessageBoxButton.YesNo, MessageBoxImage.Information) != MessageBoxResult.Yes)
-                    return;
+                UpdateStatus = Language == "zh-CN"
+                    ? $"发现新版本 v{latest}，已跳过（可在设置页手动检查更新）"
+                    : $"New version v{latest} available, skipped (check manually in Settings).";
+                return;
             }
 
             UpdateStatus = Language == "zh-CN"
