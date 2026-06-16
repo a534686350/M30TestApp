@@ -36,9 +36,14 @@ if ([string]::IsNullOrWhiteSpace($ghToken)) {
 }
 
 $releaseNotes = @"
-长期稳定性测试重构：专用表格、双行表头、按温度点（T1/T2/T3）合并显示。
+v1.2.21 更新：
 
-新增电压/电阻采集模式（CONF:VOLT / CONF:RES）；每个温度点全部压力采完后读 1 次烘箱温度；60 工位 DMM 通道 101-120 / 201-220 / 301-320。
+- 方案录入：温度/压力点支持「起始+数量」批量录入（如 1 20 = 20 个点），每行可删除
+- 工位：只需输入工位数量，高级布局参数折叠
+- 探漏：按型号配置压力类型与满量程，不再写死 10 kPa
+- 长期稳定性：强制启用烘箱、可配置起止工位与 DAQ 通道映射
+- 表格：支持横向拖动与扫码后自动滚到最后一行
+- 启动更新：改为弹窗确认，不再强制自动安装
 
 自包含 win-x64，免装 .NET 8.0。
 "@
@@ -169,28 +174,27 @@ function Invoke-GiteeRelease {
     $assetName = [IO.Path]::GetFileName($ZipFile)
     $boundary = "----gitee-release-" + [Guid]::NewGuid().ToString("N")
     $fileBytes = [IO.File]::ReadAllBytes($ZipFile)
+    $lf = "`r`n"
+    $body = New-Object System.Collections.Generic.List[byte]
 
-    $headerText = "--$boundary`r`nContent-Disposition: form-data; name=`"access_token`"`r`n`r`n$giteeToken`r`n"
-    $fileHeader = "--$boundary`r`nContent-Disposition: form-data; name=`"file`"; filename=`"$assetName`"`r`nContent-Type: application/zip`r`n`r`n"
-    $footerText = "`r`n--$boundary--`r`n"
+    function Add-Text([string]$text) {
+        $bytes = [Text.Encoding]::UTF8.GetBytes($text)
+        $body.AddRange($bytes)
+    }
 
-    $bodyStream = New-Object System.IO.MemoryStream
-    $writer = New-Object System.IO.StreamWriter($bodyStream, [Text.Encoding]::UTF8)
-    $writer.Write($headerText)
-    $writer.Flush()
-    $bodyStream.Write([Text.Encoding]::UTF8.GetBytes($fileHeader), 0, [Text.Encoding]::UTF8.GetByteCount($fileHeader))
-    $bodyStream.Write($fileBytes, 0, $fileBytes.Length)
-    $writer.Write($footerText)
-    $writer.Flush()
-    $bodyBytes = $bodyStream.ToArray()
-    $writer.Dispose()
-    $bodyStream.Dispose()
+    Add-Text "--$boundary$lf"
+    Add-Text "Content-Disposition: form-data; name=`"access_token`"$lf$lf$giteeToken$lf"
+    Add-Text "--$boundary$lf"
+    Add-Text "Content-Disposition: form-data; name=`"file`"; filename=`"$assetName`"$lf"
+    Add-Text "Content-Type: application/octet-stream$lf$lf"
+    $body.AddRange($fileBytes)
+    Add-Text "$lf--$boundary--$lf"
 
     Invoke-RestMethod `
         -Uri "$baseUri/releases/$releaseId/attach_files" `
         -Method Post `
         -ContentType "multipart/form-data; boundary=$boundary" `
-        -Body $bodyBytes | Out-Null
+        -Body $body.ToArray() | Out-Null
 
     Write-Host "Uploaded Gitee asset: $assetName"
 }
