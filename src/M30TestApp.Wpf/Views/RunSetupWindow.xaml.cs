@@ -18,6 +18,7 @@ public partial class RunSetupWindow : Window
     {
         InitializeComponent();
         DataContext = vm;
+        DataGridScrollHelper.EnableDragAndWheelScroll(RunSlotGrid);
         Loaded += (_, _) =>
         {
             ResetScanSlot();
@@ -61,16 +62,17 @@ public partial class RunSetupWindow : Window
             RunScanSlotLabel.Text = slot.Slot;
     }
 
-    private void SyncGridSelectionToScanIndex()
+    private void SyncGridSelectionToScanIndex(int? scrollToIndex = null, bool alignBottom = false)
     {
-        if (RunSlotGrid.Items.Count == 0 || _scanSlotIndex >= RunSlotGrid.Items.Count)
+        var index = scrollToIndex ?? _scanSlotIndex;
+        if (RunSlotGrid.Items.Count == 0 || index < 0 || index >= RunSlotGrid.Items.Count)
             return;
 
         _updatingScanSelection = true;
         try
         {
-            RunSlotGrid.SelectedIndex = _scanSlotIndex;
-            RunSlotGrid.ScrollIntoView(RunSlotGrid.Items[_scanSlotIndex]);
+            RunSlotGrid.SelectedIndex = index;
+            DataGridScrollHelper.ScrollToRow(RunSlotGrid, index, alignBottom);
         }
         finally
         {
@@ -131,14 +133,13 @@ public partial class RunSetupWindow : Window
         slot.SerialNo = barcode;
         RunScanStatusText.Text = $"{slot.Slot} -> {barcode}";
 
+        var enteredIndex = _scanSlotIndex;
         _scanSlotIndex++;
         UpdateScanSlotLabel();
 
-        var nextIndex = _scanSlotIndex;
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
         {
-            if (nextIndex < RunSlotGrid.Items.Count)
-                SyncGridSelectionToScanIndex();
+            SyncGridSelectionToScanIndex(enteredIndex, alignBottom: true);
             UpdateScanSlotLabel();
         });
 

@@ -18,7 +18,15 @@ public static class LongTermStabilityRunner
         PrepareMatrix(ctx);
 
         var measureLabel = ctx.LongTermMeasureMode == LongTermStabilityMeasureMode.Resistance ? "电阻" : "电压";
-        AppLog.Info("Run", $"开始长期稳定性测试：方案={ctx.Plan.Name}，传感器={ctx.Plan.SensorType}，工位数={ctx.Slots.Entries.Count}，采集={measureLabel}");
+        var slotNos = ctx.Slots.Entries
+            .Select(s => int.TryParse(s.Slot.Replace("Slot", "", StringComparison.OrdinalIgnoreCase), out var n) ? n : 0)
+            .Where(n => n > 0)
+            .OrderBy(n => n)
+            .ToList();
+        var slotRange = slotNos.Count > 0
+            ? LongTermStabilitySlotMap.FormatRangeHint(slotNos[0], slotNos[^1])
+            : "无工位";
+        AppLog.Info("Run", $"开始长期稳定性测试：方案={ctx.Plan.Name}，传感器={ctx.Plan.SensorType}，{slotRange}，采集={measureLabel}");
         await InitDevicesAsync(ctx, ct);
 
         for (var ti = 0; ti < ctx.Plan.TempPoints.Count; ti++)
@@ -29,17 +37,21 @@ public static class LongTermStabilityRunner
             ctx.CurrentPressure = "";
             AppLog.Info("Run", $"长期稳定性：温度点 {tp.Name} ({ti + 1}/{ctx.Plan.TempPoints.Count})");
 
-            if (ctx.Oven is not null && ctx.Oven.State == ConnectionState.Connected)
+            if (ctx.Oven is null)
+            {
+                AppLog.Warn("Run", "长期稳定性：烘箱未配置，跳过温度设置和保温");
+            }
+            else if (!await EnsureOvenConnectedAsync(ctx, ct))
+            {
+                AppLog.Warn("Run", "长期稳定性：烘箱连接失败，跳过温度设置和保温");
+            }
+            else
             {
                 await RunPerformanceTestAction.SetAndWaitOvenAsync(ctx, tp, "Run", ct);
                 var soakMinutes = tp.SoakMinutes ?? (int.TryParse(ctx.Settings.Get("DelaySettings", "SoakMinutes", "120"), out var sm) ? sm : 120);
                 AppLog.Info("Run", $"长期稳定性：开始保温 {soakMinutes} min");
                 await RunPerformanceTestAction.SoakWithLogAsync(ctx, soakMinutes, tp.Name, ct);
                 AppLog.Info("Run", "长期稳定性：保温完成");
-            }
-            else
-            {
-                AppLog.Info("Run", "长期稳定性：烘箱未连接或未启用，跳过温度设置和保温");
             }
 
             foreach (var pp in ctx.Plan.PressurePoints)
@@ -120,8 +132,11 @@ public static class LongTermStabilityRunner
         {
             try
             {
-                await ctx.Oven.OpenAsync(ct);
-                AppLog.Info("Init", $"烘箱 {ctx.Oven.Model} 已连接");
+                var opened = await ctx.Oven.OpenAsync(ct);
+                if (opened)
+                    AppLog.Info("Init", $"烘箱 {ctx.Oven.Model} 已连接");
+                else
+                    AppLog.Warn("Init", $"烘箱 {ctx.Oven.Model} 连接失败（状态={ctx.Oven.State}）");
             }
             catch (Exception ex) { AppLog.Warn("Init", $"烘箱连接失败: {ex.Message}"); }
         }
@@ -137,6 +152,23 @@ public static class LongTermStabilityRunner
         }
 
         AppLog.Info("Init", "长期稳定性：设备初始化完成");
+    }
+
+    private static async Task<bool> EnsureOvenConnectedAsync(TaskContext ctx, CancellationToken ct)
+    {
+        if (ctx.Oven is null) return false;
+        if (ctx.Oven.State == ConnectionState.Connected) return true;
+
+        AppLog.Info("Run", $"长期稳定性：烘箱当前状态 {ctx.Oven.State}，尝试重新连接…");
+        try
+        {
+            return await ctx.Oven.OpenAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("Run", $"长期稳定性：烘箱重新连接失败: {ex.Message}");
+            return false;
+        }
     }
 
     private static async Task ReadDmmForAllSlotsAsync(TaskContext ctx, TempPoint tp, PressurePoint pp, CancellationToken ct)

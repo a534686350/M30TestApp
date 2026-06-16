@@ -42,6 +42,9 @@ public sealed class TestPlan
     /// <summary>Performance specification limits (Min/Max) for pass/fail judgment.</summary>
     public SpecLimits Specs { get; set; } = new();
 
+    /// <summary>探漏压力点与泄漏率阈值；留空时按压力类型自动推导。</summary>
+    public LeakCheckSettings LeakCheck { get; set; } = new();
+
     /// <summary>Metric codes enabled for pass/fail judgment (empty = all enabled).</summary>
     public Dictionary<string, bool> EnabledMetrics { get; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -84,6 +87,7 @@ public sealed class TestPlan
             }
         }
         plan.Specs = SpecLimits.LoadFrom(ini);
+        plan.LeakCheck = LeakCheckSettings.LoadFrom(ini);
         plan.EnabledMetrics.Clear();
         foreach (var kv in ini["Metrics"])
         {
@@ -116,6 +120,7 @@ public sealed class TestPlan
                 ini.Set("PressurePointTypes", pp.Name, pp.PressureType.ToString());
         }
         Specs.SaveTo(ini);
+        LeakCheck.SaveTo(ini);
         foreach (var kv in EnabledMetrics)
             ini.Set("Metrics", kv.Key, kv.Value ? "1" : "0");
         ini.Save(path);

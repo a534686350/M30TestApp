@@ -45,6 +45,18 @@
                                     Binding="{Binding CountText}"
                                     IsReadOnly="True"
                                     Width="120"/>
+                <DataGridTemplateColumn Header="" Width="40">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Button Content="×"
+                                    Padding="6,0"
+                                    FontSize="14"
+                                    ToolTip="删除此行"
+                                    Tag="{Binding}"
+                                    Click="DeleteRuleRow_Click"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
             </DataGrid.Columns>
         </DataGrid>
 

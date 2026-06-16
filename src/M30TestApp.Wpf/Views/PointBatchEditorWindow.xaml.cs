@@ -3,9 +3,9 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using M30TestApp.Core.Config;
 
 namespace M30TestApp.Wpf.Views;
 
@@ -215,57 +215,14 @@ public partial class PointBatchEditorWindow : Window, INotifyPropertyChanged
         DialogResult = false;
     }
 
-    private static bool TryCountRange(string text, bool singleInput, out int count)
+    private static bool TryCountRange(string text, bool singleInput, out int count) =>
+        PointBatchRangeParser.TryCount(text, singleInput, out count);
+
+    private void DeleteRuleRow_Click(object sender, RoutedEventArgs e)
     {
-        count = 0;
-        var normalized = NormalizeRange(text);
-        if (string.IsNullOrWhiteSpace(normalized))
-            return false;
-
-        if (singleInput &&
-            Regex.IsMatch(normalized, @"^\d+$", RegexOptions.IgnoreCase) &&
-            int.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out var totalCount) &&
-            totalCount > 0)
-        {
-            count = totalCount;
-            return true;
-        }
-
-        var tokens = normalized
-            .Split(new[] { ',', ';', '；', ' ' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (tokens.Length == 0)
-            return false;
-
-        foreach (var token in tokens)
-        {
-            var match = Regex.Match(
-                token,
-                @"^[PT]?(?<start>\d+)(?:[-~至到][PT]?(?<end>\d+))?$",
-                RegexOptions.IgnoreCase);
-            if (!match.Success)
-                return false;
-
-            var start = int.Parse(match.Groups["start"].Value, CultureInfo.InvariantCulture);
-            var end = match.Groups["end"].Success
-                ? int.Parse(match.Groups["end"].Value, CultureInfo.InvariantCulture)
-                : start;
-            if (start <= 0 || end <= 0)
-                return false;
-
-            count += Math.Abs(end - start) + 1;
-        }
-
-        return count > 0;
+        if (sender is Button { Tag: PointBatchRuleInput row })
+            Rules.Remove(row);
     }
-
-    private static string NormalizeRange(string text) =>
-        Regex.Replace(
-                text.Replace('，', ',')
-                    .Replace('：', ':')
-                    .Trim(),
-                @"\s*([-~至到])\s*",
-                "$1")
-            .Trim();
 
     private void OnPropertyChanged(string propertyName) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

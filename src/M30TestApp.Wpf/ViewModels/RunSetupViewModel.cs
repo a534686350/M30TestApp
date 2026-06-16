@@ -88,7 +88,15 @@ public sealed class RunSetupViewModel : ViewModelBase
         lines.Add("═══ Run:PerformanceTest 完整流程 ═══");
         lines.Add("");
         lines.Add("【1】探漏");
-        lines.Add("    逐阀加压 → 检测泄漏率 → 全开整体探漏");
+        var leakPressures = LeakCheckPlanHelper.ResolvePressures(plan);
+        var leakPrecision = LeakCheckPlanHelper.ResolvePrecision(plan);
+        if (leakPressures.Count > 0)
+        {
+            lines.Add($"    压力类型 {plan.DefaultPressureType}，压力点 {string.Join(" / ", leakPressures)}{plan.PressureUnit}，阈值 {leakPrecision}{plan.PressureUnit}/s");
+            lines.Add("    逐阀加压 → 检测泄漏率 → 全开整体探漏（每个压力点重复）");
+        }
+        else
+            lines.Add("    逐阀加压 → 检测泄漏率 → 全开整体探漏");
         lines.Add("");
 
         for (var ti = 0; ti < plan.TempPoints.Count; ti++)
@@ -146,6 +154,7 @@ public sealed class RunSetupViewModel : ViewModelBase
         lines.Add("═══ Run:LongTermStabilityTest 长期稳定性测试 ═══");
         lines.Add("");
         lines.Add($"采集项：DAQ973A {dmmLabel}（{dmmCmd}），通道 101-120 / 201-220 / 301-320（60 工位，电压/电阻共用）。");
+        lines.Add("工位范围：运行设置中可指定起始/结束工位（如 21-40 → 201-220）。");
         lines.Add("不采集 UT / USC / ISC / USG。");
         lines.Add("表格列：每个温度点 → 全部压力点 DMM 列 + 1 列 Temp（全部压力采集完成后读一次烘箱温度）。");
         lines.Add("");
@@ -211,16 +220,29 @@ public sealed class RunSetupViewModel : ViewModelBase
     public int SlotLimit => _isLongTermStabilityMode
         ? LongTermStabilitySlotMax
         : UseDmmAutoTest ? DmmAutoTestSlotMax : SlotMax;
+    public bool IsLongTermStabilityMode => _isLongTermStabilityMode;
+    public bool ShowLongTermSlotLayout => _isLongTermStabilityMode;
+    public bool ShowLegacySlotLayoutFields => !_isLongTermStabilityMode;
     public string ChannelHint => _isLongTermStabilityMode
-        ? "DAQ channels: 101-120 / 201-220 / 301-320 (60 slots, same for V/R)"
+        ? "通道映射：1-20→101-120，21-40→201-220，41-60→301-320（电压/电阻共用）"
         : UseDmmAutoTest ? "DMM channels: V=101-116 / R=201-216 / Switch=301-304"
+        : "";
+
+    public string LongTermSlotRangeHint => _isLongTermStabilityMode
+        ? LongTermStabilitySlotMap.FormatRangeHint(_startIndex, EndIndex)
         : "";
 
     private int _slotCount = 16;
     public int SlotCount
     {
         get => _slotCount;
-        set => SetLayoutField(ref _slotCount, Math.Clamp(value, 1, MaxSlotCountFromStart));
+        set
+        {
+            var next = Math.Clamp(value, 1, MaxSlotCountFromStart);
+            if (!SetField(ref _slotCount, next)) return;
+            NotifySlotRangeChanged();
+            Regenerate();
+        }
     }
 
     private string _batchNo = $"{DateTime.Now:yyMMdd}_01";
@@ -241,8 +263,35 @@ public sealed class RunSetupViewModel : ViewModelBase
                 _slotCount = MaxSlotCountFromStart;
                 OnPropertyChanged(nameof(SlotCount));
             }
+            NotifySlotRangeChanged();
             Regenerate();
         }
+    }
+
+    /// <summary>结束工位（含）；与起始工位、工位数联动。</summary>
+    public int EndIndex
+    {
+        get => Math.Min(SlotLimit, Math.Max(_startIndex, _startIndex + _slotCount - 1));
+        set
+        {
+            var end = Math.Clamp(value, _startIndex, SlotLimit);
+            var nextCount = end - _startIndex + 1;
+            if (nextCount == _slotCount)
+            {
+                OnPropertyChanged();
+                return;
+            }
+            _slotCount = nextCount;
+            OnPropertyChanged(nameof(SlotCount));
+            NotifySlotRangeChanged();
+            Regenerate();
+        }
+    }
+
+    private void NotifySlotRangeChanged()
+    {
+        OnPropertyChanged(nameof(EndIndex));
+        OnPropertyChanged(nameof(LongTermSlotRangeHint));
     }
 
     private int MaxSlotCountFromStart => UsesFixedDmmSlotMap
@@ -341,6 +390,9 @@ public sealed class RunSetupViewModel : ViewModelBase
 
     public bool ShowLongTermMeasureOptions => _isLongTermStabilityMode;
 
+    /// <summary>长期稳定性测试必须启用烘箱，不允许取消勾选。</summary>
+    public bool OvenRequiredForRun => _isLongTermStabilityMode;
+
     private LongTermStabilityMeasureMode _longTermMeasureMode = LongTermStabilityMeasureMode.Voltage;
     public LongTermStabilityMeasureMode LongTermMeasureMode
     {
@@ -412,7 +464,10 @@ public sealed class RunSetupViewModel : ViewModelBase
         LoadPlanFolders(session.Plan);
         SeedFromCurrentSlots(session.Slots);
         if (_isLongTermStabilityMode)
+        {
             _usePower = false;
+            _useOven = true;
+        }
         DetectCheckpoint(session);
         Regenerate();
 
@@ -436,12 +491,13 @@ public sealed class RunSetupViewModel : ViewModelBase
         _startIndex = Math.Clamp(_startIndex, 1, SlotLimit);
         _slotCount = Math.Clamp(_slotCount, 1, MaxSlotCountFromStart);
         _startChannel = _isLongTermStabilityMode
-            ? LongTermChannelForSlot(_startIndex)
+            ? LongTermStabilitySlotMap.ChannelForSlot(_startIndex)
             : DmmAutoVoltageChannelForSlot(_startIndex);
 
         OnPropertyChanged(nameof(StartIndex));
         OnPropertyChanged(nameof(SlotCount));
         OnPropertyChanged(nameof(StartChannel));
+        NotifySlotRangeChanged();
     }
 
     private bool SetLayoutField<T>(ref T storage, T value, [CallerMemberName] string? name = null)
@@ -606,7 +662,7 @@ public sealed class RunSetupViewModel : ViewModelBase
             _longTermMeasureMode = savedMode.Equals("Resistance", StringComparison.OrdinalIgnoreCase)
                 ? LongTermStabilityMeasureMode.Resistance
                 : LongTermStabilityMeasureMode.Voltage;
-            _startChannel = LongTermChannelForSlot(_startIndex);
+            _startChannel = LongTermStabilitySlotMap.ChannelForSlot(_startIndex);
             OnPropertyChanged(nameof(LongTermMeasureMode));
             OnPropertyChanged(nameof(LongTermMeasureVoltage));
             OnPropertyChanged(nameof(LongTermMeasureResistance));
@@ -692,18 +748,12 @@ public sealed class RunSetupViewModel : ViewModelBase
                 Slot = $"Slot{slotNo}",
                 Board = (((slotNo - 1) / 20) + 1).ToString(),
                 BoardSlotNo = (((slotNo - 1) % 20) + 1).ToString(),
-                Channel = LongTermChannelForSlot(slotNo).ToString(),
+                Channel = LongTermStabilitySlotMap.ChannelForSlot(slotNo).ToString(),
                 Dmm = "DAQ970A/DAQ973A"
             });
         }
         return result;
     }
-
-    /// <summary>
-    /// Long-term stability: 60 slots → 101-120, 201-220, 301-320 (same channels for voltage and resistance).
-    /// </summary>
-    private static int LongTermChannelForSlot(int slotNo) =>
-        (((slotNo - 1) / 20) + 1) * 100 + (((slotNo - 1) % 20) + 1);
 
     private static List<SlotEntry> ApplyDmmAutoTestChannels(List<SlotEntry> slots, int startSlotNo)
     {

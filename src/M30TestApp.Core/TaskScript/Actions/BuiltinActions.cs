@@ -628,10 +628,24 @@ public sealed class RunPerformanceTestAction : IAction
         }
         AppLog.Info("Leak", $"本次探漏阀门：{string.Join(", ", valves.Select(v => v.name))}（共{valves.Count}个）");
 
-        var leakP = 10f; // 探漏压力 (kPa)，可配置
-        var leakPrecision = 0.0005f;
-        var leakCheckSec = 60; // 泄漏率判定等待秒数
+        var leakPressures = LeakCheckPlanHelper.ResolvePressures(ctx.Plan);
+        if (leakPressures.Count == 0)
+        {
+            AppLog.Warn("Leak", "未配置探漏压力点且无法从方案推导，跳过探漏");
+            return;
+        }
+
+        var leakPrecision = LeakCheckPlanHelper.ResolvePrecision(ctx.Plan);
+        var pressureUnit = string.IsNullOrWhiteSpace(ctx.Plan.PressureUnit) ? "kPa" : ctx.Plan.PressureUnit;
+        var leakCheckSecMs = GetDelayMs(ctx, "LeakCheckSec", 60000);
+        var leakCheckSec = Math.Max(1, leakCheckSecMs >= 1000 ? leakCheckSecMs / 1000 : leakCheckSecMs);
         var switchMs = GetDelayMs(ctx, "ValveSwitchMs", 500);
+        var pressureType = ctx.Plan.DefaultPressureType;
+
+        AppLog.Info("Leak",
+            $"探漏参数：类型={pressureType}，压力点=[{string.Join(", ", leakPressures)}]{pressureUnit}，精度/泄漏率阈值={leakPrecision}{pressureUnit}/s，观测={leakCheckSec}s");
+
+        await ctx.Pressure.SetPressureTypeAsync(pressureType, ct);
 
         // 初始状态：全部阀门关闭（主阀始终保持关闭）
         AppLog.Info("Leak", "关闭所有阀门");
@@ -646,77 +660,87 @@ public sealed class RunPerformanceTestAction : IAction
         await ctx.Pressure.VentAsync(ct);
         await Task.Delay(GetDelayMs(ctx, "VentWaitMs", 120000) / 10, ct);
 
-        // 逐阀探漏：每次只开被测阀，其余全关，主阀不动
-        foreach (var (vName, vAddr) in valves)
+        foreach (var leakP in leakPressures)
         {
             ct.ThrowIfCancellationRequested();
-            AppLog.Info("Leak", $"正在对{vName}进行探漏");
-            try
+            AppLog.Info("Leak", $"── 探漏压力点 {leakP}{pressureUnit} ──");
+
+            // 逐阀探漏：每次只开被测阀，其余全关，主阀不动
+            foreach (var (vName, vAddr) in valves)
             {
-                // 关闭所有工位阀，只开当前被测阀
-                foreach (var (_, a) in valves) await ctx.Dmm.CloseRelayAsync(a, ct);
-                await ctx.Dmm.OpenRelayAsync(vAddr, ct);
+                ct.ThrowIfCancellationRequested();
+                AppLog.Info("Leak", $"正在对{vName}进行探漏 @ {leakP}{pressureUnit}");
+                try
+                {
+                    foreach (var (_, a) in valves) await ctx.Dmm.CloseRelayAsync(a, ct);
+                    await ctx.Dmm.OpenRelayAsync(vAddr, ct);
+                    await Task.Delay(switchMs, ct);
+
+                    if (!await RunLeakRateCheckAsync(ctx, $"{vName} @ {leakP}{pressureUnit}", leakP, pressureUnit, leakPrecision, leakCheckSec, 15, ct))
+                        AppLog.Warn("Leak", $"{vName} @ {leakP}{pressureUnit} 探漏失败");
+
+                    await ctx.Dmm.CloseRelayAsync(vAddr, ct);
+                }
+                catch (Exception ex)
+                {
+                    AppLog.Warn("Leak", $"{vName} @ {leakP}{pressureUnit} 探漏失败: {ex.Message}");
+                }
+            }
+
+            // 整体探漏（多阀门时）：同时开需要的工位阀，主阀不动
+            if (valves.Count > 1)
+            {
+                AppLog.Info("Leak", $"打开所有工位阀进行整体探漏 @ {leakP}{pressureUnit}");
+                foreach (var (_, addr) in valves) await ctx.Dmm.OpenRelayAsync(addr, ct);
                 await Task.Delay(switchMs, ct);
+                try
+                {
+                    if (!await RunLeakRateCheckAsync(ctx, $"整体探漏 @ {leakP}{pressureUnit}", leakP, pressureUnit, leakPrecision, leakCheckSec, 10, ct))
+                        AppLog.Warn("Leak", $"整体探漏 @ {leakP}{pressureUnit} 失败");
+                }
+                catch (Exception ex)
+                {
+                    AppLog.Warn("Leak", $"整体探漏 @ {leakP}{pressureUnit} 失败: {ex.Message}");
+                }
 
-                AppLog.Info("Leak", $"加压 {leakP}kPa 探漏开始");
-                await ctx.Pressure.SetPressureAsync(leakP, "kPa", leakPrecision, ct);
-                await Task.Delay(15000, ct);
-
-                AppLog.Info("Leak", "检查泄漏率");
-                var p1 = await ctx.Pressure.ReadPressureAsync(ct);
-                await Task.Delay(leakCheckSec * 1000, ct);
-                ct.ThrowIfCancellationRequested();
-                var p2 = await ctx.Pressure.ReadPressureAsync(ct);
-                var leakRate = Math.Abs(p2 - p1) / leakCheckSec;
-
-                if (leakRate < leakPrecision)
-                    AppLog.Info("Leak", $"{vName}探漏通过");
-                else
-                    AppLog.Warn("Leak", $"{vName}探漏失败，泄漏率={leakRate:G4}");
-
-                // 测完关闭当前阀
-                await ctx.Dmm.CloseRelayAsync(vAddr, ct);
+                foreach (var (_, addr) in valves) await ctx.Dmm.CloseRelayAsync(addr, ct);
             }
-            catch (Exception ex)
-            {
-                AppLog.Warn("Leak", $"{vName}探漏失败: {ex.Message}");
-            }
-        }
-
-        // 整体探漏（多阀门时）：同时开需要的工位阀，主阀不动
-        if (valves.Count > 1)
-        {
-            AppLog.Info("Leak", "打开所有工位阀进行整体探漏");
-            foreach (var (_, addr) in valves) await ctx.Dmm.OpenRelayAsync(addr, ct);
-            await Task.Delay(switchMs, ct);
-            try
-            {
-                AppLog.Info("Leak", $"加压 {leakP}kPa 整体探漏开始");
-                await ctx.Pressure.SetPressureAsync(leakP, "kPa", leakPrecision, ct);
-                await Task.Delay(10000, ct);
-                AppLog.Info("Leak", "检查泄漏率");
-                var p1 = await ctx.Pressure.ReadPressureAsync(ct);
-                await Task.Delay(leakCheckSec * 1000, ct);
-                ct.ThrowIfCancellationRequested();
-                var p2 = await ctx.Pressure.ReadPressureAsync(ct);
-                var rate = Math.Abs(p2 - p1) / leakCheckSec;
-                if (rate < leakPrecision)
-                    AppLog.Info("Leak", "整体探漏通过");
-                else
-                    AppLog.Warn("Leak", $"整体探漏失败，泄漏率={rate:G4}");
-            }
-            catch (Exception ex)
-            {
-                AppLog.Warn("Leak", $"整体探漏失败: {ex.Message}");
-            }
-
-            // 整体探漏完毕，关闭所有工位阀
-            foreach (var (_, addr) in valves) await ctx.Dmm.CloseRelayAsync(addr, ct);
         }
 
         // 泄压结束
         await ctx.Pressure.VentAsync(ct);
         AppLog.Info("Leak", "探漏完成，已泄压，所有阀门已关闭");
+    }
+
+    private static async Task<bool> RunLeakRateCheckAsync(
+        TaskContext ctx,
+        string label,
+        float targetPressure,
+        string unit,
+        float precision,
+        int observeSec,
+        int stabilizeSec,
+        CancellationToken ct)
+    {
+        AppLog.Info("Leak", $"{label} 加压 {targetPressure}{unit} 开始");
+        await ctx.Pressure!.SetPressureAsync(targetPressure, unit, precision, ct);
+        await Task.Delay(stabilizeSec * 1000, ct);
+
+        AppLog.Info("Leak", $"{label} 检查泄漏率（观测 {observeSec}s）");
+        var p1 = await ctx.Pressure.ReadPressureAsync(ct);
+        await Task.Delay(observeSec * 1000, ct);
+        ct.ThrowIfCancellationRequested();
+        var p2 = await ctx.Pressure.ReadPressureAsync(ct);
+        var leakRate = Math.Abs(p2 - p1) / observeSec;
+
+        if (leakRate < precision)
+        {
+            AppLog.Info("Leak", $"{label} 探漏通过，泄漏率={leakRate:G4}{unit}/s");
+            return true;
+        }
+
+        AppLog.Warn("Leak", $"{label} 探漏失败，泄漏率={leakRate:G4}{unit}/s（阈值<{precision}{unit}/s）");
+        return false;
     }
 
     // ── 设置烘箱并等待温度到达（1分钟间隔日志，最长240分钟）───────────────
@@ -725,7 +749,13 @@ public sealed class RunPerformanceTestAction : IAction
         try
         {
             AppLog.Info(source, $"设置烘箱温度至{tp.Celsius}度");
-            await ctx.Oven!.SetTempAsync(tp.Celsius, ct);
+            var ok = await ctx.Oven!.SetTempAsync(tp.Celsius, ct);
+            if (!ok)
+            {
+                AppLog.Warn(source, $"设置烘箱温度或启动加热失败（TEMP/POWER 指令未返回 OK）");
+                return;
+            }
+            AppLog.Info(source, "烘箱已发送加热指令（TEMP + POWER,ON）");
         }
         catch (Exception ex)
         {

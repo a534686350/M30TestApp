@@ -17,6 +17,7 @@ public partial class ConfigView : UserControl
     public ConfigView()
     {
         InitializeComponent();
+        DataGridScrollHelper.EnableDragAndWheelScroll(SlotGrid);
         Loaded += (_, _) => ResetScanSlot();
     }
 
@@ -51,16 +52,17 @@ public partial class ConfigView : UserControl
             ScanSlotLabel.Text = slot.Slot;
     }
 
-    private void SyncGridSelectionToScanIndex()
+    private void SyncGridSelectionToScanIndex(int? scrollToIndex = null, bool alignBottom = false)
     {
-        if (SlotGrid.Items.Count == 0 || _scanSlotIndex >= SlotGrid.Items.Count)
+        var index = scrollToIndex ?? _scanSlotIndex;
+        if (SlotGrid.Items.Count == 0 || index < 0 || index >= SlotGrid.Items.Count)
             return;
 
         _updatingScanSelection = true;
         try
         {
-            SlotGrid.SelectedIndex = _scanSlotIndex;
-            SlotGrid.ScrollIntoView(SlotGrid.Items[_scanSlotIndex]);
+            SlotGrid.SelectedIndex = index;
+            DataGridScrollHelper.ScrollToRow(SlotGrid, index, alignBottom);
         }
         finally
         {
@@ -119,14 +121,13 @@ public partial class ConfigView : UserControl
         slot.SerialNo = barcode;
         ScanStatusText.Text = $"{slot.Slot} -> {barcode}";
 
+        var enteredIndex = _scanSlotIndex;
         _scanSlotIndex++;
         UpdateScanSlotLabel();
 
-        var nextIndex = _scanSlotIndex;
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
         {
-            if (nextIndex < SlotGrid.Items.Count)
-                SyncGridSelectionToScanIndex();
+            SyncGridSelectionToScanIndex(enteredIndex, alignBottom: true);
             UpdateScanSlotLabel();
         });
 

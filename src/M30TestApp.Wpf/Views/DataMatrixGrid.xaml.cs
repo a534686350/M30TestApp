@@ -17,6 +17,7 @@ public partial class DataMatrixGrid : UserControl
     {
         InitializeComponent();
         BuildStaticColumns();
+        DataGridScrollHelper.EnableDragAndWheelScroll(Grid);
     }
 
     public static readonly DependencyProperty RowsProperty = DependencyProperty.Register(

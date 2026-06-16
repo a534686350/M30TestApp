@@ -286,6 +286,48 @@ public sealed class ConfigViewModel : ViewModelBase
                 pp.PressureType = next;
             RefreshPressurePointRows();
             OnPropertyChanged();
+            OnPropertyChanged(nameof(LeakCheckPressuresHint));
+        }
+    }
+
+    public string LeakCheckPressuresText
+    {
+        get => Plan.LeakCheck.Pressures.Count == 0
+            ? ""
+            : string.Join(", ", Plan.LeakCheck.Pressures.Select(p => p.ToString(CultureInfo.InvariantCulture)));
+        set
+        {
+            Plan.LeakCheck.Pressures.Clear();
+            foreach (var part in (value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (float.TryParse(part, NumberStyles.Float, CultureInfo.InvariantCulture, out var pressure))
+                    Plan.LeakCheck.Pressures.Add(pressure);
+            }
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(LeakCheckPressuresHint));
+        }
+    }
+
+    public string LeakCheckPrecisionText
+    {
+        get => Plan.LeakCheck.Precision?.ToString(CultureInfo.InvariantCulture) ?? "";
+        set
+        {
+            Plan.LeakCheck.Precision = float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var precision)
+                ? precision
+                : null;
+            OnPropertyChanged();
+        }
+    }
+
+    public string LeakCheckPressuresHint
+    {
+        get
+        {
+            var fullScale = LeakCheckPlanHelper.ResolveFullScale(Plan);
+            var unit = string.IsNullOrWhiteSpace(Plan.PressureUnit) ? "kPa" : Plan.PressureUnit;
+            var desc = LeakCheckPlanHelper.DescribeDefaultPressures(Plan);
+            return fullScale > 0 ? $"{desc}（满量程 {fullScale}{unit}）" : desc;
         }
     }
 
@@ -406,6 +448,8 @@ public sealed class ConfigViewModel : ViewModelBase
     public RelayCommand NewSensorModelCommand { get; }
     public RelayCommand BulkEditPressurePointsCommand { get; }
     public RelayCommand BulkEditTempPointsCommand { get; }
+    public RelayCommand DeletePressurePointCommand { get; }
+    public RelayCommand DeleteTempPointCommand { get; }
     public RelayCommand UsePerformanceFlowCommand { get; }
     public RelayCommand DeletePlanCommand { get; }
 
@@ -456,6 +500,14 @@ public sealed class ConfigViewModel : ViewModelBase
         NewSensorModelCommand = new RelayCommand(_ => NewSensorModel());
         BulkEditPressurePointsCommand = new RelayCommand(_ => BulkEditPressurePoints());
         BulkEditTempPointsCommand = new RelayCommand(_ => BulkEditTempPoints());
+        DeletePressurePointCommand = new RelayCommand(p =>
+        {
+            if (p is PressurePoint pp) PressurePoints.Remove(pp);
+        });
+        DeleteTempPointCommand = new RelayCommand(p =>
+        {
+            if (p is TempPoint tp) TempPoints.Remove(tp);
+        });
         UsePerformanceFlowCommand = new RelayCommand(_ => UsePerformanceFlow());
         DeletePlanCommand = new RelayCommand(_ => DeletePlan());
     }
@@ -575,9 +627,9 @@ public sealed class ConfigViewModel : ViewModelBase
                 PressureTypeToDisplay(p.PressureType)))
             .ToList();
         if (rows.Count == 0)
-            rows.Add(new Views.PointBatchRuleInput("1-3", "0", PlanDefaultPressureTypeDisplay));
+            rows.Add(new Views.PointBatchRuleInput("1 20", "0", PlanDefaultPressureTypeDisplay));
 
-        var hint = "压力录入：每行只填 3 格。范围/序号示例 1-5、6-40、41-45；压力值示例 0、100；压力类型可填表压、绝压、差压，留空则使用默认压力类型。录入后仍可在表格中单独修改。";
+        var hint = "压力录入：范围/序号支持「1 20」（从第 1 个起共 20 点）、「20」（从 P1 起共 20 点）、「1-20」；压力值填如 0、100；压力类型可填表压、绝压、差压，留空则用默认。例：1 20 + 0 → P1–P20 均为 0。";
         var dlg = new Views.PointBatchEditorWindow("批量录入压力点", "压力值", "压力类型", hint, rows)
         {
             Owner = Application.Current.MainWindow
@@ -605,9 +657,9 @@ public sealed class ConfigViewModel : ViewModelBase
                 t.SoakMinutesText))
             .ToList();
         if (rows.Count == 0)
-            rows.Add(new Views.PointBatchRuleInput("1-3", "25", "30"));
+            rows.Add(new Views.PointBatchRuleInput("1 20", "25", "120"));
 
-        var hint = "温度录入：每行只填 3 格。范围/序号示例 1-5、6-40、41-45；温度示例 25、85；保温分钟示例 30，可留空。录入后仍可在表格中单独修改。";
+        var hint = "温度录入：范围/序号支持「1 20」（从第 1 个起共 20 点）、「20」（从 T1 起共 20 点）、「1-20」；温度填如 25；保温分钟可留空。例：1 20 + 25 → T1–T20 均为 25℃。";
         var dlg = new Views.PointBatchEditorWindow("批量录入温度点", "温度 (°C)", "保温分钟", hint, rows)
         {
             Owner = Application.Current.MainWindow
@@ -684,17 +736,14 @@ public sealed class ConfigViewModel : ViewModelBase
 
     private static IEnumerable<int> ParseStructuredPointIndexes(string text, string line, bool singleInput)
     {
-        var normalized = NormalizePointBatchLine(text);
-        if (singleInput &&
-            Regex.IsMatch(normalized, @"^\d+$") &&
-            int.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out var count))
+        try
         {
-            if (count <= 0)
-                throw new FormatException($"点位数量必须大于 0：{line}");
-            return Enumerable.Range(1, count);
+            return PointBatchRangeParser.ExpandIndexes(text, singleInput).ToList();
         }
-
-        return ParsePointIndexes(normalized, line).ToList();
+        catch (FormatException ex)
+        {
+            throw new FormatException($"{ex.Message}（{line}）", ex);
+        }
     }
 
     private static int? ParseSoakMinutes(string text, string line)
@@ -1065,6 +1114,9 @@ public sealed class ConfigViewModel : ViewModelBase
         OnPropertyChanged(nameof(TaskScript));
         OnPropertyChanged(nameof(SelectedSensorModelFile));
         OnPropertyChanged(nameof(PlanDefaultPressureTypeDisplay));
+        OnPropertyChanged(nameof(LeakCheckPressuresText));
+        OnPropertyChanged(nameof(LeakCheckPrecisionText));
+        OnPropertyChanged(nameof(LeakCheckPressuresHint));
         PressurePoints.Clear();
         foreach (var pp in plan.PressurePoints) PressurePoints.Add(pp);
         TempPoints.Clear();
@@ -1312,6 +1364,7 @@ public sealed class ConfigViewModel : ViewModelBase
 
         DelaySettings.Add(new SettingPairVm("加压后等待时间", LoadSetting(DelaySection, "PressureAfterMs", "60000"), null, "毫秒(ms)", DelaySection, "PressureAfterMs"));
         DelaySettings.Add(new SettingPairVm("探漏等待时间", LoadSetting(DelaySection, "LeakWaitMs", "500"), null, "毫秒(ms)", DelaySection, "LeakWaitMs"));
+        DelaySettings.Add(new SettingPairVm("探漏泄漏率观测时间", LoadSetting(DelaySection, "LeakCheckSec", "60000"), null, "毫秒(ms)", DelaySection, "LeakCheckSec"));
         DelaySettings.Add(new SettingPairVm("泄压等待时间", LoadSetting(DelaySection, "VentWaitMs", "120000"), null, "毫秒(ms)", DelaySection, "VentWaitMs"));
         DelaySettings.Add(new SettingPairVm("Usig采集延迟", LoadSetting(DelaySection, "UsigDelayMs", "300"), null, "毫秒(ms)", DelaySection, "UsigDelayMs"));
         DelaySettings.Add(new SettingPairVm("UT采集延迟", LoadSetting(DelaySection, "UtDelayMs", "300"), null, "毫秒(ms)", DelaySection, "UtDelayMs"));

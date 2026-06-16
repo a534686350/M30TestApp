@@ -539,10 +539,14 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
             _session.Context.Pressure = null;
             AppLog.Info("Run", "已跳过压力控制器");
         }
-        if (!setupVm.UseOven)
+        if (!setupVm.UseOven && !_isLongTermStabilityMode)
         {
             _session.Context.Oven = null;
             AppLog.Info("Run", "已跳过烘箱");
+        }
+        else if (_isLongTermStabilityMode && !setupVm.UseOven)
+        {
+            AppLog.Warn("Run", "长期稳定性测试需要烘箱，已强制启用");
         }
         if (!setupVm.UsePower)
         {

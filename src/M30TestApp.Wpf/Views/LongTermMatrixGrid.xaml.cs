@@ -25,6 +25,7 @@ public partial class LongTermMatrixGrid : UserControl
     {
         InitializeComponent();
         BuildStaticColumns();
+        DataGridScrollHelper.EnableDragAndWheelScroll(Grid);
         Loaded += OnLoaded;
     }
 
@@ -210,18 +211,8 @@ public partial class LongTermMatrixGrid : UserControl
     private void RequestLayoutSync() => Dispatcher.BeginInvoke(
         SyncMergedHeaderLayout, System.Windows.Threading.DispatcherPriority.Loaded);
 
-    private static ScrollViewer? FindScrollViewer(DependencyObject root)
-    {
-        ScrollViewer? found = null;
-        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
-        {
-            var child = VisualTreeHelper.GetChild(root, i);
-            if (child is ScrollViewer sv) found = sv;
-            var nested = FindScrollViewer(child);
-            if (nested is not null) found = nested;
-        }
-        return found;
-    }
+    private static ScrollViewer? FindScrollViewer(DependencyObject root) =>
+        DataGridScrollHelper.FindScrollViewer(root);
 
     private sealed record MergedTempHeaderCell(Border Border, int ColumnCount);
 }
