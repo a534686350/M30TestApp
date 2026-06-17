@@ -61,13 +61,22 @@ public partial class ConfigView : UserControl
         _updatingScanSelection = true;
         try
         {
-            SlotGrid.SelectedIndex = index;
+            var item = SlotGrid.Items[index];
+            SlotGrid.SelectedItem = item;
+            if (SlotGrid.Columns.Count > 0)
+                SlotGrid.CurrentCell = new DataGridCellInfo(item, SlotGrid.Columns[0]);
             DataGridScrollHelper.ScrollToRow(SlotGrid, index, alignBottom);
         }
         finally
         {
             _updatingScanSelection = false;
         }
+    }
+
+    private int CurrentVisibleScanIndex()
+    {
+        if (SlotGrid.Items.Count == 0) return -1;
+        return Math.Clamp(_scanSlotIndex, 0, SlotGrid.Items.Count - 1);
     }
 
     private void OnSlotGridSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -121,13 +130,12 @@ public partial class ConfigView : UserControl
         slot.SerialNo = barcode;
         ScanStatusText.Text = $"{slot.Slot} -> {barcode}";
 
-        var enteredIndex = _scanSlotIndex;
         _scanSlotIndex++;
         UpdateScanSlotLabel();
 
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
         {
-            SyncGridSelectionToScanIndex(enteredIndex, alignBottom: true);
+            SyncGridSelectionToScanIndex(CurrentVisibleScanIndex(), alignBottom: true);
             UpdateScanSlotLabel();
         });
 

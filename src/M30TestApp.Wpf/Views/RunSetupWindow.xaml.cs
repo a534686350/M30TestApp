@@ -71,13 +71,22 @@ public partial class RunSetupWindow : Window
         _updatingScanSelection = true;
         try
         {
-            RunSlotGrid.SelectedIndex = index;
+            var item = RunSlotGrid.Items[index];
+            RunSlotGrid.SelectedItem = item;
+            if (RunSlotGrid.Columns.Count > 0)
+                RunSlotGrid.CurrentCell = new DataGridCellInfo(item, RunSlotGrid.Columns[0]);
             DataGridScrollHelper.ScrollToRow(RunSlotGrid, index, alignBottom);
         }
         finally
         {
             _updatingScanSelection = false;
         }
+    }
+
+    private int CurrentVisibleScanIndex()
+    {
+        if (RunSlotGrid.Items.Count == 0) return -1;
+        return Math.Clamp(_scanSlotIndex, 0, RunSlotGrid.Items.Count - 1);
     }
 
     private void OnRunSlotGridSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -133,13 +142,12 @@ public partial class RunSetupWindow : Window
         slot.SerialNo = barcode;
         RunScanStatusText.Text = $"{slot.Slot} -> {barcode}";
 
-        var enteredIndex = _scanSlotIndex;
         _scanSlotIndex++;
         UpdateScanSlotLabel();
 
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
         {
-            SyncGridSelectionToScanIndex(enteredIndex, alignBottom: true);
+            SyncGridSelectionToScanIndex(CurrentVisibleScanIndex(), alignBottom: true);
             UpdateScanSlotLabel();
         });
 
