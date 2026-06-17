@@ -388,10 +388,9 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
                 continue;
             }
 
-            var span = u100 - u0;
-            var ratio = (p50 - p0) / (p100 - p0);
-            var ideal = u0 + span * ratio;
-            var nl = Math.Abs(span) < 1e-12 ? double.NaN : (u50 - ideal) / span * 100.0;
+            var pressureType = _session.Plan.DefaultPressureType;
+            var span = PressureMetricMath.Span(u0, u100, p0, p100, pressureType);
+            var nl = PressureMetricMath.LinearityError(u50, u0, u100, p100, p0, p50, pressureType);
             row.Span = F(span);
             row.Linearity = F(nl);
 

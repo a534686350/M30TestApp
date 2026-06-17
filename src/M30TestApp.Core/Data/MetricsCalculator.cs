@@ -59,8 +59,9 @@ public static class MetricsCalculator
             Set(ctx, slotName, "Rb5_T3", rb5T3, null);
 
             var offset = usgP0T3;
-            var span = Sub(usgP100T3, usgP0T3);
-            var nl = LinearityError(usgP50T3, usgP0T3, usgP100T3, p100.Value, p0.Value, p50.Value);
+            var pressureType = ResolveMetricPressureType(ctx.Plan.DefaultPressureType, p0, p50, p100);
+            var span = PressureMetricMath.Span(usgP0T3, usgP100T3, p0.Value, p100.Value, pressureType);
+            var nl = PressureMetricMath.LinearityError(usgP50T3, usgP0T3, usgP100T3, p100.Value, p0.Value, p50.Value, pressureType);
             var tco = Tco(usgP0T2, usgP0T3, tempT2, tempT3, usgP100T3);
             var tcs = Tcs(usgP100T2, usgP0T2, usgP100T3, usgP0T3, tempT2, tempT3);
             var tcr = Tcr(rb5T2, rb5T3, tempT2, tempT3);
@@ -120,15 +121,8 @@ public static class MetricsCalculator
         return uSource / iSource;
     }
 
-    private static double Sub(double a, double b) => Invalid(a, b) ? -999 : a - b;
-
-    private static double LinearityError(double midSig, double lowSig, double highSig, double highP, double lowP, double midP)
-    {
-        if (Invalid(midSig, lowSig, highSig, highP, lowP, midP)) return -999;
-        if (highP - lowP == 0 || highSig - lowSig == 0) return -998;
-        var slope = (highSig - lowSig) / (highP - lowP);
-        return (midSig - (slope * (midP - lowP) + lowSig)) * 100 / (highSig - lowSig);
-    }
+    private static PressureType ResolveMetricPressureType(PressureType defaultType, params PressurePoint[] points) =>
+        points.Any(p => p.PressureType == PressureType.Absolute) ? PressureType.Absolute : defaultType;
 
     private static double Tco(double p0T2, double p0T3, double tempT2, double tempT3, double p100T3)
     {
