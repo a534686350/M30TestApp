@@ -133,6 +133,13 @@ function Invoke-GiteeRelease {
     $repo = "m30-test-app"
     $baseUri = "https://gitee.com/api/v5/repos/$owner/$repo"
 
+    function Find-GiteeReleaseByTag {
+        $releases = Invoke-RestMethod `
+            -Uri "$baseUri/releases?access_token=$giteeToken&page=1&per_page=100" `
+            -Method Get
+        return @($releases) | Where-Object { $_.tag_name -eq $Tag } | Select-Object -First 1
+    }
+
     $existing = $null
     try {
         $existing = Invoke-RestMethod `
@@ -168,16 +175,34 @@ function Invoke-GiteeRelease {
         $releaseId = $created.id
         Write-Host "Created Gitee release $Tag (id=$releaseId)."
     }
+    catch {
+        $message = $_.ErrorDetails.Message
+        if ([string]::IsNullOrWhiteSpace($message)) {
+            $message = $_.Exception.Message
+        }
+
+        if ($message -notmatch "标签已经存在发行版|tag already exists|already exists") {
+            throw
+        }
+
+        $existing = Find-GiteeReleaseByTag
+        if (-not ($existing -and $existing.id)) {
+            throw
+        }
+
+        $releaseId = $existing.id
+        Write-Host "Gitee release $Tag already exists (id=$releaseId)."
+    }
 
     $assetName = [IO.Path]::GetFileName($ZipFile)
     $boundary = "----gitee-release-" + [Guid]::NewGuid().ToString("N")
     $fileBytes = [IO.File]::ReadAllBytes($ZipFile)
     $lf = "`r`n"
-    $body = New-Object System.Collections.Generic.List[byte]
+    $multipartBytes = New-Object System.Collections.Generic.List[byte]
 
     function Add-Text([string]$text) {
         $bytes = [Text.Encoding]::UTF8.GetBytes($text)
-        $body.AddRange($bytes)
+        $multipartBytes.AddRange($bytes)
     }
 
     Add-Text "--$boundary$lf"
@@ -185,14 +210,14 @@ function Invoke-GiteeRelease {
     Add-Text "--$boundary$lf"
     Add-Text "Content-Disposition: form-data; name=`"file`"; filename=`"$assetName`"$lf"
     Add-Text "Content-Type: application/octet-stream$lf$lf"
-    $body.AddRange($fileBytes)
+    $multipartBytes.AddRange($fileBytes)
     Add-Text "$lf--$boundary--$lf"
 
     Invoke-RestMethod `
         -Uri "$baseUri/releases/$releaseId/attach_files" `
         -Method Post `
         -ContentType "multipart/form-data; boundary=$boundary" `
-        -Body $body.ToArray() | Out-Null
+        -Body $multipartBytes.ToArray() | Out-Null
 
     Write-Host "Uploaded Gitee asset: $assetName"
 }
