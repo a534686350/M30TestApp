@@ -454,6 +454,7 @@ public sealed class RunSetupViewModel : ViewModelBase
 
     public bool DialogResult { get; private set; }
     public event EventHandler? RequestClose;
+    public event EventHandler? ScanResetRequested;
 
     public RunSetupViewModel(TestSession session, bool isLongTermStabilityMode = false)
     {
@@ -728,6 +729,7 @@ public sealed class RunSetupViewModel : ViewModelBase
             return;
 
         Regenerate(preserveSerials: false);
+        ScanResetRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void Regenerate(bool preserveSerials)
@@ -747,6 +749,11 @@ public sealed class RunSetupViewModel : ViewModelBase
             generated = ApplyDmmAutoTestChannels(generated, _startIndex);
         if (preserveSerials)
             SlotLayoutHelper.ApplyPreservedSerials(generated, preserved);
+        else
+        {
+            foreach (var slot in generated)
+                slot.SerialNo = "";
+        }
 
         PreviewSlots.Clear();
         foreach (var s in generated) PreviewSlots.Add(s);

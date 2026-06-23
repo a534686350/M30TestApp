@@ -29,6 +29,16 @@ public partial class RunSetupWindow : Window
             DialogResult = vm.DialogResult;
             Close();
         };
+        vm.ScanResetRequested += (_, _) =>
+        {
+            RunBarcodeInput.Clear();
+            RunScanStatusText.Text = "";
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+            {
+                ResetScanSlot();
+                RunBarcodeInput.Focus();
+            });
+        };
     }
 
     private void ResetScanSlot()
