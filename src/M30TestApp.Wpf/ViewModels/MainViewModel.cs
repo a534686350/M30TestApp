@@ -157,18 +157,18 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     private static string? PromptAdminPassword()
     {
-        var prompt = new TextBlock { Text = "请输入管理员密码", FontSize = 13, FontWeight = FontWeights.SemiBold };
+        var prompt = new TextBlock { Text = "请输入管理员密码", FontSize = 14, FontWeight = FontWeights.SemiBold };
         prompt.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
 
-        var hint = new TextBlock { Text = "进入设置需要管理员权限", FontSize = 12, Margin = new Thickness(0, 4, 0, 8) };
+        var hint = new TextBlock { Text = "进入设置需要管理员权限", FontSize = 12, Margin = new Thickness(0, 4, 0, 12) };
         hint.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
 
         var box = new PasswordBox
         {
-            Width = 240,
-            Height = 30,
-            Padding = new Thickness(8, 4, 8, 4),
-            Margin = new Thickness(0, 0, 0, 16),
+            MinWidth = 260,
+            Height = 34,
+            Padding = new Thickness(8, 5, 8, 5),
+            Margin = new Thickness(0, 0, 0, 18),
             BorderThickness = new Thickness(1)
         };
         box.SetResourceReference(Control.BackgroundProperty, "SurfaceBrush");
@@ -178,8 +178,9 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         var okButton = new Button
         {
             Content = "确定",
-            Width = 82,
-            Height = 30,
+            Width = 88,
+            MinHeight = 34,
+            Padding = new Thickness(12, 6, 12, 6),
             IsDefault = true
         };
         okButton.SetResourceReference(FrameworkElement.StyleProperty, "PrimaryButton");
@@ -187,8 +188,9 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         var cancelButton = new Button
         {
             Content = "取消",
-            Width = 82,
-            Height = 30,
+            Width = 88,
+            MinHeight = 34,
+            Padding = new Thickness(12, 6, 12, 6),
             Margin = new Thickness(8, 0, 0, 0),
             IsCancel = true
         };
@@ -203,7 +205,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
         var panel = new StackPanel
         {
-            Margin = new Thickness(20),
+            Margin = new Thickness(22),
             Children = { prompt, hint, box, buttons }
         };
         panel.SetResourceReference(Panel.BackgroundProperty, "SurfaceBrush");
@@ -214,7 +216,8 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         {
             Title = "设置",
             Width = 340,
-            Height = 190,
+            MinHeight = 190,
+            SizeToContent = SizeToContent.Height,
             ResizeMode = ResizeMode.NoResize,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Owner = Application.Current.MainWindow,
@@ -225,7 +228,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         okButton.Click += (_, _) => { ok = true; window.Close(); };
         cancelButton.Click += (_, _) => window.Close();
 
-        box.Focus();
+        window.Loaded += (_, _) => box.Focus();
         window.ShowDialog();
         return ok ? box.Password : null;
     }

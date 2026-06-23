@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Threading;
 using M30TestApp.Core;
 using M30TestApp.Core.Common;
@@ -459,25 +460,109 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         if (ck is null)
             return (false, null, null);
 
-        var result = MessageBox.Show(
-            $"检测到上次有未完成的测试。\n\n方案：{ck.PlanName}\n温度点：{ck.TempIndex + 1}\n压力点：{ck.PressureIndex + 1}\n保存时间：{ck.SavedAt:yyyy-MM-dd HH:mm}\n\n是否继续上次测试？\n选择“否”将从头开始新测试。",
-            "未完成测试",
-            MessageBoxButton.YesNoCancel,
-            MessageBoxImage.Question);
+        return ShowResumeCheckpointDialog(ck);
+    }
 
-        if (result == MessageBoxResult.Cancel)
-            return (true, null, null);
+    private static (bool Cancel, bool? Resume, int? ResumeSoakMinutes) ShowResumeCheckpointDialog(TestCheckpoint ck)
+    {
+        var title = new TextBlock
+        {
+            Text = "检测到未完成的测试",
+            FontSize = 16,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+        title.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
 
-        if (result == MessageBoxResult.No)
-            return (false, false, null);
+        var summary = new TextBlock
+        {
+            Text = $"方案：{ck.PlanName}\n温度点：T{ck.TempIndex + 1}\n压力点：P{ck.PressureIndex + 1}\n保存时间：{ck.SavedAt:yyyy-MM-dd HH:mm}",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 12,
+            Margin = new Thickness(0, 0, 0, 12)
+        };
+        summary.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
 
-        var text = Microsoft.VisualBasic.Interaction.InputBox(
-            "请输入续测时当前温度点需要继续保温的时间（分钟）。\n填 0 表示不额外保温，直接继续后续步骤。",
-            "续测保温时间",
-            "0");
+        var prompt = new TextBlock
+        {
+            Text = "从未完成的温度点继续时，请输入本次继续保温时长：",
+            FontSize = 13,
+            Margin = new Thickness(0, 0, 0, 6)
+        };
+        prompt.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
 
-        var minutes = int.TryParse(text, out var value) ? Math.Max(0, value) : 0;
-        return (false, true, minutes);
+        var minutesBox = new TextBox
+        {
+            Text = "0",
+            Width = 90,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0)
+        };
+        var unit = new TextBlock { Text = "分钟", VerticalAlignment = VerticalAlignment.Center };
+        unit.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
+
+        var inputRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 0, 0, 14),
+            Children = { minutesBox, unit }
+        };
+
+        var hint = new TextBlock
+        {
+            Text = "填 0 表示不再额外保温，直接从当前温度点的未完成压力点继续测试。",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 12,
+            Margin = new Thickness(0, 0, 0, 18)
+        };
+        hint.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
+
+        var resumeButton = new Button { Content = "继续测试", Width = 96, MinHeight = 34, IsDefault = true };
+        resumeButton.SetResourceReference(FrameworkElement.StyleProperty, "PrimaryButton");
+        var restartButton = new Button { Content = "重新开始", Width = 96, MinHeight = 34, Margin = new Thickness(8, 0, 0, 0) };
+        restartButton.SetResourceReference(FrameworkElement.StyleProperty, "GhostButton");
+        var cancelButton = new Button { Content = "取消", Width = 82, MinHeight = 34, Margin = new Thickness(8, 0, 0, 0), IsCancel = true };
+        cancelButton.SetResourceReference(FrameworkElement.StyleProperty, "GhostButton");
+
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Children = { resumeButton, restartButton, cancelButton }
+        };
+
+        var panel = new StackPanel
+        {
+            Margin = new Thickness(22),
+            Children = { title, summary, prompt, inputRow, hint, buttons }
+        };
+        panel.SetResourceReference(Panel.BackgroundProperty, "SurfaceBrush");
+
+        var result = (Cancel: true, Resume: (bool?)null, ResumeSoakMinutes: (int?)null);
+        var window = new Window
+        {
+            Title = "未完成测试",
+            Width = 430,
+            SizeToContent = SizeToContent.Height,
+            ResizeMode = ResizeMode.NoResize,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = Application.Current.MainWindow,
+            Content = panel
+        };
+        window.SetResourceReference(Control.BackgroundProperty, "SurfaceBrush");
+
+        resumeButton.Click += (_, _) =>
+        {
+            var minutes = int.TryParse(minutesBox.Text, out var value) ? Math.Max(0, value) : 0;
+            result = (false, true, minutes);
+            window.Close();
+        };
+        restartButton.Click += (_, _) => { result = (false, false, null); window.Close(); };
+        cancelButton.Click += (_, _) => window.Close();
+        window.Loaded += (_, _) => { minutesBox.Focus(); minutesBox.SelectAll(); };
+        window.ShowDialog();
+
+        return result;
     }
 
     private async Task RunAsync()

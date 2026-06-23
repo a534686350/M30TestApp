@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Windows;
 using M30TestApp.Core;
 using M30TestApp.Core.Common;
 using M30TestApp.Core.Config;
@@ -471,7 +472,7 @@ public sealed class RunSetupViewModel : ViewModelBase
         DetectCheckpoint(session);
         Regenerate();
 
-        RegenerateCommand = new RelayCommand(_ => Regenerate());
+        RegenerateCommand = new RelayCommand(_ => ConfirmAndRegenerate());
         ApplyCommand      = new RelayCommand(_ => Apply(),  _ => SelectedPlan is not null && PreviewSlots.Count > 0);
         CancelCommand     = new RelayCommand(_ => { DialogResult = false; RequestClose?.Invoke(this, EventArgs.Empty); });
     }
@@ -717,8 +718,24 @@ public sealed class RunSetupViewModel : ViewModelBase
 
     public void Regenerate()
     {
-        var preserved = SlotLayoutHelper.CollectSerialMap(PreviewSlots);
-        if (!UsesFixedDmmSlotMap || !AutoNumber)
+        Regenerate(preserveSerials: true);
+    }
+
+    private void ConfirmAndRegenerate()
+    {
+        var message = "刷新工位会重新生成全部工位，并清空当前序列号，方便重新扫码录入。\n\n确定要刷新吗？";
+        if (MessageBox.Show(message, "刷新工位", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
+
+        Regenerate(preserveSerials: false);
+    }
+
+    private void Regenerate(bool preserveSerials)
+    {
+        var preserved = preserveSerials
+            ? SlotLayoutHelper.CollectSerialMap(PreviewSlots)
+            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (preserveSerials && (!UsesFixedDmmSlotMap || !AutoNumber))
             SlotLayoutHelper.MergeSerialMaps(preserved, _configSerials);
 
         NormalizeFixedDmmLayout();
@@ -728,7 +745,8 @@ public sealed class RunSetupViewModel : ViewModelBase
             generated = ApplyLongTermStabilityChannels(generated, _startIndex);
         else if (UseDmmAutoTest)
             generated = ApplyDmmAutoTestChannels(generated, _startIndex);
-        SlotLayoutHelper.ApplyPreservedSerials(generated, preserved);
+        if (preserveSerials)
+            SlotLayoutHelper.ApplyPreservedSerials(generated, preserved);
 
         PreviewSlots.Clear();
         foreach (var s in generated) PreviewSlots.Add(s);

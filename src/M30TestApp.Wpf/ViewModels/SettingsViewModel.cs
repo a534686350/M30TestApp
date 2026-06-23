@@ -74,8 +74,36 @@ public sealed class SettingsViewModel : ViewModelBase
     private string _updateStatus = "";
     public string UpdateStatus { get => _updateStatus; set => SetField(ref _updateStatus, value); }
 
+    private int _updateProgress;
+    public int UpdateProgress
+    {
+        get => _updateProgress;
+        set
+        {
+            if (SetField(ref _updateProgress, Math.Clamp(value, 0, 100)))
+            {
+                OnPropertyChanged(nameof(ShowUpdateProgress));
+                OnPropertyChanged(nameof(IsUpdateIndeterminate));
+            }
+        }
+    }
+
+    public bool ShowUpdateProgress => IsCheckingUpdate || UpdateProgress > 0;
+    public bool IsUpdateIndeterminate => IsCheckingUpdate && UpdateProgress <= 0;
+
     private bool _isCheckingUpdate;
-    public bool IsCheckingUpdate { get => _isCheckingUpdate; set => SetField(ref _isCheckingUpdate, value); }
+    public bool IsCheckingUpdate
+    {
+        get => _isCheckingUpdate;
+        set
+        {
+            if (SetField(ref _isCheckingUpdate, value))
+            {
+                OnPropertyChanged(nameof(ShowUpdateProgress));
+                OnPropertyChanged(nameof(IsUpdateIndeterminate));
+            }
+        }
+    }
 
     public RelayCommand OpenRepoCommand { get; }
     public AsyncRelayCommand CheckUpdateCommand { get; }
@@ -104,6 +132,7 @@ public sealed class SettingsViewModel : ViewModelBase
     {
         if (IsCheckingUpdate) return;
 
+        UpdateProgress = 0;
         IsCheckingUpdate = true;
         UpdateStatus = Language == "zh-CN" ? "正在检查更新..." : "Checking for updates...";
         var currentVersion = AppVersion;
@@ -116,7 +145,7 @@ public sealed class SettingsViewModel : ViewModelBase
                 !Version.TryParse(currentVersion, out var currentVer))
             {
                 UpdateStatus = Language == "zh-CN"
-                    ? $"版本号解析失败(latest={latest}, current={currentVersion})"
+                    ? $"版本号解析失败（latest={latest}, current={currentVersion}）"
                     : $"Version parse error (latest={latest}, current={currentVersion})";
                 return;
             }
@@ -130,7 +159,7 @@ public sealed class SettingsViewModel : ViewModelBase
             }
 
             var message = Language == "zh-CN"
-                ? $"发现新版本 v{latest}（当前 v{currentVersion}）。\n\n是否立即下载并安装？\n选择「否」可继续使用当前版本。"
+                ? $"发现新版本 v{latest}（当前 v{currentVersion}）。\n\n是否立即下载并安装？\n选择“否”可继续使用当前版本。"
                 : $"New version v{latest} is available (current v{currentVersion}).\n\nDownload and install now?\nChoose No to keep using the current version.";
             if (MessageBox.Show(message, "M30TestApp", MessageBoxButton.YesNo, MessageBoxImage.Information) != MessageBoxResult.Yes)
             {
@@ -144,10 +173,14 @@ public sealed class SettingsViewModel : ViewModelBase
                 ? $"发现新版本 v{latest}，正在下载..."
                 : $"New version v{latest} found. Downloading...";
             var progress = new Progress<int>(p =>
-                UpdateStatus = (Language == "zh-CN" ? "正在下载 " : "Downloading ") + p + "%");
+            {
+                UpdateProgress = p;
+                UpdateStatus = (Language == "zh-CN" ? "正在下载 " : "Downloading ") + p + "%";
+            });
 
             var zipPath = await SelfUpdater.DownloadAsync(release.AssetUrl, release.AssetName, progress);
 
+            UpdateProgress = 100;
             UpdateStatus = Language == "zh-CN"
                 ? "下载完成，即将重启应用..."
                 : "Download complete, restarting...";
@@ -155,7 +188,7 @@ public sealed class SettingsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            UpdateStatus = (Language == "zh-CN" ? "检查更新失败: " : "Update check failed: ") + ex.Message;
+            UpdateStatus = (Language == "zh-CN" ? "检查更新失败：" : "Update check failed: ") + ex.Message;
             AppLog.Warn("Update", UpdateStatus);
         }
         finally

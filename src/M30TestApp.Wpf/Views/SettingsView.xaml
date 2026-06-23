@@ -150,10 +150,19 @@
                         </StackPanel>
 
                         <!-- Update status -->
-                        <TextBlock Text="{Binding UpdateStatus}" FontSize="12"
-                                   Foreground="{DynamicResource AccentBrush}"
-                                   HorizontalAlignment="Center" Margin="0,0,0,24"
-                                   Visibility="{Binding UpdateStatus, Converter={x:Static local:NonEmptyToVisibleConverter.Instance}}"/>
+                        <Border Background="{DynamicResource HeaderBgBrush}" CornerRadius="8"
+                                Padding="14,10" Margin="0,0,0,24"
+                                Width="360"
+                                Visibility="{Binding UpdateStatus, Converter={x:Static local:NonEmptyToVisibleConverter.Instance}}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding UpdateStatus}" FontSize="12"
+                                           Foreground="{DynamicResource AccentBrush}"
+                                           TextWrapping="Wrap" TextAlignment="Center"/>
+                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding UpdateProgress}"
+                                             Height="8" Margin="0,8,0,0"
+                                             IsIndeterminate="{Binding IsUpdateIndeterminate}"/>
+                            </StackPanel>
+                        </Border>
 
                         <!-- Info cards (2x2 grid) -->
                         <UniformGrid Columns="2" Margin="0,0,0,24">
