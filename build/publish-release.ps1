@@ -155,41 +155,50 @@ function Invoke-GiteeRelease {
         $releaseId = $existing.id
     }
     else {
-        $payload = @{
-            access_token = $giteeToken
-            tag_name = $Tag
-            name = $Title
-            body = $Body
-            target_commitish = "main"
-            prerelease = $false
-        } | ConvertTo-Json
-
-        $created = Invoke-RestMethod `
-            -Uri "$baseUri/releases" `
-            -Method Post `
-            -Body $payload `
-            -ContentType "application/json; charset=utf-8"
-
-        $releaseId = $created.id
-        Write-Host "Created Gitee release $Tag (id=$releaseId)."
-    }
-    catch {
-        $message = $_.ErrorDetails.Message
-        if ([string]::IsNullOrWhiteSpace($message)) {
-            $message = $_.Exception.Message
-        }
-
-        if ($message -notmatch "标签已经存在发行版|tag already exists|already exists") {
-            throw
-        }
-
         $existing = Find-GiteeReleaseByTag
-        if (-not ($existing -and $existing.id)) {
-            throw
+        if ($existing -and $existing.id) {
+            Write-Host "Gitee release $Tag already exists (id=$($existing.id))."
+            $releaseId = $existing.id
         }
+        else {
+            try {
+                $payload = @{
+                    access_token = $giteeToken
+                    tag_name = $Tag
+                    name = $Title
+                    body = $Body
+                    target_commitish = "main"
+                    prerelease = $false
+                } | ConvertTo-Json
 
-        $releaseId = $existing.id
-        Write-Host "Gitee release $Tag already exists (id=$releaseId)."
+                $created = Invoke-RestMethod `
+                    -Uri "$baseUri/releases" `
+                    -Method Post `
+                    -Body $payload `
+                    -ContentType "application/json; charset=utf-8"
+
+                $releaseId = $created.id
+                Write-Host "Created Gitee release $Tag (id=$releaseId)."
+            }
+            catch {
+                $message = $_.ErrorDetails.Message
+                if ([string]::IsNullOrWhiteSpace($message)) {
+                    $message = $_.Exception.Message
+                }
+
+                if ($message -notmatch "标签已经存在发行版|tag already exists|already exists") {
+                    throw
+                }
+
+                $existing = Find-GiteeReleaseByTag
+                if (-not ($existing -and $existing.id)) {
+                    throw
+                }
+
+                $releaseId = $existing.id
+                Write-Host "Gitee release $Tag already exists (id=$releaseId)."
+            }
+        }
     }
 
     $assetName = [IO.Path]::GetFileName($ZipFile)
