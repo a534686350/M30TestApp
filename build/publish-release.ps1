@@ -36,13 +36,11 @@ if ([string]::IsNullOrWhiteSpace($ghToken)) {
 }
 
 $releaseNotes = @"
-v1.2.26 update:
+v1.2.27 update:
 
-- Add default metric limits for new and blank model specs, while keeping each limit editable.
-- Change auto-test valve routing to one master valve plus eight 32-slot work-valve groups.
-- Run pressure test and leak check by valve group according to the entered slot count.
-- Fix pressure type display text for gauge/absolute/differential pressure.
-- Show elapsed auto-test time beyond 24 hours and add current/total temperature point progress.
+- Use vent mode instead of pressure-control mode for non-absolute 0 pressure points.
+- Switch to measure mode before leak-rate readings after leak-check pressurization.
+- Apply the same 0 pressure vent behavior to quick test pressure settling.
 
 Self-contained win-x64 build. .NET 8.0 runtime is included.
 "@

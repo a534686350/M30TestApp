@@ -835,6 +835,9 @@ public sealed class RunPerformanceTestAction : IAction
         await ctx.Pressure!.SetPressureAsync(targetPressure, unit, precision, ct);
         await Task.Delay(stabilizeSec * 1000, ct);
 
+        await ctx.Pressure.SetMeasureAsync(ct);
+        AppLog.Info("Leak", $"{label} switched to measure mode before leak-rate reading");
+
         AppLog.Info("Leak", $"{label} 检查泄漏率（观测 {observeSec}s）");
         var p1 = await ctx.Pressure.ReadPressureAsync(ct);
         await Task.Delay(observeSec * 1000, ct);
@@ -950,6 +953,14 @@ public sealed class RunPerformanceTestAction : IAction
         await ctx.Pressure.SetPressureTypeAsync(pp.PressureType, ct);
         AppLog.Info("Run", $"压力类型切换为 {pp.PressureType} ({pp.PressureTypeDisplay})");
 
+        if (ShouldVentForZeroPressure(pp.Value, pp.PressureType))
+        {
+            await ctx.Pressure.VentAsync(ct);
+            AppLog.Info("Run", $"{pp.Name}=0{ctx.Plan.PressureUnit} uses vent mode instead of pressure control");
+            await WaitZeroVentPressureAsync(ctx, pp, ct);
+            return;
+        }
+
         await ctx.Pressure.SetPressureAsync(pp.Value, ctx.Plan.PressureUnit, ctx.Plan.Precision, ct);
         for (var i = 0; i < 120; i++)
         {
@@ -970,6 +981,29 @@ public sealed class RunPerformanceTestAction : IAction
     }
 
     /// <summary>压力保持等待，带倒计时日志。</summary>
+    private static bool ShouldVentForZeroPressure(float target, PressureType pressureType) =>
+        pressureType != PressureType.Absolute && Math.Abs(target) <= 0.000001f;
+
+    private static async Task WaitZeroVentPressureAsync(TaskContext ctx, PressurePoint pp, CancellationToken ct)
+    {
+        for (var i = 0; i < 120; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            await ctx.WaitIfPausedAsync(ct);
+            var current = await ctx.Pressure!.ReadPressureAsync(ct);
+            var diff = Math.Abs(current);
+            ctx.CurrentPressure = $"{pp.Name} target 0 current {current:F4} diff {diff:F4} {ctx.Plan.PressureUnit} venting";
+            if (i % 10 == 0)
+                AppLog.Info("Run", $"0{ctx.Plan.PressureUnit} vent settling: current={current:F4} diff={diff:F4} ({i}/120)");
+            if (diff <= ctx.Plan.Precision)
+            {
+                AppLog.Info("Run", $"0{ctx.Plan.PressureUnit} vent settled: {current:F4}{ctx.Plan.PressureUnit} (precision {ctx.Plan.Precision})");
+                break;
+            }
+            await Task.Delay(500, ct);
+        }
+    }
+
     internal static async Task PressureHoldAsync(TaskContext ctx, PressurePoint pp, CancellationToken ct)
     {
         if (ctx.Pressure is null)

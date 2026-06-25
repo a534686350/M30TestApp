@@ -354,6 +354,30 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
     {
         await _session.Pressure.SetPressureTypeAsync(_session.Plan.DefaultPressureType, ct);
         Log($"压力类型切换为 {_session.Plan.DefaultPressureType}");
+        if (_session.Plan.DefaultPressureType != PressureType.Absolute && Math.Abs(pressure) <= 0.000001f)
+        {
+            await _session.Pressure.VentAsync(ct);
+            Log($"{pointName}=0{PressureUnit} uses vent mode instead of pressure control");
+            for (var i = 0; i < 120; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                var current = await _session.Pressure.ReadPressureAsync(ct);
+                var diff = Math.Abs(current);
+                Status = $"{pointName} target 0 current {current:F4} diff {diff:F4} {PressureUnit} venting";
+                if (i % 10 == 0)
+                    Log($"0{PressureUnit} vent settling: current={current:F4}, diff={diff:F4} ({i}/120)");
+                if (diff <= pressurePrecision)
+                {
+                    Log($"0{PressureUnit} vent settled: {current:F4}{PressureUnit} (precision {pressurePrecision:G6})");
+                    return;
+                }
+                await Task.Delay(500, ct);
+            }
+
+            Log($"{pointName} 0{PressureUnit} vent settling timeout, continuing");
+            return;
+        }
+
         await _session.Pressure.SetPressureAsync(pressure, PressureUnit, pressurePrecision, ct);
 
         for (var i = 0; i < 120; i++)
