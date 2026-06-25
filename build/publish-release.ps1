@@ -36,12 +36,15 @@ if ([string]::IsNullOrWhiteSpace($ghToken)) {
 }
 
 $releaseNotes = @"
-v1.2.25 更新：
+v1.2.26 update:
 
-- 工位扫码录入：修复刷新后序列号仍自动生成的问题。
-- 刷新工位后会清空序列号列，并把扫码当前行重置到第一行，方便重新扫码录入。
+- Add default metric limits for new and blank model specs, while keeping each limit editable.
+- Change auto-test valve routing to one master valve plus eight 32-slot work-valve groups.
+- Run pressure test and leak check by valve group according to the entered slot count.
+- Fix pressure type display text for gauge/absolute/differential pressure.
+- Show elapsed auto-test time beyond 24 hours and add current/total temperature point progress.
 
-自包含 win-x64，免装 .NET 8.0。
+Self-contained win-x64 build. .NET 8.0 runtime is included.
 "@
 
 function Invoke-GitHubRelease {
@@ -186,7 +189,7 @@ function Invoke-GiteeRelease {
                     $message = $_.Exception.Message
                 }
 
-                if ($message -notmatch "标签已经存在发行版|tag already exists|already exists") {
+                if ($message -notmatch "tag already exists|already exists") {
                     throw
                 }
 
