@@ -1,4 +1,4 @@
-<UserControl x:Class="M30TestApp.Wpf.Views.TestRunView"
+﻿<UserControl x:Class="M30TestApp.Wpf.Views.TestRunView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:M30TestApp.Wpf.ViewModels"
@@ -206,6 +206,16 @@
                     </Grid>
 
                     <Separator Margin="0,12"/>
+
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="&#x6E29;&#x5EA6;&#x70B9;" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding TempPointProgressText}" Grid.Column="1"
+                                   FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}"/>
+                    </Grid>
 
                     <TextBlock Text="当前步骤" FontWeight="SemiBold" Margin="0,0,0,4"/>
                     <TextBlock Text="{Binding CurrentStep}" TextWrapping="Wrap"

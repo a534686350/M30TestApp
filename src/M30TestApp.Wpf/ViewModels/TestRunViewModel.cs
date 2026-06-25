@@ -30,6 +30,8 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     private string _currentStep = "—";
     private int _progressIndex;
     private int _progressTotal;
+    private int _currentTempIndex;
+    private int _totalTempPoints;
     private double _okCount, _warnCount, _errCount;
     private string _lastError = "";
     private const int MaxLogLines = 500;
@@ -52,6 +54,9 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     public int ProgressIndex { get => _progressIndex; set { if (SetField(ref _progressIndex, value)) OnPropertyChanged(nameof(ProgressPercentValue)); } }
     public int ProgressTotal { get => _progressTotal; set { if (SetField(ref _progressTotal, value)) OnPropertyChanged(nameof(ProgressPercentValue)); } }
     public double ProgressPercentValue => ProgressTotal <= 0 ? 0 : Math.Clamp((double)ProgressIndex / ProgressTotal * 100.0, 0, 100);
+    public int CurrentTempIndex { get => _currentTempIndex; private set { if (SetField(ref _currentTempIndex, value)) OnPropertyChanged(nameof(TempPointProgressText)); } }
+    public int TotalTempPoints { get => _totalTempPoints; private set { if (SetField(ref _totalTempPoints, value)) OnPropertyChanged(nameof(TempPointProgressText)); } }
+    public string TempPointProgressText => $"{CurrentTempIndex} / {TotalTempPoints}";
     public double OkCount { get => _okCount; set { if (SetField(ref _okCount, value)) OnPropertyChanged(nameof(OkPercent)); } }
     public double WarnCount { get => _warnCount; set { if (SetField(ref _warnCount, value)) OnPropertyChanged(nameof(WarnPercent)); } }
     public double ErrCount { get => _errCount; set { if (SetField(ref _errCount, value)) OnPropertyChanged(nameof(ErrPercent)); } }
@@ -102,6 +107,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         _isLongTermStabilityMode = isLongTermStabilityMode;
 
         _longTermMeasureMode = session.Context.LongTermMeasureMode;
+        TotalTempPoints = session.Plan.TempPoints.Count;
 
         foreach (var slot in session.Slots.Entries)
             Rows.Add(new MatrixRowVm(slot.Slot, slot.SerialNo));
@@ -129,10 +135,11 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         {
             if (_startedAt is { } t)
             {
-                Elapsed = (DateTime.Now - t).ToString(@"hh\:mm\:ss");
+                Elapsed = FormatElapsed(DateTime.Now - t);
                 CurrentT = string.IsNullOrEmpty(_session.Context.CurrentTemp) ? "—" : _session.Context.CurrentTemp;
                 CurrentP = string.IsNullOrEmpty(_session.Context.CurrentPressure) ? "—" : _session.Context.CurrentPressure;
             }
+            RefreshTemperatureProgress();
             System.Windows.Input.CommandManager.InvalidateRequerySuggested();
         };
         _timer.Start();
@@ -158,10 +165,39 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
             ProgressTotal = e.Total;
             if (e.Phase == "Error")
                 LastError = $"{e.Command}: {e.Error}";
+            RefreshTemperatureProgress();
             CurrentT = string.IsNullOrEmpty(_session.Context.CurrentTemp) ? "—" : _session.Context.CurrentTemp;
             CurrentP = string.IsNullOrEmpty(_session.Context.CurrentPressure) ? "—" : _session.Context.CurrentPressure;
             if (e.Phase == "Error") Status = "错误: " + e.Error;
         }));
+    }
+
+    private static string FormatElapsed(TimeSpan elapsed)
+    {
+        var totalHours = (long)Math.Floor(elapsed.TotalHours);
+        return $"{totalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}";
+    }
+
+    private void RefreshTemperatureProgress()
+    {
+        TotalTempPoints = _session.Plan.TempPoints.Count;
+        CurrentTempIndex = ResolveCurrentTempIndex(_session.Context.CurrentTemp);
+    }
+
+    private int ResolveCurrentTempIndex(string currentTemp)
+    {
+        if (string.IsNullOrWhiteSpace(currentTemp)) return 0;
+
+        for (var i = 0; i < _session.Plan.TempPoints.Count; i++)
+        {
+            var name = _session.Plan.TempPoints[i].Name;
+            if (string.IsNullOrWhiteSpace(name)) continue;
+            if (!currentTemp.StartsWith(name, StringComparison.OrdinalIgnoreCase)) continue;
+            if (currentTemp.Length == name.Length || !char.IsLetterOrDigit(currentTemp[name.Length]))
+                return i + 1;
+        }
+
+        return 0;
     }
 
     private void OnCellUpdated(object? sender, CellUpdate update)

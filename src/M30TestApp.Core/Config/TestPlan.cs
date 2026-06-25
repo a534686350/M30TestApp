@@ -1,19 +1,19 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Globalization;
 
 namespace M30TestApp.Core.Config;
 
 /// <summary>
-/// 压力类型：绝压（Absolute）、表压（Gauge）、差压（Differential）。
-/// 对应压力控制器的 SetAbs / SetGaug / SetDiff 命令。
+/// 鍘嬪姏绫诲瀷锛氱粷鍘嬶紙Absolute锛夈€佽〃鍘嬶紙Gauge锛夈€佸樊鍘嬶紙Differential锛夈€?
+/// 瀵瑰簲鍘嬪姏鎺у埗鍣ㄧ殑 SetAbs / SetGaug / SetDiff 鍛戒护銆?
 /// </summary>
 public enum PressureType
 {
-    /// <summary>表压（Gauge）—— 相对大气压，默认值。</summary>
+    /// <summary>琛ㄥ帇锛圙auge锛夆€斺€?鐩稿澶ф皵鍘嬶紝榛樿鍊笺€?/summary>
     Gauge,
-    /// <summary>绝压（Absolute）—— 相对真空零点。</summary>
+    /// <summary>缁濆帇锛圓bsolute锛夆€斺€?鐩稿鐪熺┖闆剁偣銆?/summary>
     Absolute,
-    /// <summary>差压（Differential）—— 两路压力之差。</summary>
+    /// <summary>宸帇锛圖ifferential锛夆€斺€?涓よ矾鍘嬪姏涔嬪樊銆?/summary>
     Differential,
 }
 
@@ -28,11 +28,11 @@ public sealed class TestPlan
     public string PressureUnit { get; set; } = "kPa";
     public float Precision { get; set; } = 0.05f;
     /// <summary>
-    /// 方案所在的文件夹名（如 "M30测试"）。用于判断导出格式。
+    /// 鏂规鎵€鍦ㄧ殑鏂囦欢澶瑰悕锛堝 "M30娴嬭瘯"锛夈€傜敤浜庡垽鏂鍑烘牸寮忋€?
     /// </summary>
     public string FolderName { get; set; } = "";
     /// <summary>
-    /// 方案级默认压力类型。当压力点未单独指定类型时使用此值。
+    /// 鏂规绾ч粯璁ゅ帇鍔涚被鍨嬨€傚綋鍘嬪姏鐐规湭鍗曠嫭鎸囧畾绫诲瀷鏃朵娇鐢ㄦ鍊笺€?
     /// </summary>
     public PressureType DefaultPressureType { get; set; } = PressureType.Gauge;
     public List<TempPoint> TempPoints { get; } = new();
@@ -42,7 +42,7 @@ public sealed class TestPlan
     /// <summary>Performance specification limits (Min/Max) for pass/fail judgment.</summary>
     public SpecLimits Specs { get; set; } = new();
 
-    /// <summary>探漏压力点与泄漏率阈值；留空时按压力类型自动推导。</summary>
+    /// <summary>鎺㈡紡鍘嬪姏鐐逛笌娉勬紡鐜囬槇鍊硷紱鐣欑┖鏃舵寜鍘嬪姏绫诲瀷鑷姩鎺ㄥ銆?/summary>
     public LeakCheckSettings LeakCheck { get; set; } = new();
 
     /// <summary>Metric codes enabled for pass/fail judgment (empty = all enabled).</summary>
@@ -52,7 +52,7 @@ public sealed class TestPlan
     {
         var ini = IniFile.Load(path);
 
-        // 解析方案级默认压力类型
+        // 瑙ｆ瀽鏂规绾ч粯璁ゅ帇鍔涚被鍨?
         var defaultPtText = ini.Get("Plan", "PressureType", "Gauge");
         var defaultPt = ParsePressureType(defaultPtText);
 
@@ -80,7 +80,7 @@ public sealed class TestPlan
         {
             if (float.TryParse(kv.Value, out var v))
             {
-                // 读取每个压力点的独立类型，未指定则继承方案默认值
+                // 璇诲彇姣忎釜鍘嬪姏鐐圭殑鐙珛绫诲瀷锛屾湭鎸囧畾鍒欑户鎵挎柟妗堥粯璁ゅ€?
                 var ptText = ini.Get("PressurePointTypes", kv.Key, "");
                 var pt = string.IsNullOrWhiteSpace(ptText) ? defaultPt : ParsePressureType(ptText);
                 plan.PressurePoints.Add(new PressurePoint(kv.Key, v, pt));
@@ -115,7 +115,7 @@ public sealed class TestPlan
         foreach (var pp in PressurePoints)
         {
             ini.Set("PressurePoints", pp.Name, pp.Value.ToString(CultureInfo.InvariantCulture));
-            // 只有当压力点类型与方案默认值不同时才单独保存，减少冗余
+            // 鍙湁褰撳帇鍔涚偣绫诲瀷涓庢柟妗堥粯璁ゅ€间笉鍚屾椂鎵嶅崟鐙繚瀛橈紝鍑忓皯鍐椾綑
             if (pp.PressureType != DefaultPressureType)
                 ini.Set("PressurePointTypes", pp.Name, pp.PressureType.ToString());
         }
@@ -132,11 +132,11 @@ public sealed class TestPlan
         return EnabledMetrics.TryGetValue(code, out var on) && on;
     }
 
-    /// <summary>将字符串（英文或中文）解析为 <see cref="PressureType"/>，无法识别时返回 Gauge。</summary>
+    /// <summary>灏嗗瓧绗︿覆锛堣嫳鏂囨垨涓枃锛夎В鏋愪负 <see cref="PressureType"/>锛屾棤娉曡瘑鍒椂杩斿洖 Gauge銆?/summary>
     public static PressureType ParsePressureType(string text) => text.Trim() switch
     {
-        "Absolute" or "absolute" or "ABS" or "abs" or "绝压" => PressureType.Absolute,
-        "Differential" or "differential" or "DIFF" or "diff" or "差压" => PressureType.Differential,
+        "Absolute" or "absolute" or "ABS" or "abs" or "绝压" or "缁濆帇" => PressureType.Absolute,
+        "Differential" or "differential" or "DIFF" or "diff" or "差压" or "宸帇" => PressureType.Differential,
         _ => PressureType.Gauge,
     };
 }
@@ -166,10 +166,10 @@ public sealed class PressurePoint
     }
     public string Name { get; set; } = "";
     public float Value { get; set; }
-    /// <summary>此压力点的压力类型（绝压/表压/差压）。</summary>
+    /// <summary>姝ゅ帇鍔涚偣鐨勫帇鍔涚被鍨嬶紙缁濆帇/琛ㄥ帇/宸帇锛夈€?/summary>
     public PressureType PressureType { get; set; } = PressureType.Gauge;
 
-    /// <summary>压力类型的中文显示名称，用于 UI 绑定。</summary>
+    /// <summary>鍘嬪姏绫诲瀷鐨勪腑鏂囨樉绀哄悕绉帮紝鐢ㄤ簬 UI 缁戝畾銆?/summary>
     public string PressureTypeDisplay
     {
         get => PressureType switch
@@ -181,8 +181,8 @@ public sealed class PressurePoint
         };
         set => PressureType = value switch
         {
-            "绝压" => PressureType.Absolute,
-            "差压" => PressureType.Differential,
+            "Absolute" or "absolute" or "ABS" or "abs" or "绝压" or "缁濆帇" => PressureType.Absolute,
+            "Differential" or "differential" or "DIFF" or "diff" or "差压" or "宸帇" => PressureType.Differential,
             _      => PressureType.Gauge,
         };
     }
@@ -219,6 +219,11 @@ public sealed class SpecLimits
     public SpecRange PressureHysteresis { get; set; } = new();
     public SpecRange CT { get; set; } = new();
 
+    public SpecLimits()
+    {
+        ApplyDefaults();
+    }
+
     private static readonly string[] Names =
         { "Offset", "Span", "Linearity", "TCO", "TCS", "TCR", "THO", "THS", "PressureHysteresis", "CT" };
 
@@ -226,14 +231,14 @@ public sealed class SpecLimits
     {
         "Offset" => Offset,
         "Span" => Span,
-        "Linearity" => Linearity,
+        "Linearity" or "NL" => Linearity,
         "TCO" => TCO,
         "TCS" => TCS,
         "TCR" => TCR,
         "THO" => THO,
         "THS" => THS,
-        "PressureHysteresis" => PressureHysteresis,
-        "CT" => CT,
+        "PressureHysteresis" or "PH" => PressureHysteresis,
+        "CT" or "TCT" => CT,
         _ => new SpecRange()
     };
 
@@ -243,11 +248,53 @@ public sealed class SpecLimits
         foreach (var n in Names)
         {
             var r = s[n];
-            r.Min = ini.Get("Specs", $"{n}.Min");
-            r.Max = ini.Get("Specs", $"{n}.Max");
+            r.Min = DefaultOr(GetSpecValue(ini, n, "Min"), r.Min);
+            r.Max = DefaultOr(GetSpecValue(ini, n, "Max"), r.Max);
         }
         return s;
     }
+
+    private static string GetSpecValue(IniFile ini, string name, string bound)
+    {
+        var canonical = ini.Get("Specs", $"{name}.{bound}");
+        if (!string.IsNullOrWhiteSpace(canonical)) return canonical;
+
+        var alias = name switch
+        {
+            "Linearity" => "NL",
+            "PressureHysteresis" => "PH",
+            "CT" => "TCT",
+            _ => "",
+        };
+        return string.IsNullOrWhiteSpace(alias) ? "" : ini.Get("Specs", $"{alias}.{bound}");
+    }
+
+    private void ApplyDefaults()
+    {
+        Offset.Min = "-25";
+        Offset.Max = "25";
+        Span.Min = "60";
+        Span.Max = "140";
+        Linearity.Min = "-0.3";
+        Linearity.Max = "0.3";
+        TCO.Min = "-0.05";
+        TCO.Max = "0.05";
+        TCS.Min = "-0.21";
+        TCS.Max = "-0.17";
+        TCR.Min = "0.07";
+        TCR.Max = "0.11";
+        THO.Min = "-2";
+        THO.Max = "2";
+        THS.Min = "-2";
+        THS.Max = "2";
+        PressureHysteresis.Min = "-0.3";
+        PressureHysteresis.Max = "0.3";
+        CT.Min = "0.145";
+        CT.Max = "0.159";
+    }
+
+    private static string DefaultOr(string value, string fallback) =>
+        string.IsNullOrWhiteSpace(value) ? fallback : value;
 
     public void SaveTo(IniFile ini)
     {

@@ -45,7 +45,8 @@ public static class DacBatchSampler
         Action<SlotEntry, double, bool>? onSlotComplete = null,
         int? startSlot = null,
         int? endSlot = null,
-        int customIntervalMs = -1)
+        int customIntervalMs = -1,
+        IReadOnlyList<SlotEntry>? slotsOverride = null)
     {
         if (ctx.Dac is null)
         {
@@ -63,7 +64,13 @@ public static class DacBatchSampler
         var lastUtCard = -1;
 
         List<SlotEntry> slots;
-        if (startSlot is >= 1 && endSlot is int end && end >= startSlot.Value)
+        if (slotsOverride is { Count: > 0 })
+        {
+            slots = slotsOverride
+                .OrderBy(s => SlotDacAddress.ParseSlotIndex(s.Slot))
+                .ToList();
+        }
+        else if (startSlot is >= 1 && endSlot is int end && end >= startSlot.Value)
         {
             var lookup = BuildSlotLookup(ctx);
             slots = new List<SlotEntry>(endSlot.Value - startSlot.Value + 1);

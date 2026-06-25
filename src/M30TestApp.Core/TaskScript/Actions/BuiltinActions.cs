@@ -333,6 +333,8 @@ public sealed class ReadDmmSampleAction : IAction
 
 public sealed class RunPerformanceTestAction : IAction
 {
+    private sealed record ValveGroup(string ValveNo, string Address, List<SlotEntry> Slots);
+
     public string Key => "Run:PerformanceTest";
 
     public async Task ExecuteAsync(TaskContext ctx, TaskCommand cmd, CancellationToken ct)
@@ -367,6 +369,7 @@ public sealed class RunPerformanceTestAction : IAction
 
         leakDone = true;
         TestCheckpoint.Save(ctx, startTi, startPi, leakDone);
+        await PreparePressureValveRoutingAsync(ctx, ct);
 
         // ── 2. 逐温度点 ─────────────────────────────────────────
         for (var ti = startTi; ti < ctx.Plan.TempPoints.Count; ti++)
@@ -449,17 +452,12 @@ public sealed class RunPerformanceTestAction : IAction
                 ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit}";
                 AppLog.Info("Run", $"开始测量当前温度点第{pi + 1}压力点：{tp.Name}:{tp.Celsius}; {pp.Name}:{pp.Value} [{pp.PressureTypeDisplay}]; V5:5; F:USG");
 
-                if (ctx.Pressure is not null)
-                    await SetAndWaitPressureAsync(ctx, pp, ct);
-
-                await PressureHoldAsync(ctx, pp, ct);
-
                 ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit}";
 
                 if (!ctx.SkipUsg)
                 {
                     AppLog.Info("Run", $"开始采集 {tp.Name}-{pp.Name} USG（全部工位，手动批量逻辑）");
-                    await DacBatchSampler.SampleAllAsync(ctx, DacMeasureKind.Usig, $"{tp.Name}{pp.Name}_USG", pp.Value, tp.Celsius, ct);
+                    await SamplePressurePointByValveGroupAsync(ctx, tp, pp, false, ct);
                     AppLog.Info("Run", $"采集完成 {tp.Name}-{pp.Name} USG");
                 }
                 else
@@ -481,13 +479,9 @@ public sealed class RunPerformanceTestAction : IAction
                     ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit} (回差)";
                     AppLog.Info("Run", $"回差下行 {tp.Name} {pp.Name}:{pp.Value} [{pp.PressureTypeDisplay}]");
 
-                    if (ctx.Pressure is not null)
-                        await SetAndWaitPressureAsync(ctx, pp, ct);
-
-                    await PressureHoldAsync(ctx, pp, ct);
 
                     AppLog.Info("Run", $"开始采集 {tp.Name}-{pp.Name} USG_R（回差，全部工位）");
-                    await DacBatchSampler.SampleAllAsync(ctx, DacMeasureKind.Usig, $"{tp.Name}{pp.Name}_USG_R", pp.Value, tp.Celsius, ct);
+                    await SamplePressurePointByValveGroupAsync(ctx, tp, pp, true, ct);
                     AppLog.Info("Run", $"采集完成 {tp.Name}-{pp.Name} USG_R（回差）");
                 }
             }
@@ -505,7 +499,9 @@ public sealed class RunPerformanceTestAction : IAction
 
         if (ctx.Pressure is not null)
         {
+            await OpenAllPressureValvesAsync(ctx, "Run", ct);
             await ctx.Pressure.VentAsync(ct);
+            await CloseAllPressureValvesAsync(ctx, "Run", ct);
             AppLog.Info("Run", "泄压完成");
         }
         if (ctx.Oven is not null)
@@ -592,6 +588,148 @@ public sealed class RunPerformanceTestAction : IAction
     }
 
     // ── 探漏：逐阀加压检查泄漏率 ─────────────────────────────────────────
+    private static List<ValveGroup> GetValveGroups(TaskContext ctx)
+    {
+        if (ctx.Dmm is null) return new();
+
+        return ctx.Slots.Entries
+            .GroupBy(slot => ResolveValveNo(slot))
+            .Where(g => !string.IsNullOrWhiteSpace(g.Key))
+            .OrderBy(g => int.TryParse(g.Key, out var n) ? n : int.MaxValue)
+            .Select(g => new ValveGroup(
+                g.Key,
+                ctx.Settings.Get("ValveSettings", $"Valve{g.Key}", ""),
+                g.OrderBy(s => SlotDacAddress.ParseSlotIndex(s.Slot)).ToList()))
+            .Where(g => !string.IsNullOrWhiteSpace(g.Address))
+            .ToList();
+    }
+
+    private static string ResolveValveNo(SlotEntry slot)
+    {
+        var slotIndex = SlotDacAddress.ParseSlotIndex(slot.Slot);
+        if (slotIndex <= 0) return "";
+        return ((slotIndex - 1) / 32 + 1).ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static async Task PreparePressureValveRoutingAsync(TaskContext ctx, CancellationToken ct)
+    {
+        if (ctx.Dmm is null) return;
+
+        var groups = GetValveGroups(ctx);
+        if (groups.Count == 0) return;
+
+        var masterValve = ctx.Settings.Get("ValveSettings", "MasterValve", "");
+        var switchMs = GetDelayMs(ctx, "ValveSwitchMs", 500);
+        var ventWaitMs = Math.Max(switchMs, GetDelayMs(ctx, "VentWaitMs", 120000) / 10);
+
+        AppLog.Info("Valve", "开始加压测试前先打开全部阀门排空气路");
+        if (!string.IsNullOrWhiteSpace(masterValve))
+            await ctx.Dmm.OpenRelayAsync(masterValve, ct);
+        foreach (var group in groups)
+            await ctx.Dmm.OpenRelayAsync(group.Address, ct);
+        await Task.Delay(switchMs, ct);
+
+        if (ctx.Pressure is not null)
+        {
+            await ctx.Pressure.VentAsync(ct);
+            await Task.Delay(ventWaitMs, ct);
+        }
+
+        if (!string.IsNullOrWhiteSpace(masterValve))
+            await ctx.Dmm.CloseRelayAsync(masterValve, ct);
+        AppLog.Info("Valve", $"排空完成，已关闭总阀 {masterValve}");
+    }
+
+    private static async Task ActivateValveGroupAsync(TaskContext ctx, ValveGroup targetGroup, string source, CancellationToken ct)
+    {
+        if (ctx.Dmm is null) return;
+
+        var groups = GetValveGroups(ctx);
+        var masterValve = ctx.Settings.Get("ValveSettings", "MasterValve", "");
+        var switchMs = GetDelayMs(ctx, "ValveSwitchMs", 500);
+
+        if (!string.IsNullOrWhiteSpace(masterValve))
+            await ctx.Dmm.CloseRelayAsync(masterValve, ct);
+        foreach (var group in groups)
+            await ctx.Dmm.CloseRelayAsync(group.Address, ct);
+
+        await ctx.Dmm.OpenRelayAsync(targetGroup.Address, ct);
+        await Task.Delay(switchMs, ct);
+        AppLog.Info(source, $"阀门切换：关闭总阀 {masterValve}，只打开 {targetGroup.ValveNo} 号阀 {targetGroup.Address}");
+    }
+
+    private static async Task OpenAllPressureValvesAsync(TaskContext ctx, string source, CancellationToken ct)
+    {
+        if (ctx.Dmm is null) return;
+
+        var groups = GetValveGroups(ctx);
+        var masterValve = ctx.Settings.Get("ValveSettings", "MasterValve", "");
+        var switchMs = GetDelayMs(ctx, "ValveSwitchMs", 500);
+
+        if (!string.IsNullOrWhiteSpace(masterValve))
+            await ctx.Dmm.OpenRelayAsync(masterValve, ct);
+        foreach (var group in groups)
+            await ctx.Dmm.OpenRelayAsync(group.Address, ct);
+        await Task.Delay(switchMs, ct);
+        AppLog.Info(source, "已打开全部阀门用于泄压/排空");
+    }
+
+    private static async Task CloseAllPressureValvesAsync(TaskContext ctx, string source, CancellationToken ct)
+    {
+        if (ctx.Dmm is null) return;
+
+        var groups = GetValveGroups(ctx);
+        var masterValve = ctx.Settings.Get("ValveSettings", "MasterValve", "");
+        var switchMs = GetDelayMs(ctx, "ValveSwitchMs", 500);
+
+        if (!string.IsNullOrWhiteSpace(masterValve))
+            await ctx.Dmm.CloseRelayAsync(masterValve, ct);
+        foreach (var group in groups)
+            await ctx.Dmm.CloseRelayAsync(group.Address, ct);
+        await Task.Delay(switchMs, ct);
+        AppLog.Info(source, "已关闭全部阀门");
+    }
+
+    private static async Task SamplePressurePointByValveGroupAsync(
+        TaskContext ctx,
+        TempPoint tp,
+        PressurePoint pp,
+        bool reverse,
+        CancellationToken ct)
+    {
+        var groups = GetValveGroups(ctx);
+        var column = reverse ? $"{tp.Name}{pp.Name}_USG_R" : $"{tp.Name}{pp.Name}_USG";
+
+        if (groups.Count == 0 || ctx.Dmm is null)
+        {
+            if (ctx.Pressure is not null)
+                await SetAndWaitPressureAsync(ctx, pp, ct);
+            await PressureHoldAsync(ctx, pp, ct);
+            await DacBatchSampler.SampleAllAsync(ctx, DacMeasureKind.Usig, column, pp.Value, tp.Celsius, ct);
+            return;
+        }
+
+        foreach (var group in groups)
+        {
+            await ctx.WaitIfPausedAsync(ct);
+            await ActivateValveGroupAsync(ctx, group, "Run", ct);
+
+            if (ctx.Pressure is not null)
+                await SetAndWaitPressureAsync(ctx, pp, ct);
+            await PressureHoldAsync(ctx, pp, ct);
+
+            ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit} / 阀{group.ValveNo}";
+            await DacBatchSampler.SampleAllAsync(
+                ctx,
+                DacMeasureKind.Usig,
+                column,
+                pp.Value,
+                tp.Celsius,
+                ct,
+                slotsOverride: group.Slots);
+        }
+    }
+
     private static async Task PerformLeakCheckAsync(TaskContext ctx, CancellationToken ct)
     {
         if (ctx.SkipLeakCheck)
@@ -605,28 +743,15 @@ public sealed class RunPerformanceTestAction : IAction
             return;
         }
 
-        // 根据实际使用的工位确定需要探漏的阀门编号
-        var usedValveNos = ctx.Slots.Entries
-            .Select(s => s.Valve)
-            .Where(v => !string.IsNullOrWhiteSpace(v))
-            .Distinct()
-            .ToHashSet();
-
-        // 从配置读取阀门地址，只保留实际用到的阀门
-        var masterValve = ctx.Settings.Get("ValveSettings", "MasterValve", "");
-        var valves = new List<(string name, string addr)>();
-        for (var i = 1; i <= 8; i++)
+        var valveGroups = GetValveGroups(ctx);
+        if (valveGroups.Count == 0)
         {
-            if (!usedValveNos.Contains(i.ToString())) continue;
-            var addr = ctx.Settings.Get("ValveSettings", $"Valve{i}", "");
-            if (!string.IsNullOrWhiteSpace(addr)) valves.Add(($"阀门{i}", addr));
-        }
-        if (valves.Count == 0)
-        {
-            AppLog.Warn("Leak", "未找到需要探漏的阀门，跳过");
+            AppLog.Warn("Leak", "未找到需要探漏的阀组，跳过");
             return;
         }
-        AppLog.Info("Leak", $"本次探漏阀门：{string.Join(", ", valves.Select(v => v.name))}（共{valves.Count}个）");
+
+        var masterValve = ctx.Settings.Get("ValveSettings", "MasterValve", "");
+        AppLog.Info("Leak", $"本次探漏阀组：{string.Join(", ", valveGroups.Select(v => $"阀{v.ValveNo}({v.Slots.Count}工位)"))}（共{valveGroups.Count}组）");
 
         var leakPressures = LeakCheckPlanHelper.ResolvePressures(ctx.Plan);
         if (leakPressures.Count == 0)
@@ -651,8 +776,8 @@ public sealed class RunPerformanceTestAction : IAction
         AppLog.Info("Leak", "关闭所有阀门");
         if (!string.IsNullOrWhiteSpace(masterValve))
             await ctx.Dmm.CloseRelayAsync(masterValve, ct);
-        foreach (var (_, addr) in valves)
-            await ctx.Dmm.CloseRelayAsync(addr, ct);
+        foreach (var group in valveGroups)
+            await ctx.Dmm.CloseRelayAsync(group.Address, ct);
         await Task.Delay(switchMs, ct);
 
         // 泄压
@@ -666,13 +791,15 @@ public sealed class RunPerformanceTestAction : IAction
             AppLog.Info("Leak", $"── 探漏压力点 {leakP}{pressureUnit} ──");
 
             // 逐阀探漏：每次只开被测阀，其余全关，主阀不动
-            foreach (var (vName, vAddr) in valves)
+            foreach (var group in valveGroups)
             {
                 ct.ThrowIfCancellationRequested();
+                var vName = $"阀{group.ValveNo}";
+                var vAddr = group.Address;
                 AppLog.Info("Leak", $"正在对{vName}进行探漏 @ {leakP}{pressureUnit}");
                 try
                 {
-                    foreach (var (_, a) in valves) await ctx.Dmm.CloseRelayAsync(a, ct);
+                    foreach (var g in valveGroups) await ctx.Dmm.CloseRelayAsync(g.Address, ct);
                     await ctx.Dmm.OpenRelayAsync(vAddr, ct);
                     await Task.Delay(switchMs, ct);
 
@@ -687,24 +814,6 @@ public sealed class RunPerformanceTestAction : IAction
                 }
             }
 
-            // 整体探漏（多阀门时）：同时开需要的工位阀，主阀不动
-            if (valves.Count > 1)
-            {
-                AppLog.Info("Leak", $"打开所有工位阀进行整体探漏 @ {leakP}{pressureUnit}");
-                foreach (var (_, addr) in valves) await ctx.Dmm.OpenRelayAsync(addr, ct);
-                await Task.Delay(switchMs, ct);
-                try
-                {
-                    if (!await RunLeakRateCheckAsync(ctx, $"整体探漏 @ {leakP}{pressureUnit}", leakP, pressureUnit, leakPrecision, leakCheckSec, 10, ct))
-                        AppLog.Warn("Leak", $"整体探漏 @ {leakP}{pressureUnit} 失败");
-                }
-                catch (Exception ex)
-                {
-                    AppLog.Warn("Leak", $"整体探漏 @ {leakP}{pressureUnit} 失败: {ex.Message}");
-                }
-
-                foreach (var (_, addr) in valves) await ctx.Dmm.CloseRelayAsync(addr, ct);
-            }
         }
 
         // 泄压结束
