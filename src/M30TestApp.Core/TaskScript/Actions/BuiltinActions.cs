@@ -762,8 +762,7 @@ public sealed class RunPerformanceTestAction : IAction
 
         var leakPrecision = LeakCheckPlanHelper.ResolvePrecision(ctx.Plan);
         var pressureUnit = string.IsNullOrWhiteSpace(ctx.Plan.PressureUnit) ? "kPa" : ctx.Plan.PressureUnit;
-        var leakCheckSecMs = GetDelayMs(ctx, "LeakCheckSec", 60000);
-        var leakCheckSec = Math.Max(1, leakCheckSecMs >= 1000 ? leakCheckSecMs / 1000 : leakCheckSecMs);
+        var leakCheckSec = 30;
         var switchMs = GetDelayMs(ctx, "ValveSwitchMs", 500);
         var pressureType = ctx.Plan.DefaultPressureType;
 
@@ -848,8 +847,23 @@ public sealed class RunPerformanceTestAction : IAction
             var status = anyExceeded ? "超限" : "通过";
             AppLog.Info("Leak", $"探漏完成，最高漏率 {worstLeakRate:G4}{pressureUnit}/s（{worstLeakLabel}，{status}）");
             if (anyExceeded)
+            {
+                var message =
+                    $"探漏超限：{worstLeakLabel}\n" +
+                    $"最高漏率：{worstLeakRate:G4}{pressureUnit}/s\n" +
+                    $"漏率指标：{leakPrecision:G4}{pressureUnit}/s\n\n" +
+                    "是否继续进行自动测试？\n" +
+                    "选择“是”继续，选择“否”停止。";
+                var continueTest = await ctx.ConfirmLeakCheckExceededAsyncCore(message, ct);
+                if (continueTest)
+                {
+                    AppLog.Warn("Leak", $"用户确认继续自动测试：{worstLeakLabel}，最高漏率 {worstLeakRate:G4}{pressureUnit}/s，阈值 {leakPrecision:G4}{pressureUnit}/s");
+                    return;
+                }
+
                 throw new InvalidOperationException(
-                    $"探漏超限：{worstLeakLabel}，最高漏率 {worstLeakRate:G4}{pressureUnit}/s，阈值 {leakPrecision}{pressureUnit}/s");
+                    $"探漏超限：{worstLeakLabel}，最高漏率 {worstLeakRate:G4}{pressureUnit}/s，阈值 {leakPrecision:G4}{pressureUnit}/s");
+            }
         }
         else
         {

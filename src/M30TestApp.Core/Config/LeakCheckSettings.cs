@@ -57,7 +57,21 @@ public static class LeakCheckPlanHelper
     public static float ResolveFullScale(TestPlan plan) =>
         plan.PressurePoints.Count > 0 ? plan.PressurePoints.Max(p => p.Value) : 0f;
 
-    public static float ResolvePrecision(TestPlan plan) => plan.LeakCheck.Precision ?? plan.Precision;
+    public static float ResolvePrecision(TestPlan plan) =>
+        plan.LeakCheck.Precision ?? ResolveDefaultLeakRateLimit(plan);
+
+    public static float ResolveDefaultLeakRateLimit(TestPlan plan)
+    {
+        var fullScale = ResolveFullScale(plan);
+        if (fullScale > 0 &&
+            (plan.DefaultPressureType == PressureType.Gauge ||
+             plan.DefaultPressureType == PressureType.Differential))
+        {
+            return fullScale / 20000f;
+        }
+
+        return plan.Precision;
+    }
 
     public static IReadOnlyList<float> ResolvePressures(TestPlan plan)
     {

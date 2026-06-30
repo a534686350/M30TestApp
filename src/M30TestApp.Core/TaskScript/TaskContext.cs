@@ -71,6 +71,15 @@ public sealed class TaskContext
 
     public Func<CancellationToken, Task>? PauseWaiter { get; set; }
 
+    /// <summary>
+    /// Called when leak check exceeds the limit. Return true to continue the test,
+    /// false to stop.
+    /// </summary>
+    public Func<string, CancellationToken, Task<bool>>? ConfirmLeakCheckExceededAsync { get; set; }
+
     public Task WaitIfPausedAsync(CancellationToken ct) =>
         PauseWaiter?.Invoke(ct) ?? Task.CompletedTask;
+
+    public Task<bool> ConfirmLeakCheckExceededAsyncCore(string message, CancellationToken ct) =>
+        ConfirmLeakCheckExceededAsync?.Invoke(message, ct) ?? Task.FromResult(false);
 }

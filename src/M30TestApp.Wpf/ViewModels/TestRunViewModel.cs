@@ -371,6 +371,19 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         return tcs.Task.WaitAsync(ct);
     }
 
+    private async Task<bool> ConfirmLeakCheckExceededAsync(string message, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var operation = Application.Current.Dispatcher.InvokeAsync(() =>
+            MessageBox.Show(
+                Application.Current.MainWindow,
+                message,
+                "探漏超限",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) == MessageBoxResult.Yes);
+        return await operation.Task.WaitAsync(ct);
+    }
+
     private void TogglePause()
     {
         if (_cts is null) return;
@@ -649,10 +662,12 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         var savedSkipUsg = _session.Context.SkipUsg;
         var savedSkipOvenTemp = _session.Context.SkipOvenTemp;
         var savedPauseWaiter = _session.Context.PauseWaiter;
+        var savedConfirmLeakCheckExceededAsync = _session.Context.ConfirmLeakCheckExceededAsync;
         var savedResumeSoakMinutesOverride = _session.Context.ResumeSoakMinutesOverride;
         var savedTaskScript = _session.Plan.TaskScript;
 
         _session.Context.PauseWaiter = WaitIfPausedAsync;
+        _session.Context.ConfirmLeakCheckExceededAsync = ConfirmLeakCheckExceededAsync;
         _session.Context.ResumeSoakMinutesOverride = setupVm.ResumeFromCheckpoint ? resumePrompt.ResumeSoakMinutes : null;
         _session.Context.UseVentForGaugeZeroPressure = setupVm.UseVentForGaugeZeroPressure;
 
@@ -679,10 +694,10 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         {
             _session.Context.SkipLeakCheck = true;
             AppLog.Info("Run", "已跳过探漏");
+        }
         AppLog.Info("Run", setupVm.UseVentForGaugeZeroPressure
             ? "0kPa 表压将使用排放方式"
             : "0kPa 表压将使用正常控压方式");
-        }
 
         // Set data acquisition skip flags
         _session.Context.SkipUt = _isLongTermStabilityMode || !setupVm.CollectUt;
@@ -759,6 +774,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
             _session.Context.SkipUsg = savedSkipUsg;
             _session.Context.SkipOvenTemp = savedSkipOvenTemp;
             _session.Context.PauseWaiter = savedPauseWaiter;
+            _session.Context.ConfirmLeakCheckExceededAsync = savedConfirmLeakCheckExceededAsync;
             _session.Context.ResumeSoakMinutesOverride = savedResumeSoakMinutesOverride;
             _session.Plan.TaskScript = savedTaskScript;
             _session.Context.Plan = _session.Plan;

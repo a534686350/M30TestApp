@@ -336,8 +336,22 @@ public sealed class ConfigViewModel : ViewModelBase
     }
 
     public string LeakCheckPrecisionDisplay => UseDefaultLeakCheckPrecision
-        ? $"当前型号默认阈值：{Plan.Precision.ToString(CultureInfo.InvariantCulture)}（来自方案精度）"
-        : $"手动阈值：{(Plan.LeakCheck.Precision?.ToString(CultureInfo.InvariantCulture) ?? "")}";
+        ? $"当前型号默认漏率指标：{FormatLeakRate(LeakCheckPlanHelper.ResolveDefaultLeakRateLimit(Plan), Plan.PressureUnit)}（表压/差压=满量程/20000）"
+        : $"手动漏率指标：{FormatLeakRate(Plan.LeakCheck.Precision ?? 0f, Plan.PressureUnit)}";
+
+    private static string FormatLeakRate(float value, string unit)
+    {
+        unit = string.IsNullOrWhiteSpace(unit) ? "kPa" : unit.Trim();
+        var main = value.ToString("G6", CultureInfo.InvariantCulture) + unit + "/s";
+        var paPerSec = unit.Equals("kPa", StringComparison.OrdinalIgnoreCase)
+            ? value * 1000f
+            : unit.Equals("MPa", StringComparison.OrdinalIgnoreCase)
+                ? value * 1000000f
+                : unit.Equals("Pa", StringComparison.OrdinalIgnoreCase) ? value : float.NaN;
+        return float.IsNaN(paPerSec)
+            ? main
+            : $"{main}（{paPerSec.ToString("G6", CultureInfo.InvariantCulture)}Pa/s）";
+    }
 
     public string LeakCheckPressuresHint
     {

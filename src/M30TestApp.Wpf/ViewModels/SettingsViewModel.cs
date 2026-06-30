@@ -11,6 +11,7 @@ using M30TestApp.Core.Common;
 using M30TestApp.Wpf.Mvvm;
 using M30TestApp.Wpf.Services;
 using M30TestApp.Wpf.Themes;
+using M30TestApp.Wpf.Views;
 
 namespace M30TestApp.Wpf.ViewModels;
 
@@ -134,8 +135,12 @@ public sealed class SettingsViewModel : ViewModelBase
 
         UpdateProgress = 0;
         IsCheckingUpdate = true;
-        UpdateStatus = Language == "zh-CN" ? "正在检查更新..." : "Checking for updates...";
+        UpdateStatus = Language == "zh-CN" ? "\u6b63\u5728\u68c0\u67e5\u66f4\u65b0..." : "Checking for updates...";
         var currentVersion = AppVersion;
+        UpdateProgressWindow? progressWindow = null;
+        Window? owner = null;
+        var ownerWasEnabled = true;
+        var willRestart = false;
 
         try
         {
@@ -145,7 +150,7 @@ public sealed class SettingsViewModel : ViewModelBase
                 !Version.TryParse(currentVersion, out var currentVer))
             {
                 UpdateStatus = Language == "zh-CN"
-                    ? $"版本号解析失败（latest={latest}, current={currentVersion}）"
+                    ? $"\u7248\u672c\u53f7\u89e3\u6790\u5931\u8d25\uff08latest={latest}, current={currentVersion}\uff09"
                     : $"Version parse error (latest={latest}, current={currentVersion})";
                 return;
             }
@@ -153,46 +158,76 @@ public sealed class SettingsViewModel : ViewModelBase
             if (latestVer <= currentVer)
             {
                 UpdateStatus = Language == "zh-CN"
-                    ? $"已是最新版本 v{currentVersion}"
+                    ? $"\u5df2\u662f\u6700\u65b0\u7248\u672c v{currentVersion}"
                     : $"Up to date (v{currentVersion})";
                 return;
             }
 
             var message = Language == "zh-CN"
-                ? $"发现新版本 v{latest}（当前 v{currentVersion}）。\n\n是否立即下载并安装？\n选择“否”可继续使用当前版本。"
+                ? $"\u53d1\u73b0\u65b0\u7248\u672c v{latest}\uff08\u5f53\u524d v{currentVersion}\uff09\n\n\u662f\u5426\u7acb\u5373\u4e0b\u8f7d\u5e76\u5b89\u88c5\uff1f\n\u9009\u62e9\u201c\u5426\u201d\u53ef\u7ee7\u7eed\u4f7f\u7528\u5f53\u524d\u7248\u672c\u3002"
                 : $"New version v{latest} is available (current v{currentVersion}).\n\nDownload and install now?\nChoose No to keep using the current version.";
-            if (MessageBox.Show(message, "M30TestApp", MessageBoxButton.YesNo, MessageBoxImage.Information) != MessageBoxResult.Yes)
+            if (MessageBox.Show(Application.Current.MainWindow, message, "M30TestApp", MessageBoxButton.YesNo, MessageBoxImage.Information) != MessageBoxResult.Yes)
             {
                 UpdateStatus = Language == "zh-CN"
-                    ? $"发现新版本 v{latest}，已跳过（可在设置页手动检查更新）"
+                    ? $"\u53d1\u73b0\u65b0\u7248\u672c v{latest}\uff0c\u5df2\u8df3\u8fc7\uff08\u53ef\u5728\u8bbe\u7f6e\u9875\u624b\u52a8\u68c0\u67e5\u66f4\u65b0\uff09"
                     : $"New version v{latest} available, skipped (check manually in Settings).";
                 return;
             }
 
+            owner = Application.Current.MainWindow;
+            if (owner is not null)
+            {
+                ownerWasEnabled = owner.IsEnabled;
+                owner.IsEnabled = false;
+            }
+
+            progressWindow = new UpdateProgressWindow
+            {
+                Owner = owner,
+                WindowStartupLocation = owner is null ? WindowStartupLocation.CenterScreen : WindowStartupLocation.CenterOwner
+            };
+            progressWindow.SetIndeterminate(Language == "zh-CN" ? $"\u6b63\u5728\u51c6\u5907\u4e0b\u8f7d v{latest}..." : $"Preparing to download v{latest}...");
+            progressWindow.Show();
+            progressWindow.Activate();
+
             UpdateStatus = Language == "zh-CN"
-                ? $"发现新版本 v{latest}，正在下载..."
+                ? $"\u53d1\u73b0\u65b0\u7248\u672c v{latest}\uff0c\u6b63\u5728\u4e0b\u8f7d..."
                 : $"New version v{latest} found. Downloading...";
             var progress = new Progress<int>(p =>
             {
                 UpdateProgress = p;
-                UpdateStatus = (Language == "zh-CN" ? "正在下载 " : "Downloading ") + p + "%";
+                UpdateStatus = (Language == "zh-CN" ? "\u6b63\u5728\u4e0b\u8f7d " : "Downloading ") + p + "%";
+                progressWindow.SetStatus(UpdateStatus);
+                progressWindow.SetProgress(p);
             });
 
             var zipPath = await SelfUpdater.DownloadAsync(release.AssetUrl, release.AssetName, progress);
 
             UpdateProgress = 100;
             UpdateStatus = Language == "zh-CN"
-                ? "下载完成，即将重启应用..."
+                ? "\u4e0b\u8f7d\u5b8c\u6210\uff0c\u6b63\u5728\u51c6\u5907\u91cd\u542f\u5e94\u7528..."
                 : "Download complete, restarting...";
+            progressWindow.SetProgress(100);
+            progressWindow.SetStatus(UpdateStatus);
+            await Task.Delay(500);
+
+            willRestart = true;
+            progressWindow.AllowClose();
             SelfUpdater.LaunchUpdaterAndExit(zipPath, AppPaths.BaseDir);
         }
         catch (Exception ex)
         {
-            UpdateStatus = (Language == "zh-CN" ? "检查更新失败：" : "Update check failed: ") + ex.Message;
+            UpdateStatus = (Language == "zh-CN" ? "\u68c0\u67e5\u66f4\u65b0\u5931\u8d25\uff1a" : "Update check failed: ") + ex.Message;
+            progressWindow?.SetStatus(UpdateStatus);
+            progressWindow?.SetProgress(0);
+            progressWindow?.AllowClose();
+            progressWindow?.Close();
             AppLog.Warn("Update", UpdateStatus);
         }
         finally
         {
+            if (!willRestart && owner is not null)
+                owner.IsEnabled = ownerWasEnabled;
             IsCheckingUpdate = false;
         }
     }
