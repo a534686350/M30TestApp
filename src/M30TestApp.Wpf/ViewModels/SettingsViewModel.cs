@@ -199,16 +199,48 @@ public sealed class SettingsViewModel : ViewModelBase
 
     private static async Task<(string Tag, string AssetUrl, string AssetName)> FetchLatestReleaseWithFallbackAsync()
     {
+        var candidates = new List<(string Host, string Tag, string AssetUrl, string AssetName)>();
+
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            return await TryFetchLatestReleaseAsync("gitee", cts.Token);
+            var release = await TryFetchLatestReleaseAsync("gitee", cts.Token);
+            candidates.Add(("gitee", release.Tag, release.AssetUrl, release.AssetName));
         }
         catch (Exception ex)
         {
-            AppLog.Warn("Update", $"Gitee update check failed, fallback to GitHub: {ex.Message}");
-            return await TryFetchLatestReleaseAsync("github", CancellationToken.None);
+            AppLog.Warn("Update", $"Gitee update check failed: {ex.Message}");
         }
+
+        try
+        {
+            var release = await TryFetchLatestReleaseAsync("github", CancellationToken.None);
+            candidates.Add(("github", release.Tag, release.AssetUrl, release.AssetName));
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("Update", $"GitHub update check failed: {ex.Message}");
+        }
+
+        var best = candidates
+            .Select(c => new
+            {
+                c.Host,
+                c.Tag,
+                c.AssetUrl,
+                c.AssetName,
+                Version = Version.TryParse(c.Tag.TrimStart('v', 'V'), out var v) ? v : new Version(0, 0)
+            })
+            .OrderByDescending(c => c.Version)
+            .FirstOrDefault();
+
+        if (best is not null)
+        {
+            AppLog.Info("Update", $"Latest release selected from {best.Host}: {best.Tag}");
+            return (best.Tag, best.AssetUrl, best.AssetName);
+        }
+
+        throw new InvalidOperationException("No release found from Gitee or GitHub");
     }
 
     private static async Task<(string Tag, string AssetUrl, string AssetName)> TryFetchLatestReleaseAsync(
