@@ -14,9 +14,9 @@
     <RootNamespace>M30TestApp.Wpf</RootNamespace>
     <AssemblyName>M30TestApp.V2</AssemblyName>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Version>1.2.27</Version>
-    <AssemblyVersion>1.2.27.0</AssemblyVersion>
-    <FileVersion>1.2.27.0</FileVersion>
+    <Version>1.2.28</Version>
+    <AssemblyVersion>1.2.28.0</AssemblyVersion>
+    <FileVersion>1.2.28.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

@@ -785,6 +785,11 @@ public sealed class RunPerformanceTestAction : IAction
         await ctx.Pressure.VentAsync(ct);
         await Task.Delay(GetDelayMs(ctx, "VentWaitMs", 120000) / 10, ct);
 
+        var worstLeakRate = double.NegativeInfinity;
+        var worstLeakLabel = "";
+        var worstLeakPressure = 0f;
+        var anyExceeded = false;
+
         foreach (var leakP in leakPressures)
         {
             ct.ThrowIfCancellationRequested();
@@ -803,7 +808,27 @@ public sealed class RunPerformanceTestAction : IAction
                     await ctx.Dmm.OpenRelayAsync(vAddr, ct);
                     await Task.Delay(switchMs, ct);
 
-                    if (!await RunLeakRateCheckAsync(ctx, $"{vName} @ {leakP}{pressureUnit}", leakP, pressureUnit, leakPrecision, leakCheckSec, 15, ct))
+                    var (passed, leakRate) = await RunLeakRateCheckAsync(
+                        ctx,
+                        $"{vName} @ {leakP}{pressureUnit}",
+                        leakP,
+                        pressureUnit,
+                        leakPrecision,
+                        leakCheckSec,
+                        15,
+                        ct);
+
+                    if (leakRate > worstLeakRate)
+                    {
+                        worstLeakRate = leakRate;
+                        worstLeakLabel = $"{vName} @ {leakP}{pressureUnit}";
+                        worstLeakPressure = leakP;
+                    }
+
+                    if (!passed)
+                        anyExceeded = true;
+
+                    if (!passed)
                         AppLog.Warn("Leak", $"{vName} @ {leakP}{pressureUnit} 探漏失败");
 
                     await ctx.Dmm.CloseRelayAsync(vAddr, ct);
@@ -818,10 +843,21 @@ public sealed class RunPerformanceTestAction : IAction
 
         // 泄压结束
         await ctx.Pressure.VentAsync(ct);
-        AppLog.Info("Leak", "探漏完成，已泄压，所有阀门已关闭");
+        if (worstLeakRate > double.NegativeInfinity)
+        {
+            var status = anyExceeded ? "超限" : "通过";
+            AppLog.Info("Leak", $"探漏完成，最高漏率 {worstLeakRate:G4}{pressureUnit}/s（{worstLeakLabel}，{status}）");
+            if (anyExceeded)
+                throw new InvalidOperationException(
+                    $"探漏超限：{worstLeakLabel}，最高漏率 {worstLeakRate:G4}{pressureUnit}/s，阈值 {leakPrecision}{pressureUnit}/s");
+        }
+        else
+        {
+            AppLog.Info("Leak", "探漏完成，已泄压，所有阀门已关闭");
+        }
     }
 
-    private static async Task<bool> RunLeakRateCheckAsync(
+    private static async Task<(bool Passed, double LeakRate)> RunLeakRateCheckAsync(
         TaskContext ctx,
         string label,
         float targetPressure,
@@ -848,11 +884,11 @@ public sealed class RunPerformanceTestAction : IAction
         if (leakRate < precision)
         {
             AppLog.Info("Leak", $"{label} 探漏通过，泄漏率={leakRate:G4}{unit}/s");
-            return true;
+            return (true, leakRate);
         }
 
         AppLog.Warn("Leak", $"{label} 探漏失败，泄漏率={leakRate:G4}{unit}/s（阈值<{precision}{unit}/s）");
-        return false;
+        return (false, leakRate);
     }
 
     // ── 设置烘箱并等待温度到达（1分钟间隔日志，最长240分钟）───────────────
@@ -953,7 +989,7 @@ public sealed class RunPerformanceTestAction : IAction
         await ctx.Pressure.SetPressureTypeAsync(pp.PressureType, ct);
         AppLog.Info("Run", $"压力类型切换为 {pp.PressureType} ({pp.PressureTypeDisplay})");
 
-        if (ShouldVentForZeroPressure(pp.Value, pp.PressureType))
+        if (ShouldVentForZeroPressure(pp.Value, pp.PressureType, ctx.UseVentForGaugeZeroPressure))
         {
             await ctx.Pressure.VentAsync(ct);
             AppLog.Info("Run", $"{pp.Name}=0{ctx.Plan.PressureUnit} uses vent mode instead of pressure control");
@@ -981,8 +1017,8 @@ public sealed class RunPerformanceTestAction : IAction
     }
 
     /// <summary>压力保持等待，带倒计时日志。</summary>
-    private static bool ShouldVentForZeroPressure(float target, PressureType pressureType) =>
-        pressureType != PressureType.Absolute && Math.Abs(target) <= 0.000001f;
+    private static bool ShouldVentForZeroPressure(float target, PressureType pressureType, bool useVentForGaugeZeroPressure) =>
+        useVentForGaugeZeroPressure && pressureType == PressureType.Gauge && Math.Abs(target) <= 0.000001f;
 
     private static async Task WaitZeroVentPressureAsync(TaskContext ctx, PressurePoint pp, CancellationToken ct)
     {

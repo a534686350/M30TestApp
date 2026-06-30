@@ -338,6 +338,13 @@ public sealed class RunSetupViewModel : ViewModelBase
     private bool _useLeakCheck = false;
     public bool UseLeakCheck { get => _useLeakCheck; set => SetField(ref _useLeakCheck, value); }
 
+    private bool _useVentForGaugeZeroPressure = true;
+    public bool UseVentForGaugeZeroPressure
+    {
+        get => _useVentForGaugeZeroPressure;
+        set => SetField(ref _useVentForGaugeZeroPressure, value);
+    }
+
     private bool _collectUt = true;
     public bool CollectUt { get => _collectUt; set => SetField(ref _collectUt, value); }
 
@@ -679,6 +686,7 @@ public sealed class RunSetupViewModel : ViewModelBase
         if (bool.TryParse(ini.Get("Slots", "UseOven", ""), out var uo)) _useOven = uo;
         if (bool.TryParse(ini.Get("Slots", "UsePower", ""), out var uw)) _usePower = uw;
         if (bool.TryParse(ini.Get("Slots", "UseLeakCheck", ""), out var ul)) _useLeakCheck = ul;
+        if (bool.TryParse(ini.Get("Slots", "UseVentForGaugeZeroPressure", ""), out var uz)) _useVentForGaugeZeroPressure = uz;
         if (bool.TryParse(ini.Get("Slots", "CollectUt", ""), out var cut)) _collectUt = cut;
         if (bool.TryParse(ini.Get("Slots", "CollectUsc", ""), out var cusc)) _collectUsc = cusc;
         if (bool.TryParse(ini.Get("Slots", "CollectIsc", ""), out var cisc)) _collectIsc = cisc;
@@ -833,6 +841,7 @@ public sealed class RunSetupViewModel : ViewModelBase
             if (!_isLongTermStabilityMode)
                 ini.Set("Slots", "UsePower", UsePower.ToString());
             ini.Set("Slots", "UseLeakCheck", UseLeakCheck.ToString());
+            ini.Set("Slots", "UseVentForGaugeZeroPressure", UseVentForGaugeZeroPressure.ToString());
             ini.Set("Slots", "CollectUt", CollectUt.ToString());
             ini.Set("Slots", "CollectUsc", CollectUsc.ToString());
             ini.Set("Slots", "CollectIsc", CollectIsc.ToString());

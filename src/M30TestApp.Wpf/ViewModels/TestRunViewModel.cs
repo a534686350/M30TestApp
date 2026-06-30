@@ -654,6 +654,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
 
         _session.Context.PauseWaiter = WaitIfPausedAsync;
         _session.Context.ResumeSoakMinutesOverride = setupVm.ResumeFromCheckpoint ? resumePrompt.ResumeSoakMinutes : null;
+        _session.Context.UseVentForGaugeZeroPressure = setupVm.UseVentForGaugeZeroPressure;
 
         if (!setupVm.UsePressure)
         {
@@ -678,6 +679,9 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         {
             _session.Context.SkipLeakCheck = true;
             AppLog.Info("Run", "已跳过探漏");
+        AppLog.Info("Run", setupVm.UseVentForGaugeZeroPressure
+            ? "0kPa 表压将使用排放方式"
+            : "0kPa 表压将使用正常控压方式");
         }
 
         // Set data acquisition skip flags

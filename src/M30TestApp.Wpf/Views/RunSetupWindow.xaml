@@ -86,6 +86,8 @@
                                                   Visibility="{Binding ShowAutoTestModeOptions, Converter={StaticResource BoolToVis}}"/>
                                         <CheckBox Content="探漏" IsChecked="{Binding UseLeakCheck}"
                                                   Visibility="{Binding ShowAutoTestModeOptions, Converter={StaticResource BoolToVis}}"/>
+                                        <CheckBox Content="0kPa表压使用排放" IsChecked="{Binding UseVentForGaugeZeroPressure}"
+                                                  Visibility="{Binding ShowAutoTestModeOptions, Converter={StaticResource BoolToVis}}"/>
                                     </StackPanel>
                                     <TextBlock Text="DAQ973A 采集项" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,8,0,4"
                                                Visibility="{Binding ShowLongTermMeasureOptions, Converter={StaticResource BoolToVis}}"/>

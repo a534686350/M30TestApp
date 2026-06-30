@@ -320,6 +320,25 @@ public sealed class ConfigViewModel : ViewModelBase
         }
     }
 
+    public bool UseDefaultLeakCheckPrecision
+    {
+        get => !Plan.LeakCheck.Precision.HasValue;
+        set
+        {
+            if (value)
+                Plan.LeakCheck.Precision = null;
+            else if (!Plan.LeakCheck.Precision.HasValue)
+                Plan.LeakCheck.Precision = Plan.Precision;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(LeakCheckPrecisionText));
+            OnPropertyChanged(nameof(LeakCheckPrecisionDisplay));
+        }
+    }
+
+    public string LeakCheckPrecisionDisplay => UseDefaultLeakCheckPrecision
+        ? $"当前型号默认阈值：{Plan.Precision.ToString(CultureInfo.InvariantCulture)}（来自方案精度）"
+        : $"手动阈值：{(Plan.LeakCheck.Precision?.ToString(CultureInfo.InvariantCulture) ?? "")}";
+
     public string LeakCheckPressuresHint
     {
         get

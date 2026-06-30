@@ -3,12 +3,14 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:sys="clr-namespace:System;assembly=netstandard"
              xmlns:vm="clr-namespace:M30TestApp.Wpf.ViewModels"
+             xmlns:local="clr-namespace:M30TestApp.Wpf.Views"
              d:DataContext="{d:DesignInstance vm:ConfigViewModel}"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              mc:Ignorable="d">
 
     <UserControl.Resources>
+        <local:InverseBoolConverter x:Key="InverseBoolConverter"/>
         <Style x:Key="SectionTitle" TargetType="TextBlock">
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize"   Value="15"/>
@@ -136,19 +138,17 @@
                                 <TextBlock Text="{Binding LeakCheckPressuresHint}"
                                            Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,2,0,0"/>
 
-                                <Grid Margin="0,8,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel>
-                                        <TextBlock Text="探漏精度/泄漏率阈值" Style="{StaticResource FieldLabel}"/>
-                                        <TextBox Text="{Binding LeakCheckPrecisionText, UpdateSourceTrigger=PropertyChanged}"
-                                                 ToolTip="留空则使用上方方案精度"/>
-                                    </StackPanel>
-                                </Grid>
-
-                                <TextBlock Text="启用设备" Style="{StaticResource GroupTitle}"/>
+                                <TextBlock Text="漏率阈值（当前型号）" Style="{StaticResource FieldLabel}" Margin="0,8,0,4"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                                    <RadioButton Content="使用默认阈值" IsChecked="{Binding UseDefaultLeakCheckPrecision}" Margin="0,0,14,0"/>
+                                    <RadioButton Content="手动阈值" IsChecked="{Binding UseDefaultLeakCheckPrecision, Converter={StaticResource InverseBoolConverter}}"/>
+                                </StackPanel>
+                                <TextBox Text="{Binding LeakCheckPrecisionText, UpdateSourceTrigger=PropertyChanged}"
+                                         IsEnabled="{Binding UseDefaultLeakCheckPrecision, Converter={StaticResource InverseBoolConverter}}"
+                                         ToolTip="留空则使用当前型号默认精度"/>
+                                <TextBlock Text="{Binding LeakCheckPrecisionDisplay}"
+                                           Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,2,0,0"/>
+                                <TextBlock Text="启用设备" Style="{StaticResource GroupTitle}" Margin="0,8,0,0"/>
                                 <UniformGrid Columns="3">
                                     <CheckBox Content="烘箱"      IsChecked="True"/>
                                     <CheckBox Content="采集卡"    IsChecked="True"/>

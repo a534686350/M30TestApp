@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -43,14 +44,20 @@ internal static class DataGridScrollHelper
     /// <summary>Enable Shift+wheel horizontal scroll and left-button drag pan on the grid's ScrollViewer.</summary>
     public static void EnableDragAndWheelScroll(DataGrid grid)
     {
+        if (IsEnabled(grid)) return;
+        SetEnabled(grid, true);
+
         grid.Loaded += (_, _) =>
         {
             var scrollViewer = FindScrollViewer(grid);
             if (scrollViewer is null) return;
+            if (IsAttached(scrollViewer)) return;
+            SetAttached(scrollViewer, true);
 
             Point? dragStart = null;
             double startHOffset = 0;
             double startVOffset = 0;
+            bool isDragging = false;
 
             scrollViewer.PreviewMouseWheel += (_, e) =>
             {
@@ -62,9 +69,14 @@ internal static class DataGridScrollHelper
 
             scrollViewer.PreviewMouseLeftButtonDown += (_, e) =>
             {
+                if (IsInsideScrollBar(e.OriginalSource as DependencyObject) ||
+                    IsInsideInteractiveEditor(e.OriginalSource as DependencyObject))
+                    return;
+
                 dragStart = e.GetPosition(scrollViewer);
                 startHOffset = scrollViewer.HorizontalOffset;
                 startVOffset = scrollViewer.VerticalOffset;
+                isDragging = false;
                 scrollViewer.CaptureMouse();
             };
 
@@ -75,6 +87,7 @@ internal static class DataGridScrollHelper
                 var delta = pos - dragStart.Value;
                 if (Math.Abs(delta.X) < DragThreshold && Math.Abs(delta.Y) < DragThreshold) return;
 
+                isDragging = true;
                 scrollViewer.ScrollToHorizontalOffset(Math.Clamp(
                     startHOffset - delta.X, 0, scrollViewer.ScrollableWidth));
                 scrollViewer.ScrollToVerticalOffset(Math.Clamp(
@@ -85,13 +98,27 @@ internal static class DataGridScrollHelper
             void EndDrag(object sender, MouseEventArgs e)
             {
                 if (dragStart is null) return;
+                if (isDragging) e.Handled = true;
                 dragStart = null;
+                isDragging = false;
                 scrollViewer.ReleaseMouseCapture();
             }
 
             scrollViewer.PreviewMouseLeftButtonUp += EndDrag;
             scrollViewer.LostMouseCapture += EndDrag;
         };
+    }
+
+    /// <summary>Recursively enable drag/wheel scrolling for every DataGrid under <paramref name="root"/>.</summary>
+    public static void EnableDragAndWheelScroll(DependencyObject root)
+    {
+        if (root is null) return;
+
+        if (root is DataGrid grid)
+            EnableDragAndWheelScroll(grid);
+
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+            EnableDragAndWheelScroll(VisualTreeHelper.GetChild(root, i));
     }
 
     public static ScrollViewer? FindScrollViewer(DependencyObject root)
@@ -105,5 +132,53 @@ internal static class DataGridScrollHelper
             if (nested is not null) found = nested;
         }
         return found;
+    }
+
+    private static readonly DependencyProperty EnabledProperty =
+        DependencyProperty.RegisterAttached(
+            "Enabled",
+            typeof(bool),
+            typeof(DataGridScrollHelper),
+            new PropertyMetadata(false));
+
+    private static bool IsEnabled(DependencyObject obj) =>
+        (bool)obj.GetValue(EnabledProperty);
+
+    private static void SetEnabled(DependencyObject obj, bool value) =>
+        obj.SetValue(EnabledProperty, value);
+
+    private static readonly DependencyProperty AttachedProperty =
+        DependencyProperty.RegisterAttached(
+            "Attached",
+            typeof(bool),
+            typeof(DataGridScrollHelper),
+            new PropertyMetadata(false));
+
+    private static bool IsAttached(DependencyObject obj) =>
+        (bool)obj.GetValue(AttachedProperty);
+
+    private static void SetAttached(DependencyObject obj, bool value) =>
+        obj.SetValue(AttachedProperty, value);
+
+    private static bool IsInsideScrollBar(DependencyObject? source)
+    {
+        for (var current = source; current is not null; current = VisualTreeHelper.GetParent(current))
+        {
+            if (current is ScrollBar or Thumb or RepeatButton)
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsInsideInteractiveEditor(DependencyObject? source)
+    {
+        for (var current = source; current is not null; current = VisualTreeHelper.GetParent(current))
+        {
+            if (current is TextBoxBase or PasswordBox or ComboBox or ButtonBase or Slider)
+                return true;
+            if (current is DataGrid)
+                return false;
+        }
+        return false;
     }
 }
