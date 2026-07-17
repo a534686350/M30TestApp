@@ -1,0 +1,8 @@
+bin/
+obj/
+tmp_publish_*/
+tmp_package_*/
+logs/
+标定结果/
+*.user
+*.suo

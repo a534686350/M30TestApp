@@ -6,8 +6,11 @@
 - 当前版本号和“检测更新”按钮移到顶部固定状态栏，所有页面始终可见。
 - 更新按钮改为高对比蓝绿色，下载时直接显示进度。
 - 底部页脚只保留保存配置和重载配置，避免按钮被工作区挤出。
+- 完整可构建源码位于 `f40/src/F40MultiCalibrator`，可按 `f40-v1.0.1` 标签回退。
 
 发布包：`F40MultiCalibrator-v1.0.1-win-x86.zip`
+
+源码包：`F40MultiCalibrator-v1.0.1-source.zip`
 
 SHA256：`679DEAA97B58B89B79C31F724B3A53F3D6A9F86EEDEB6407E8287CD182C0553E`
 
