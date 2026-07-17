@@ -1,9 +1,9 @@
 {
-  "version": "1.0.0",
-  "publishedAt": "2026-07-17T15:20:00+08:00",
-  "notes": "修复标定写前/写后数据提前重复显示；标定完成后自动保存型号和时间命名的结果CSV；新增Gitee优先、GitHub备用的在线更新且不覆盖现场配置；恢复SIDAUMC1000烘箱169.254.174.136:508 TCP文本协议。",
-  "packageName": "F40MultiCalibrator-v1.0.0-win-x86.zip",
-  "sha256": "92E53C09270C5701390C35A912ECE9F8842BB21403A71DEEEDBBC36E6B43BF15",
-  "giteeUrl": "https://gitee.com/hl515/m30-test-app/releases/download/f40-v1.0.0/F40MultiCalibrator-v1.0.0-win-x86.zip",
-  "githubUrl": "https://github.com/a534686350/M30TestApp/releases/download/f40-v1.0.0/F40MultiCalibrator-v1.0.0-win-x86.zip"
+  "version": "1.0.1",
+  "publishedAt": "2026-07-17T16:15:00+08:00",
+  "notes": "修复低分辨率和高显示缩放下看不到版本与检测更新入口的问题；当前版本和检测更新按钮已移到顶部固定状态栏，所有页面始终可见。",
+  "packageName": "F40MultiCalibrator-v1.0.1-win-x86.zip",
+  "sha256": "679DEAA97B58B89B79C31F724B3A53F3D6A9F86EEDEB6407E8287CD182C0553E",
+  "giteeUrl": "https://gitee.com/hl515/m30-test-app/releases/download/f40-v1.0.1/F40MultiCalibrator-v1.0.1-win-x86.zip",
+  "githubUrl": "https://github.com/a534686350/M30TestApp/releases/download/f40-v1.0.1/F40MultiCalibrator-v1.0.1-win-x86.zip"
 }
