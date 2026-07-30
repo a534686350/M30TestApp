@@ -6,12 +6,11 @@ namespace M30TestApp.Wpf.Views;
 public partial class UpdateProgressWindow : Window
 {
     private bool _allowClose;
+    private bool _isIndeterminate = true;
 
     public UpdateProgressWindow()
     {
         InitializeComponent();
-        Progress.SizeChanged += (_, _) => UpdateIndicatorWidth();
-        Progress.ValueChanged += (_, _) => UpdateIndicatorWidth();
     }
 
     public void SetStatus(string message)
@@ -24,10 +23,9 @@ public partial class UpdateProgressWindow : Window
         Dispatcher.Invoke(() =>
         {
             var value = Math.Clamp(percent, 0, 100);
-            Progress.IsIndeterminate = false;
-            Progress.Value = value;
+            _isIndeterminate = false;
             PercentText.Text = $"{value}%";
-            UpdateIndicatorWidth();
+            SetFillRatio(value / 100d);
         });
     }
 
@@ -36,24 +34,31 @@ public partial class UpdateProgressWindow : Window
         Dispatcher.Invoke(() =>
         {
             StatusText.Text = message;
-            Progress.IsIndeterminate = true;
+            _isIndeterminate = true;
             PercentText.Text = "";
-            UpdateIndicatorWidth();
+            SetFillRatio(0.28);
         });
     }
 
-    private void UpdateIndicatorWidth()
+    private void OnProgressTrackSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (Progress.IsIndeterminate)
+        SetFillRatio(_isIndeterminate ? 0.28 : ParsePercent());
+    }
+
+    private double ParsePercent()
+    {
+        var text = PercentText.Text.TrimEnd('%');
+        return double.TryParse(text, out var value)
+            ? Math.Clamp(value / 100d, 0, 1)
+            : 0;
+    }
+
+    private void SetFillRatio(double ratio)
+    {
+        if (!IsInitialized)
             return;
 
-        Progress.ApplyTemplate();
-        if (Progress.Template.FindName("PART_Indicator", Progress) is FrameworkElement indicator)
-        {
-            var range = Progress.Maximum - Progress.Minimum;
-            var ratio = range <= 0 ? 0 : (Progress.Value - Progress.Minimum) / range;
-            indicator.Width = Math.Max(0, Progress.ActualWidth * Math.Clamp(ratio, 0, 1));
-        }
+        ProgressFill.Width = Math.Max(0, ProgressTrack.ActualWidth * Math.Clamp(ratio, 0, 1));
     }
 
     public void AllowClose()
