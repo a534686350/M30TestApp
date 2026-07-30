@@ -38,8 +38,10 @@ public sealed class TaskContext
     /// <summary>When true, skip the leak check phase.</summary>
     public bool SkipLeakCheck { get; set; }
 
-    /// <summary>When true, gauge 0kPa uses vent mode instead of active pressure control.</summary>
-    public bool UseVentForGaugeZeroPressure { get; set; } = true;
+    /// <summary>
+    /// Legacy compatibility switch. New runs keep gauge 0kPa on normal pressure-control flow.
+    /// </summary>
+    public bool UseVentForGaugeZeroPressure { get; set; } = false;
 
     /// <summary>When true, skip UT data collection.</summary>
     public bool SkipUt { get; set; }

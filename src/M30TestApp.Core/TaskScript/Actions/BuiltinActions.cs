@@ -730,7 +730,7 @@ public sealed class RunPerformanceTestAction : IAction
         }
     }
 
-    private static async Task PerformLeakCheckAsync(TaskContext ctx, CancellationToken ct)
+    internal static async Task PerformLeakCheckAsync(TaskContext ctx, CancellationToken ct)
     {
         if (ctx.SkipLeakCheck)
         {
@@ -1003,14 +1003,6 @@ public sealed class RunPerformanceTestAction : IAction
         await ctx.Pressure.SetPressureTypeAsync(pp.PressureType, ct);
         AppLog.Info("Run", $"压力类型切换为 {pp.PressureType} ({pp.PressureTypeDisplay})");
 
-        if (ShouldVentForZeroPressure(pp.Value, pp.PressureType, ctx.UseVentForGaugeZeroPressure))
-        {
-            await ctx.Pressure.VentAsync(ct);
-            AppLog.Info("Run", $"{pp.Name}=0{ctx.Plan.PressureUnit} uses vent mode instead of pressure control");
-            await WaitZeroVentPressureAsync(ctx, pp, ct);
-            return;
-        }
-
         await ctx.Pressure.SetPressureAsync(pp.Value, ctx.Plan.PressureUnit, ctx.Plan.Precision, ct);
         for (var i = 0; i < 120; i++)
         {
@@ -1030,30 +1022,7 @@ public sealed class RunPerformanceTestAction : IAction
         }
     }
 
-    /// <summary>压力保持等待，带倒计时日志。</summary>
-    private static bool ShouldVentForZeroPressure(float target, PressureType pressureType, bool useVentForGaugeZeroPressure) =>
-        useVentForGaugeZeroPressure && pressureType == PressureType.Gauge && Math.Abs(target) <= 0.000001f;
-
-    private static async Task WaitZeroVentPressureAsync(TaskContext ctx, PressurePoint pp, CancellationToken ct)
-    {
-        for (var i = 0; i < 120; i++)
-        {
-            ct.ThrowIfCancellationRequested();
-            await ctx.WaitIfPausedAsync(ct);
-            var current = await ctx.Pressure!.ReadPressureAsync(ct);
-            var diff = Math.Abs(current);
-            ctx.CurrentPressure = $"{pp.Name} target 0 current {current:F4} diff {diff:F4} {ctx.Plan.PressureUnit} venting";
-            if (i % 10 == 0)
-                AppLog.Info("Run", $"0{ctx.Plan.PressureUnit} vent settling: current={current:F4} diff={diff:F4} ({i}/120)");
-            if (diff <= ctx.Plan.Precision)
-            {
-                AppLog.Info("Run", $"0{ctx.Plan.PressureUnit} vent settled: {current:F4}{ctx.Plan.PressureUnit} (precision {ctx.Plan.Precision})");
-                break;
-            }
-            await Task.Delay(500, ct);
-        }
-    }
-
+    /// <summary>Pressure hold with countdown logging.</summary>
     internal static async Task PressureHoldAsync(TaskContext ctx, PressurePoint pp, CancellationToken ct)
     {
         if (ctx.Pressure is null)
@@ -1077,7 +1046,7 @@ public sealed class RunPerformanceTestAction : IAction
     }
 
     // ── 读取烘箱实际温度，写入所有工位（每温度点采集完成后调用一次）─────────
-    private static async Task ReadOvenTempForAllSlots(TaskContext ctx, TempPoint tp, CancellationToken ct)
+    internal static async Task ReadOvenTempForAllSlots(TaskContext ctx, TempPoint tp, CancellationToken ct)
     {
         if (ctx.SkipOvenTemp)
         {
@@ -1205,6 +1174,132 @@ public sealed class RunPerformanceTestAction : IAction
         var invalid = Path.GetInvalidFileNameChars();
         var safe = new string((text ?? "").Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim();
         return string.IsNullOrWhiteSpace(safe) ? "未命名方案" : safe;
+    }
+}
+
+public sealed class RunDmmAutoTestAction : IAction
+{
+    public string Key => "Run:DmmAutoTest";
+
+    public async Task ExecuteAsync(TaskContext ctx, TaskCommand cmd, CancellationToken ct)
+    {
+        if (ctx.Dmm is null)
+        {
+            AppLog.Warn("Run", "DMM auto test requires a configured DMM; skipped");
+            return;
+        }
+
+        ctx.Matrix.Clear();
+        ctx.Columns.Clear();
+        foreach (var slot in ctx.Slots.Entries)
+            ctx.Matrix.EnsureSlot(slot.Slot);
+
+        await RunPerformanceTestAction.InitDevicesAsync(ctx, ct);
+        if (!ctx.SkipLeakCheck)
+            await RunPerformanceTestAction.PerformLeakCheckAsync(ctx, ct);
+
+        foreach (var tp in ctx.Plan.TempPoints)
+        {
+            ctx.CurrentTemp = $"{tp.Name}: {tp.Celsius} C";
+            if (ctx.Oven is not null && ctx.Oven.State == ConnectionState.Connected)
+            {
+                await RunPerformanceTestAction.SetAndWaitOvenAsync(ctx, tp, "DMM", ct);
+                var soak = tp.SoakMinutes ?? (int.TryParse(ctx.Settings.Get("DelaySettings", "SoakMinutes", "120"), out var sm) ? sm : 120);
+                await RunPerformanceTestAction.SoakWithLogAsync(ctx, soak, tp.Name, ct);
+            }
+
+            await ReadDmmResistanceAsync(ctx, tp, ct);
+            await MeasureDmmPressureAsync(ctx, tp, reverse: false, ct);
+            if (ctx.Plan.PressurePoints.Count >= 2)
+                await MeasureDmmPressureAsync(ctx, tp, reverse: true, ct);
+            await RunPerformanceTestAction.ReadOvenTempForAllSlots(ctx, tp, ct);
+        }
+
+        MetricsCalculator.Calculate(ctx);
+        RunPerformanceTestAction.SaveMatrix(ctx);
+
+        if (ctx.Pressure is not null)
+            await ctx.Pressure.VentAsync(ct);
+        if (ctx.Oven is not null)
+            await ctx.Oven.StopAsync(ct);
+    }
+
+    private static async Task ReadDmmResistanceAsync(TaskContext ctx, TempPoint tp, CancellationToken ct)
+    {
+        var column = $"{tp.Name}_DMM_R";
+        if (!ctx.Columns.Contains(column)) ctx.Columns.Add(column);
+        foreach (var slot in ctx.Slots.Entries)
+        {
+            ct.ThrowIfCancellationRequested();
+            var channel = ResistanceChannel(slot);
+            try
+            {
+                var value = await ctx.Dmm!.ReadResistanceAsync(channel, ct);
+                ctx.Matrix.Set(slot.Slot, column, value, double.IsNaN(value) ? CellStatus.Error : CellStatus.Ok);
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error("Read", $"DMM resistance {slot.Slot} channel={channel} failed: {ex.Message}");
+                ctx.Matrix.Set(slot.Slot, column, double.NaN, CellStatus.Error);
+            }
+        }
+    }
+
+    private static async Task MeasureDmmPressureAsync(TaskContext ctx, TempPoint tp, bool reverse, CancellationToken ct)
+    {
+        var points = reverse
+            ? ctx.Plan.PressurePoints.AsEnumerable().Reverse().Skip(1)
+            : ctx.Plan.PressurePoints.AsEnumerable();
+        foreach (var pp in points)
+        {
+            var groups = ctx.Slots.Entries
+                .GroupBy(s => string.IsNullOrWhiteSpace(s.ValveAddr) || s.ValveAddr.Trim() == "-" ? "" : s.ValveAddr.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            foreach (var group in groups)
+            {
+                await SelectDmmSwitchAsync(ctx, group.Key, ct);
+                await RunPerformanceTestAction.SetAndWaitPressureAsync(ctx, pp, ct);
+                await RunPerformanceTestAction.PressureHoldAsync(ctx, pp, ct);
+                var column = $"{tp.Name}{pp.Name}_{(reverse ? "USG_R" : "USG")}";
+                if (!ctx.Columns.Contains(column)) ctx.Columns.Add(column);
+                foreach (var slot in group)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    try
+                    {
+                        var value = await ctx.Dmm!.ReadVoltageAsync(slot.Channel, ct) * 1000.0;
+                        ctx.Matrix.Set(slot.Slot, column, value, double.IsNaN(value) ? CellStatus.Error : CellStatus.Ok);
+                    }
+                    catch (Exception ex)
+                    {
+                        AppLog.Error("Read", $"DMM voltage {slot.Slot} channel={slot.Channel} failed: {ex.Message}");
+                        ctx.Matrix.Set(slot.Slot, column, double.NaN, CellStatus.Error);
+                    }
+                }
+            }
+        }
+        await SelectDmmSwitchAsync(ctx, "", ct);
+    }
+
+    private static async Task SelectDmmSwitchAsync(TaskContext ctx, string selected, CancellationToken ct)
+    {
+        var addresses = ctx.Slots.Entries
+            .Select(s => s.ValveAddr?.Trim() ?? "")
+            .Where(a => !string.IsNullOrWhiteSpace(a) && a != "-")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        foreach (var address in addresses)
+            await ctx.Dmm!.OpenRelayAsync(address, ct);
+        if (!string.IsNullOrWhiteSpace(selected))
+            await ctx.Dmm!.CloseRelayAsync(selected, ct);
+        var delay = int.TryParse(ctx.Settings.Get("DelaySettings", "ValveSwitchMs", "500"), out var ms) ? Math.Max(0, ms) : 500;
+        if (delay > 0) await Task.Delay(delay, ct);
+    }
+
+    private static string ResistanceChannel(SlotEntry slot)
+    {
+        var index = SlotDacAddress.ParseSlotIndex(slot.Slot);
+        return (200 + Math.Max(1, index)).ToString(CultureInfo.InvariantCulture);
     }
 }
 

@@ -36,11 +36,15 @@ if ([string]::IsNullOrWhiteSpace($ghToken)) {
 }
 
 $releaseNotes = @"
-v1.2.27 update:
+v1.2.30 update:
 
-- Use vent mode instead of pressure-control mode for non-absolute 0 pressure points.
-- Switch to measure mode before leak-rate readings after leak-check pressurization.
-- Apply the same 0 pressure vent behavior to quick test pressure settling.
+- Long-term stability oven selection can now be unchecked when needed.
+- Removed the Settings page administrator password prompt.
+- Restored normal gauge 0kPa pressure-control/hold behavior.
+- Quick test P0=0 skips only the hold period.
+- Filled long-term oven temperature cells for every station.
+- Kept untested automatic-test cells blank while retaining headers.
+- Added and fixed the DMM automatic-test flow used by NL/linearity checks.
 
 Self-contained win-x64 build. .NET 8.0 runtime is included.
 "@

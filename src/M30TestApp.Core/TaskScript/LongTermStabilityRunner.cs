@@ -235,8 +235,8 @@ public static class LongTermStabilityRunner
         }
 
         var status = double.IsNaN(ovenTemp) ? CellStatus.Error : CellStatus.Ok;
-        if (firstSlot is not null)
-            ctx.Matrix.Set(firstSlot, tempKey, ovenTemp, status);
+        foreach (var slot in ctx.Slots.Entries)
+            ctx.Matrix.Set(slot.Slot, tempKey, ovenTemp, status);
     }
 
     private static int GetDmmSlotDelayMs(TaskContext ctx) =>

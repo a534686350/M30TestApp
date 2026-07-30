@@ -51,9 +51,9 @@ public static class MetricsCalculator
             var uscT3 = Get(ctx, slotName, Usc(t3));
             var iscT3 = Get(ctx, slotName, Isc(t3));
 
-            var rb5T1 = Rb(uscT1, iscT1);
-            var rb5T2 = Rb(uscT2, iscT2);
-            var rb5T3 = Rb(uscT3, iscT3);
+            var rb5T1 = PreferValid(Get(ctx, slotName, DmmR(t1)), Rb(uscT1, iscT1));
+            var rb5T2 = PreferValid(Get(ctx, slotName, DmmR(t2)), Rb(uscT2, iscT2));
+            var rb5T3 = PreferValid(Get(ctx, slotName, DmmR(t3)), Rb(uscT3, iscT3));
             Set(ctx, slotName, "Rb5_T1", rb5T1, null);
             Set(ctx, slotName, "Rb5_T2", rb5T2, null);
             Set(ctx, slotName, "Rb5_T3", rb5T3, null);
@@ -93,6 +93,8 @@ public static class MetricsCalculator
     private static string Ut(TempPoint t) => $"{t.Name}_UT";
     private static string OvenTemp(TempPoint t) => $"{t.Name}_OvenTemp";
 
+    private static string DmmR(TempPoint t) => $"{t.Name}_DMM_R";
+
     private static double Get(TaskContext ctx, string slot, string key)
     {
         var cell = ctx.Matrix.Get(slot, DataMatrix.SanitizeKey(key));
@@ -105,14 +107,18 @@ public static class MetricsCalculator
 
     private static void Set(TaskContext ctx, string slot, string key, double value, SpecRange? spec)
     {
-        var status = double.IsNaN(value) || value <= -998
-            ? CellStatus.Error
-            : spec is { HasLimits: true } && !spec.IsInRange(value)
-                ? CellStatus.Warn
-                : CellStatus.Ok;
-        ctx.Matrix.Set(slot, key, value, status);
         if (!ctx.Columns.Contains(key)) ctx.Columns.Add(key);
+        if (double.IsNaN(value) || value <= -998)
+            return;
+
+        var status = spec is { HasLimits: true } && !spec.IsInRange(value)
+            ? CellStatus.Warn
+            : CellStatus.Ok;
+        ctx.Matrix.Set(slot, key, value, status);
     }
+
+    private static double PreferValid(double preferred, double fallback) =>
+        Invalid(preferred) ? fallback : preferred;
 
     private static double Rb(double uSource, double iSource)
     {

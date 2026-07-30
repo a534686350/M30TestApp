@@ -181,7 +181,7 @@ public sealed class RunSetupViewModel : ViewModelBase
                 lines.Add($"    ── 压力点 {pp.Name} = {pp.Value} {plan.PressureUnit} [{pp.PressureTypeDisplay}]");
                 lines.Add($"       设置压力 → 稳定 → 保压 → DAQ973A 逐工位采集 {dmmLabel}");
             }
-            lines.Add("    全部压力点完成后 → 读取烘箱温度 Temp（仅一次，写入首工位）");
+            lines.Add("    全部压力点完成后 → 读取烘箱温度 Temp（仅一次，写入全部工位）");
             lines.Add("");
         }
 
@@ -338,7 +338,7 @@ public sealed class RunSetupViewModel : ViewModelBase
     private bool _useLeakCheck = false;
     public bool UseLeakCheck { get => _useLeakCheck; set => SetField(ref _useLeakCheck, value); }
 
-    private bool _useVentForGaugeZeroPressure = true;
+    private bool _useVentForGaugeZeroPressure = false;
     public bool UseVentForGaugeZeroPressure
     {
         get => _useVentForGaugeZeroPressure;
@@ -398,8 +398,8 @@ public sealed class RunSetupViewModel : ViewModelBase
 
     public bool ShowLongTermMeasureOptions => _isLongTermStabilityMode;
 
-    /// <summary>长期稳定性测试必须启用烘箱，不允许取消勾选。</summary>
-    public bool OvenRequiredForRun => _isLongTermStabilityMode;
+    /// <summary>烘箱选项可由操作员按现场设备情况自由启用或停用。</summary>
+    public bool OvenRequiredForRun => false;
 
     private LongTermStabilityMeasureMode _longTermMeasureMode = LongTermStabilityMeasureMode.Voltage;
     public LongTermStabilityMeasureMode LongTermMeasureMode
@@ -686,7 +686,8 @@ public sealed class RunSetupViewModel : ViewModelBase
         if (bool.TryParse(ini.Get("Slots", "UseOven", ""), out var uo)) _useOven = uo;
         if (bool.TryParse(ini.Get("Slots", "UsePower", ""), out var uw)) _usePower = uw;
         if (bool.TryParse(ini.Get("Slots", "UseLeakCheck", ""), out var ul)) _useLeakCheck = ul;
-        if (bool.TryParse(ini.Get("Slots", "UseVentForGaugeZeroPressure", ""), out var uz)) _useVentForGaugeZeroPressure = uz;
+        // legacy vent setting intentionally ignored; gauge 0kPa uses normal pressure hold.
+        _useVentForGaugeZeroPressure = false;
         if (bool.TryParse(ini.Get("Slots", "CollectUt", ""), out var cut)) _collectUt = cut;
         if (bool.TryParse(ini.Get("Slots", "CollectUsc", ""), out var cusc)) _collectUsc = cusc;
         if (bool.TryParse(ini.Get("Slots", "CollectIsc", ""), out var cisc)) _collectIsc = cisc;
