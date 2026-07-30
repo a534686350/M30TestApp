@@ -35,13 +35,19 @@
                        HorizontalAlignment="Center"
                        Margin="0,0,0,10"/>
 
-            <ProgressBar x:Name="Progress"
-                         Minimum="0"
-                         Maximum="100"
-                         Height="14"
-                         Value="0"
-                         IsIndeterminate="True"
-                         Margin="0,0,0,8"/>
+            <Grid x:Name="ProgressTrack"
+                  Height="14"
+                  ClipToBounds="True"
+                  Margin="0,0,0,8"
+                  SizeChanged="OnProgressTrackSizeChanged">
+                <Border Background="{DynamicResource HeaderBgBrush}"
+                        CornerRadius="7"/>
+                <Border x:Name="ProgressFill"
+                        Width="0"
+                        HorizontalAlignment="Left"
+                        Background="{DynamicResource AccentBrush}"
+                        CornerRadius="7"/>
+            </Grid>
 
             <TextBlock x:Name="PercentText"
                        Text=""
