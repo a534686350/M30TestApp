@@ -91,9 +91,10 @@ public sealed class RunSetupViewModel : ViewModelBase
         lines.Add("【1】探漏");
         var leakPressures = LeakCheckPlanHelper.ResolvePressures(plan);
         var leakPrecision = LeakCheckPlanHelper.ResolvePrecision(plan);
+        var leakPrecisionPa = PressureRateToPa(leakPrecision, plan.PressureUnit);
         if (leakPressures.Count > 0)
         {
-            lines.Add($"    压力类型 {plan.DefaultPressureType}，压力点 {string.Join(" / ", leakPressures)}{plan.PressureUnit}，阈值 {leakPrecision}{plan.PressureUnit}/s");
+            lines.Add($"    压力类型 {plan.DefaultPressureType}，压力点 {string.Join(" / ", leakPressures)}{plan.PressureUnit}，阈值 {leakPrecisionPa:G4}Pa/s");
             lines.Add("    逐阀加压 → 检测泄漏率 → 全开整体探漏（每个压力点重复）");
         }
         else
@@ -811,6 +812,15 @@ public sealed class RunSetupViewModel : ViewModelBase
 
     private static int DmmAutoVoltageChannelForSlot(int slotNo) => 100 + slotNo;
     private static int DmmAutoSwitchChannelForSlot(int slotNo) => 301 + Math.Clamp((slotNo - 1) / 4, 0, 3);
+
+    private static double PressureRateToPa(double value, string? unit) =>
+        (unit ?? "").Trim().ToUpperInvariant() switch
+        {
+            "MPA" => value * 1_000_000.0,
+            "KPA" => value * 1_000.0,
+            "PA" => value,
+            _ => value
+        };
 
     private void Apply()
     {

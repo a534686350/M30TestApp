@@ -762,12 +762,13 @@ public sealed class RunPerformanceTestAction : IAction
 
         var leakPrecision = LeakCheckPlanHelper.ResolvePrecision(ctx.Plan);
         var pressureUnit = string.IsNullOrWhiteSpace(ctx.Plan.PressureUnit) ? "kPa" : ctx.Plan.PressureUnit;
+        var leakPrecisionPa = PressureRateToPa(leakPrecision, pressureUnit);
         var leakCheckSec = 30;
         var switchMs = GetDelayMs(ctx, "ValveSwitchMs", 500);
         var pressureType = ctx.Plan.DefaultPressureType;
 
         AppLog.Info("Leak",
-            $"探漏参数：类型={pressureType}，压力点=[{string.Join(", ", leakPressures)}]{pressureUnit}，精度/泄漏率阈值={leakPrecision}{pressureUnit}/s，观测={leakCheckSec}s");
+            $"探漏参数：类型={pressureType}，压力点=[{string.Join(", ", leakPressures)}]{pressureUnit}，精度/泄漏率阈值={leakPrecisionPa:G4}Pa/s，观测={leakCheckSec}s");
 
         await ctx.Pressure.SetPressureTypeAsync(pressureType, ct);
 
@@ -845,24 +846,25 @@ public sealed class RunPerformanceTestAction : IAction
         if (worstLeakRate > double.NegativeInfinity)
         {
             var status = anyExceeded ? "超限" : "通过";
-            AppLog.Info("Leak", $"探漏完成，最高漏率 {worstLeakRate:G4}{pressureUnit}/s（{worstLeakLabel}，{status}）");
+            var worstLeakRatePa = PressureRateToPa(worstLeakRate, pressureUnit);
+            AppLog.Info("Leak", $"探漏完成，最高漏率 {worstLeakRatePa:G4}Pa/s（{worstLeakLabel}，{status}）");
             if (anyExceeded)
             {
                 var message =
                     $"探漏超限：{worstLeakLabel}\n" +
-                    $"最高漏率：{worstLeakRate:G4}{pressureUnit}/s\n" +
-                    $"漏率指标：{leakPrecision:G4}{pressureUnit}/s\n\n" +
+                    $"最高漏率：{worstLeakRatePa:G4}Pa/s\n" +
+                    $"漏率指标：{leakPrecisionPa:G4}Pa/s\n\n" +
                     "是否继续进行自动测试？\n" +
                     "选择“是”继续，选择“否”停止。";
                 var continueTest = await ctx.ConfirmLeakCheckExceededAsyncCore(message, ct);
                 if (continueTest)
                 {
-                    AppLog.Warn("Leak", $"用户确认继续自动测试：{worstLeakLabel}，最高漏率 {worstLeakRate:G4}{pressureUnit}/s，阈值 {leakPrecision:G4}{pressureUnit}/s");
+                    AppLog.Warn("Leak", $"用户确认继续自动测试：{worstLeakLabel}，最高漏率 {worstLeakRatePa:G4}Pa/s，阈值 {leakPrecisionPa:G4}Pa/s");
                     return;
                 }
 
                 throw new InvalidOperationException(
-                    $"探漏超限：{worstLeakLabel}，最高漏率 {worstLeakRate:G4}{pressureUnit}/s，阈值 {leakPrecision:G4}{pressureUnit}/s");
+                    $"探漏超限：{worstLeakLabel}，最高漏率 {worstLeakRatePa:G4}Pa/s，阈值 {leakPrecisionPa:G4}Pa/s");
             }
         }
         else
@@ -897,11 +899,11 @@ public sealed class RunPerformanceTestAction : IAction
 
         if (leakRate < precision)
         {
-            AppLog.Info("Leak", $"{label} 探漏通过，泄漏率={leakRate:G4}{unit}/s");
+            AppLog.Info("Leak", $"{label} 探漏通过，泄漏率={PressureRateToPa(leakRate, unit):G4}Pa/s");
             return (true, leakRate);
         }
 
-        AppLog.Warn("Leak", $"{label} 探漏失败，泄漏率={leakRate:G4}{unit}/s（阈值<{precision}{unit}/s）");
+        AppLog.Warn("Leak", $"{label} 探漏失败，泄漏率={PressureRateToPa(leakRate, unit):G4}Pa/s（阈值<{PressureRateToPa(precision, unit):G4}Pa/s）");
         return (false, leakRate);
     }
 
@@ -1080,6 +1082,15 @@ public sealed class RunPerformanceTestAction : IAction
 
     private static int GetDelayMs(TaskContext ctx, string key, int fallback) =>
         int.TryParse(ctx.Settings.Get("DelaySettings", key, fallback.ToString(CultureInfo.InvariantCulture)), out var ms) ? ms : fallback;
+
+    private static double PressureRateToPa(double value, string unit) =>
+        unit.Trim().ToUpperInvariant() switch
+        {
+            "MPA" => value * 1_000_000.0,
+            "KPA" => value * 1_000.0,
+            "PA" => value,
+            _ => value
+        };
 
     public static void SaveMatrix(TaskContext ctx)
     {

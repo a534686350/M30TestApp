@@ -36,9 +36,10 @@ if ([string]::IsNullOrWhiteSpace($ghToken)) {
 }
 
 $releaseNotes = @"
-v1.2.31 update:
+v1.2.32 update:
 
 - Fixed the update dialog progress fill so the colored bar matches the percentage.
+- Displayed leak rate and leak threshold consistently in Pa/s.
 - Long-term stability oven selection can be unchecked when needed.
 - Removed the Settings page administrator password prompt.
 - Restored normal gauge 0kPa pressure-control/hold behavior.
