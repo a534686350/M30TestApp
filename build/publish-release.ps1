@@ -36,9 +36,10 @@ if ([string]::IsNullOrWhiteSpace($ghToken)) {
 }
 
 $releaseNotes = @"
-v1.2.30 update:
+v1.2.31 update:
 
-- Long-term stability oven selection can now be unchecked when needed.
+- Fixed the update dialog progress fill so the colored bar matches the percentage.
+- Long-term stability oven selection can be unchecked when needed.
 - Removed the Settings page administrator password prompt.
 - Restored normal gauge 0kPa pressure-control/hold behavior.
 - Quick test P0=0 skips only the hold period.

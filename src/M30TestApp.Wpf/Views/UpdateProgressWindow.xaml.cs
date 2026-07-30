@@ -10,6 +10,8 @@ public partial class UpdateProgressWindow : Window
     public UpdateProgressWindow()
     {
         InitializeComponent();
+        Progress.SizeChanged += (_, _) => UpdateIndicatorWidth();
+        Progress.ValueChanged += (_, _) => UpdateIndicatorWidth();
     }
 
     public void SetStatus(string message)
@@ -25,6 +27,7 @@ public partial class UpdateProgressWindow : Window
             Progress.IsIndeterminate = false;
             Progress.Value = value;
             PercentText.Text = $"{value}%";
+            UpdateIndicatorWidth();
         });
     }
 
@@ -35,7 +38,22 @@ public partial class UpdateProgressWindow : Window
             StatusText.Text = message;
             Progress.IsIndeterminate = true;
             PercentText.Text = "";
+            UpdateIndicatorWidth();
         });
+    }
+
+    private void UpdateIndicatorWidth()
+    {
+        if (Progress.IsIndeterminate)
+            return;
+
+        Progress.ApplyTemplate();
+        if (Progress.Template.FindName("PART_Indicator", Progress) is FrameworkElement indicator)
+        {
+            var range = Progress.Maximum - Progress.Minimum;
+            var ratio = range <= 0 ? 0 : (Progress.Value - Progress.Minimum) / range;
+            indicator.Width = Math.Max(0, Progress.ActualWidth * Math.Clamp(ratio, 0, 1));
+        }
     }
 
     public void AllowClose()
