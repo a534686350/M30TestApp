@@ -38,3 +38,4 @@ publish/
 *.zip
 publish-self/
 artifacts/
+f40/releases/*.zip
