@@ -24,6 +24,13 @@ public sealed class SettingsViewModel : ViewModelBase
     private const string GiteeOwner = "hl515";
     private const string GiteeRepo = "m30-test-app";
 
+    private sealed record UpdateCandidate(
+        string Host,
+        string Tag,
+        string AssetUrl,
+        string AssetName,
+        Version Version);
+
     private static readonly HttpClient _http = new()
     {
         Timeout = TimeSpan.FromSeconds(15),
@@ -144,7 +151,8 @@ public sealed class SettingsViewModel : ViewModelBase
 
         try
         {
-            var release = await FetchLatestReleaseWithFallbackAsync();
+            var candidates = await FetchLatestReleaseCandidatesAsync();
+            var release = candidates[0];
             var latest = release.Tag.TrimStart('v', 'V');
             if (!Version.TryParse(latest, out var latestVer) ||
                 !Version.TryParse(currentVersion, out var currentVer))
@@ -201,7 +209,36 @@ public sealed class SettingsViewModel : ViewModelBase
                 progressWindow.SetProgress(p);
             });
 
-            var zipPath = await SelfUpdater.DownloadAsync(release.AssetUrl, release.AssetName, progress);
+            string? zipPath = null;
+            var downloadErrors = new List<string>();
+            foreach (var candidate in candidates.Where(c => c.Version == latestVer))
+            {
+                var sourceName = candidate.Host == "gitee" ? "Gitee" : "GitHub";
+                try
+                {
+                    UpdateStatus = Language == "zh-CN"
+                        ? $"正在从 {sourceName} 下载 v{latest}..."
+                        : $"Downloading v{latest} from {sourceName}...";
+                    progressWindow.SetIndeterminate(UpdateStatus);
+                    zipPath = await SelfUpdater.DownloadAsync(candidate.AssetUrl, candidate.AssetName, progress);
+                    AppLog.Info("Update", $"Downloaded {candidate.AssetName} from {sourceName}.");
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    var error = $"{sourceName}: {ex.Message}";
+                    downloadErrors.Add(error);
+                    AppLog.Warn("Update", $"Download failed, trying next source. {error}");
+                }
+            }
+
+            if (zipPath is null)
+            {
+                throw new InvalidOperationException(
+                    Language == "zh-CN"
+                        ? "所有更新源下载均失败：" + string.Join("；", downloadErrors)
+                        : "All update sources failed: " + string.Join("; ", downloadErrors));
+            }
 
             UpdateProgress = 100;
             UpdateStatus = Language == "zh-CN"
@@ -232,53 +269,43 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
-    private static async Task<(string Tag, string AssetUrl, string AssetName)> FetchLatestReleaseWithFallbackAsync()
+    private static async Task<IReadOnlyList<UpdateCandidate>> FetchLatestReleaseCandidatesAsync()
     {
-        var candidates = new List<(string Host, string Tag, string AssetUrl, string AssetName)>();
-
-        try
+        var tasks = new[]
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            var release = await TryFetchLatestReleaseAsync("gitee", cts.Token);
-            candidates.Add(("gitee", release.Tag, release.AssetUrl, release.AssetName));
-        }
-        catch (Exception ex)
-        {
-            AppLog.Warn("Update", $"Gitee update check failed: {ex.Message}");
-        }
-
-        try
-        {
-            var release = await TryFetchLatestReleaseAsync("github", CancellationToken.None);
-            candidates.Add(("github", release.Tag, release.AssetUrl, release.AssetName));
-        }
-        catch (Exception ex)
-        {
-            AppLog.Warn("Update", $"GitHub update check failed: {ex.Message}");
-        }
-
-        var best = candidates
-            .Select(c => new
-            {
-                c.Host,
-                c.Tag,
-                c.AssetUrl,
-                c.AssetName,
-                Version = Version.TryParse(c.Tag.TrimStart('v', 'V'), out var v) ? v : new Version(0, 0)
-            })
+            TryFetchReleaseCandidateAsync("gitee", TimeSpan.FromSeconds(5)),
+            TryFetchReleaseCandidateAsync("github", TimeSpan.FromSeconds(8))
+        };
+        var candidates = (await Task.WhenAll(tasks))
+            .Where(c => c is not null)
+            .Cast<UpdateCandidate>()
             .OrderByDescending(c => c.Version)
-            .FirstOrDefault();
+            .ToList();
 
-        if (best is not null)
-        {
-            AppLog.Info("Update", $"Latest release selected from {best.Host}: {best.Tag}");
-            return (best.Tag, best.AssetUrl, best.AssetName);
-        }
+        if (candidates.Count == 0)
+            throw new InvalidOperationException("No release found from Gitee or GitHub");
 
-        throw new InvalidOperationException("No release found from Gitee or GitHub");
+        AppLog.Info("Update", $"Latest release selected: {candidates[0].Tag} from {candidates[0].Host}.");
+        return candidates;
     }
 
-    private static async Task<(string Tag, string AssetUrl, string AssetName)> TryFetchLatestReleaseAsync(
+    private static async Task<UpdateCandidate?> TryFetchReleaseCandidateAsync(
+        string host,
+        TimeSpan timeout)
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(timeout);
+            return await TryFetchLatestReleaseAsync(host, cts.Token);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("Update", $"{host} update check failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static async Task<UpdateCandidate> TryFetchLatestReleaseAsync(
         string host, CancellationToken ct)
     {
         string url = host == "github"
@@ -300,7 +327,12 @@ public sealed class SettingsViewModel : ViewModelBase
                 : asset.TryGetProperty("url", out var urlProp) ? urlProp.GetString() ?? "" : "";
 
             if (!string.IsNullOrWhiteSpace(downloadUrl))
-                return (tag, downloadUrl, name);
+            {
+                var version = Version.TryParse(tag.TrimStart('v', 'V'), out var parsed)
+                    ? parsed
+                    : new Version(0, 0);
+                return new UpdateCandidate(host, tag, downloadUrl, name, version);
+            }
         }
 
         throw new InvalidOperationException("No .zip asset found in the latest release");

@@ -30,35 +30,52 @@ public static class SelfUpdater
         Directory.CreateDirectory(WorkDir);
         var zipPath = Path.Combine(WorkDir, assetName);
 
-        using var resp = await _http.GetAsync(assetUrl, HttpCompletionOption.ResponseHeadersRead, ct);
-        resp.EnsureSuccessStatusCode();
-        var total = resp.Content.Headers.ContentLength ?? -1L;
-
-        await using (var src = await resp.Content.ReadAsStreamAsync(ct))
-        await using (var dst = File.Create(zipPath))
+        try
         {
-            var buf = new byte[81920];
-            long read = 0;
-            var last = -1;
-            int n;
-            while ((n = await src.ReadAsync(buf, ct)) > 0)
+            using var resp = await _http.GetAsync(assetUrl, HttpCompletionOption.ResponseHeadersRead, ct);
+            resp.EnsureSuccessStatusCode();
+            var total = resp.Content.Headers.ContentLength ?? -1L;
+
+            await using (var src = await resp.Content.ReadAsStreamAsync(ct))
+            await using (var dst = File.Create(zipPath))
             {
-                await dst.WriteAsync(buf.AsMemory(0, n), ct);
-                read += n;
-                if (total > 0 && progress is not null)
+                var buf = new byte[81920];
+                long read = 0;
+                var last = -1;
+                int n;
+                while ((n = await src.ReadAsync(buf, ct)) > 0)
                 {
-                    var pct = (int)(read * 100 / total);
-                    if (pct != last)
+                    await dst.WriteAsync(buf.AsMemory(0, n), ct);
+                    read += n;
+                    if (total > 0 && progress is not null)
                     {
-                        progress.Report(pct);
-                        last = pct;
+                        var pct = (int)(read * 100 / total);
+                        if (pct != last)
+                        {
+                            progress.Report(pct);
+                            last = pct;
+                        }
                     }
                 }
             }
-        }
 
-        Validate(zipPath);
-        return zipPath;
+            Validate(zipPath);
+            return zipPath;
+        }
+        catch
+        {
+            try
+            {
+                if (File.Exists(zipPath))
+                    File.Delete(zipPath);
+            }
+            catch
+            {
+                // Preserve the original download exception.
+            }
+
+            throw;
+        }
     }
 
     private static void Validate(string zipPath)
