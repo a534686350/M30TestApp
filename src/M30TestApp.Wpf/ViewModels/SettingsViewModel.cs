@@ -211,7 +211,7 @@ public sealed class SettingsViewModel : ViewModelBase
 
             string? zipPath = null;
             var downloadErrors = new List<string>();
-            foreach (var candidate in candidates.Where(c => c.Version == latestVer))
+            foreach (var candidate in candidates.Where(c => c.Version.CompareTo(latestVer) == 0))
             {
                 var sourceName = candidate.Host == "gitee" ? "Gitee" : "GitHub";
                 try
