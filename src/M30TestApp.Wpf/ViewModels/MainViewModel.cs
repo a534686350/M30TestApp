@@ -35,14 +35,23 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             if (!SetField(ref _currentView, value)) return;
             OnPropertyChanged(nameof(CurrentRunStatus));
             OnPropertyChanged(nameof(CurrentRunStep));
+            OnPropertyChanged(nameof(CurrentRunModeTitle));
+            StartSelectedRunCommand?.RaiseCanExecuteChanged();
         }
     }
 
     public string CurrentRunStatus => CurrentView is TestRunViewModel run ? run.Status : TestRun.Status;
     public string CurrentRunStep => CurrentView is TestRunViewModel run ? run.CurrentStep : TestRun.CurrentStep;
+    public string CurrentRunModeTitle => CurrentView switch
+    {
+        TestRunViewModel run when ReferenceEquals(run, LongTermStability) => "长期稳定性测试",
+        TestRunViewModel => "自动测试",
+        _ => "未选择测试模式"
+    };
 
     public RelayCommand ShowTestRunCommand  { get; }
     public RelayCommand ShowLongTermStabilityCommand { get; }
+    public RelayCommand StartSelectedRunCommand { get; }
     public RelayCommand ShowManualCommand   { get; }
     public RelayCommand ShowQuickTestCommand { get; }
     public RelayCommand ShowConfigCommand   { get; }
@@ -65,7 +74,6 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         Devices.Add(new DeviceStatusVm("切换单元",  session.Dmm));
         var dacStatus = new DeviceStatusVm("板卡", session.Dac);
         Devices.Add(dacStatus);
-        Devices.Add(new DeviceStatusVm("电源", session.Power));
         Devices.Add(new DeviceStatusVm("通道板", session.Board));
 
         TestRun = new TestRunViewModel(session);
@@ -81,6 +89,11 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         TestRun.PropertyChanged += OnRunPagePropertyChanged;
         LongTermStability.PropertyChanged += OnRunPagePropertyChanged;
 
+        StartSelectedRunCommand = new RelayCommand(
+            _ => GetSelectedRun()?.RunCommand.Execute(null),
+            _ => GetSelectedRun()?.RunCommand.CanExecute(null) == true);
+
+        // 左侧导航只选择测试模式；顶部“开始”按钮才启动对应流程。
         ShowTestRunCommand  = new RelayCommand(_ => CurrentView = TestRun);
         ShowLongTermStabilityCommand = new RelayCommand(_ => CurrentView = LongTermStability);
         ShowManualCommand   = new RelayCommand(_ => CurrentView = Manual);
@@ -122,13 +135,12 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     {
         System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
         {
-            if (Devices.Count < 6) return;
+            if (Devices.Count < 5) return;
             Devices[0].SetDevice(Session.Pressure);
             Devices[1].SetDevice(Session.Oven);
             Devices[2].SetDevice(Session.Dmm);
             Devices[3].SetDevice(Session.Dac);
-            Devices[4].SetDevice(Session.Power);
-            Devices[5].SetDevice(Session.Board);
+            Devices[4].SetDevice(Session.Board);
         }));
     }
 
@@ -142,6 +154,8 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     }
 
     private void OpenSettings() => CurrentView = Settings;
+
+    private TestRunViewModel? GetSelectedRun() => CurrentView as TestRunViewModel;
 
     public void Dispose()
     {

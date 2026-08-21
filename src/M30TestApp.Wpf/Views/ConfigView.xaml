@@ -42,13 +42,27 @@
         </DataTemplate>
         <Style x:Key="SlotFieldLabel" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Margin" Value="0,0,0,2"/>
-            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Margin" Value="0,0,0,3"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
         </Style>
         <Style x:Key="SlotNumBox" TargetType="TextBox">
-            <Setter Property="Width" Value="60"/>
+            <Setter Property="Width" Value="72"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Padding" Value="6,3"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="SlotPanel" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource BgBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12"/>
+        </Style>
+        <Style x:Key="SlotPanelTitle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,0,9"/>
         </Style>
     </UserControl.Resources>
 
@@ -58,7 +72,9 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TabControl SelectedValue="{Binding SelectedSection, Mode=TwoWay}" SelectedValuePath="Header">
+        <TabControl x:Name="ConfigTabs"
+                    SelectedValue="{Binding SelectedSection, Mode=TwoWay}"
+                    SelectedValuePath="Header">
             <!-- ════════════════════════════════════════════════════════ -->
             <!-- 0. 方案 (置首，默认选中) -->
             <!-- ════════════════════════════════════════════════════════ -->
@@ -156,7 +172,6 @@
                                     <CheckBox Content="阀门"      IsChecked="True"/>
                                     <CheckBox Content="通道"      IsChecked="True"/>
                                     <CheckBox Content="数字万用表" IsChecked="True"/>
-                                    <CheckBox Content="电源"      IsChecked="True"/>
                                     <CheckBox Content="DB"/>
                                 </UniformGrid>
 
@@ -696,7 +711,7 @@
             <!-- 3. 工位 -->
             <!-- ════════════════════════════════════════════════════════ -->
             <TabItem Header="工位">
-                <Grid Margin="0,4,0,0">
+                <Grid Margin="0,6,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -704,132 +719,302 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <Border Style="{StaticResource Card}">
-                        <StackPanel>
-                            <DockPanel Margin="0,0,0,8">
-                                <TextBlock Text="工位对应表" Style="{StaticResource SectionTitle}" VerticalAlignment="Center"/>
-                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
-                                    <Button Content="导入 CSV" Style="{StaticResource GhostButton}" Padding="10,3" Command="{Binding ImportSlotsCommand}"/>
-                                    <Button Content="导出 CSV" Style="{StaticResource GhostButton}" Padding="10,3" Margin="6,0,0,0" Command="{Binding ExportSlotsCommand}"/>
+                    <Border Style="{StaticResource Card}" Padding="14">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <DockPanel>
+                                <StackPanel>
+                                    <TextBlock Text="工位对应表" Style="{StaticResource SectionTitle}" Margin="0,0,0,2"/>
+                                    <TextBlock Text="按布局参数生成工位、板卡、夹具和通道的对应关系"
+                                               Foreground="{StaticResource MutedBrush}"
+                                               FontSize="11"/>
+                                </StackPanel>
+                                <StackPanel DockPanel.Dock="Right"
+                                            Orientation="Horizontal"
+                                            VerticalAlignment="Center">
+                                    <Button Content="导入 CSV" Style="{StaticResource GhostButton}"
+                                            Padding="12,4" Command="{Binding ImportSlotsCommand}"/>
+                                    <Button Content="导出 CSV" Style="{StaticResource GhostButton}"
+                                            Padding="12,4" Margin="8,0,0,0"
+                                            Command="{Binding ExportSlotsCommand}"/>
+                                    <Button x:Name="OpenSlotsWindowButton"
+                                            Content="独立编辑"
+                                            Style="{StaticResource PrimaryButton}"
+                                            Padding="12,4" Margin="8,0,0,0"
+                                            Click="OpenSlotsWindow_Click"
+                                            ToolTip="隐藏主界面，在独立窗口中编辑工位表"/>
                                 </StackPanel>
                             </DockPanel>
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="工位数量" Style="{StaticResource SlotFieldLabel}"/>
-                                    <TextBox Width="80" HorizontalContentAlignment="Center"
-                                             Text="{Binding SlotCount, UpdateSourceTrigger=PropertyChanged}"/>
+
+                            <Grid Grid.Row="1" Margin="0,14,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="90"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="工位数量" FontWeight="SemiBold"
+                                           VerticalAlignment="Center"
+                                           Foreground="{StaticResource TextBrush}"
+                                           Margin="0,0,10,0"/>
+                                <TextBox Grid.Column="1" Height="30"
+                                         HorizontalContentAlignment="Center"
+                                         Text="{Binding SlotCount, UpdateSourceTrigger=PropertyChanged}"/>
+                                <TextBlock Grid.Column="2"
+                                           Text="修改数量后会按下方参数重新生成工位表"
+                                           VerticalAlignment="Center"
+                                           Margin="14,0,0,0"
+                                           Foreground="{StaticResource MutedBrush}"
+                                           FontSize="11"/>
+                                <TextBlock Grid.Column="3"
+                                           VerticalAlignment="Center"
+                                           Foreground="{StaticResource MutedBrush}"
+                                           FontSize="11">
+                                    <Run Text="当前 "/>
+                                    <Run Text="{Binding PreviewCount, Mode=OneWay}"/>
+                                    <Run Text=" 行 / 上限 256"/>
+                                </TextBlock>
+                            </Grid>
+
+                            <Expander Grid.Row="2" Margin="0,14,0,0"
+                                      IsExpanded="False">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="高级布局"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource TextBrush}"/>
+                                        <TextBlock Text="板卡 / 夹具 / 阀位 / 通道"
+                                                   Foreground="{StaticResource MutedBrush}"
+                                                   FontSize="11"
+                                                   Margin="10,1,0,0"/>
+                                        <TextBlock Text="（点击展开参数）"
+                                                   Foreground="{StaticResource MutedBrush}"
+                                                   FontSize="10"
+                                                   Margin="10,1,0,0"/>
+                                    </StackPanel>
+                                </Expander.Header>
+                                <Border Margin="0,8,0,0"
+                                        Background="{StaticResource SurfaceBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="用于自动生成工位映射"
+                                               Foreground="{StaticResource MutedBrush}"
+                                               FontSize="10"
+                                               Margin="0,0,0,10"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1.05*"/>
+                                            <ColumnDefinition Width="1.55*"/>
+                                            <ColumnDefinition Width="1.35*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Border Grid.Column="0" Style="{StaticResource SlotPanel}" Margin="0,0,8,0">
+                                            <StackPanel>
+                                                <TextBlock Text="工位范围" Style="{StaticResource SlotPanelTitle}"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="78"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="起始编号" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource MutedBrush}" FontSize="11"/>
+                                                    <TextBox Grid.Column="1" Style="{StaticResource SlotNumBox}"
+                                                             Text="{Binding StartIndex, UpdateSourceTrigger=PropertyChanged}"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Grid.Column="1" Style="{StaticResource SlotPanel}" Margin="0,0,8,0">
+                                            <StackPanel>
+                                                <TextBlock Text="板卡映射" Style="{StaticResource SlotPanelTitle}"/>
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                    </Grid.RowDefinitions>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Margin="0,0,8,8">
+                                                        <TextBlock Text="起始板卡" Style="{StaticResource SlotFieldLabel}"/>
+                                                        <TextBox Style="{StaticResource SlotNumBox}"
+                                                                 Text="{Binding StartBoard, UpdateSourceTrigger=PropertyChanged}"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1" Margin="0,0,0,8">
+                                                        <TextBlock Text="起始板卡工位" Style="{StaticResource SlotFieldLabel}"/>
+                                                        <TextBox Style="{StaticResource SlotNumBox}"
+                                                                 Text="{Binding StartBoardSlot, UpdateSourceTrigger=PropertyChanged}"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Row="1" Margin="0,0,8,0">
+                                                        <TextBlock Text="每块板卡工位数" Style="{StaticResource SlotFieldLabel}"/>
+                                                        <TextBox Style="{StaticResource SlotNumBox}"
+                                                                 Text="{Binding BoardSlotCapacity, UpdateSourceTrigger=PropertyChanged}"/>
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Row="1" Grid.Column="1"
+                                                               Text="每块板卡按固定工位数顺序映射"
+                                                               TextWrapping="Wrap"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{StaticResource MutedBrush}"
+                                                               FontSize="10"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Grid.Column="2" Style="{StaticResource SlotPanel}">
+                                            <StackPanel>
+                                                <TextBlock Text="夹具 / 阀位 / 通道" Style="{StaticResource SlotPanelTitle}"/>
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                    </Grid.RowDefinitions>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Margin="0,0,8,8">
+                                                        <TextBlock Text="起始阀位" Style="{StaticResource SlotFieldLabel}"/>
+                                                        <TextBox Style="{StaticResource SlotNumBox}"
+                                                                 Text="{Binding StartValve, UpdateSourceTrigger=PropertyChanged}"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1" Margin="0,0,0,8">
+                                                        <TextBlock Text="单个夹具工位" Style="{StaticResource SlotFieldLabel}"/>
+                                                        <TextBox Style="{StaticResource SlotNumBox}"
+                                                                 Text="{Binding FixtureSlotCapacity, UpdateSourceTrigger=PropertyChanged}"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Row="1" Margin="0,0,8,0">
+                                                        <TextBlock Text="夹具数量" Style="{StaticResource SlotFieldLabel}"/>
+                                                        <TextBox Style="{StaticResource SlotNumBox}"
+                                                                 Text="{Binding FixtureCount, UpdateSourceTrigger=PropertyChanged}"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Row="1" Grid.Column="1">
+                                                        <TextBlock Text="万用表起始通道" Style="{StaticResource SlotFieldLabel}"/>
+                                                        <TextBox Style="{StaticResource SlotNumBox}"
+                                                                 Text="{Binding StartChannel, UpdateSourceTrigger=PropertyChanged}"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+
+                                    <Border Margin="0,10,0,0"
+                                            Background="{StaticResource AccentLightBrush}"
+                                            BorderBrush="{StaticResource AccentBrush}"
+                                            BorderThickness="1"
+                                            Padding="9,6">
+                                        <TextBlock Text="{Binding BoardMappingSummary}"
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource TextBrush}"/>
+                                    </Border>
                                 </StackPanel>
-                                <TextBlock VerticalAlignment="Bottom" Margin="16,0,0,6" MaxWidth="360" TextWrapping="Wrap"
-                                           Foreground="{StaticResource MutedBrush}" FontSize="11"
-                                           Text="输入数量后自动按下方高级参数生成工位表，无需手动算起止编号。"/>
-                            </StackPanel>
-                            <Expander Header="高级布局（板卡 / 阀位 / 通道）" IsExpanded="False" Margin="0,10,0,0">
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="起始编号" Style="{StaticResource SlotFieldLabel}"/>
-                                    <TextBox Style="{StaticResource SlotNumBox}" Text="{Binding StartIndex, UpdateSourceTrigger=PropertyChanged}"/>
-                                </StackPanel>
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="起始板卡" Style="{StaticResource SlotFieldLabel}"/>
-                                    <TextBox Style="{StaticResource SlotNumBox}" Text="{Binding StartBoard, UpdateSourceTrigger=PropertyChanged}"/>
-                                </StackPanel>
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="起始板卡工位" Style="{StaticResource SlotFieldLabel}"/>
-                                    <TextBox Style="{StaticResource SlotNumBox}" Text="{Binding StartBoardSlot, UpdateSourceTrigger=PropertyChanged}"/>
-                                </StackPanel>
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="板卡工位总数" Style="{StaticResource SlotFieldLabel}"/>
-                                    <TextBox Style="{StaticResource SlotNumBox}" Text="{Binding BoardSlotCapacity, UpdateSourceTrigger=PropertyChanged}"/>
-                                </StackPanel>
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="起始阀位" Style="{StaticResource SlotFieldLabel}"/>
-                                    <TextBox Style="{StaticResource SlotNumBox}" Text="{Binding StartValve, UpdateSourceTrigger=PropertyChanged}"/>
-                                </StackPanel>
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="单个夹具工位" Style="{StaticResource SlotFieldLabel}"/>
-                                    <TextBox Style="{StaticResource SlotNumBox}" Text="{Binding FixtureSlotCapacity, UpdateSourceTrigger=PropertyChanged}"/>
-                                </StackPanel>
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="夹具夹数" Style="{StaticResource SlotFieldLabel}"/>
-                                    <TextBox Style="{StaticResource SlotNumBox}" Text="{Binding FixtureCount, UpdateSourceTrigger=PropertyChanged}"/>
-                                </StackPanel>
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="万用表起始通道" Style="{StaticResource SlotFieldLabel}"/>
-                                    <TextBox Style="{StaticResource SlotNumBox}" Text="{Binding StartChannel, UpdateSourceTrigger=PropertyChanged}"/>
-                                </StackPanel>
-                                </StackPanel>
+                                </Border>
                             </Expander>
-                            <TextBlock HorizontalAlignment="Right" Margin="0,8,0,0"
-                                       Foreground="{StaticResource MutedBrush}" FontSize="11">
-                                <Run Text="工位上限"/>
-                                <Run Text="256"/>
-                                <Run Text=" · 当前"/>
-                                <Run Text="{Binding PreviewCount, Mode=OneWay}"/>
-                                <Run Text="行"/>
-                            </TextBlock>
-                        </StackPanel>
+                        </Grid>
                     </Border>
 
                     <Border Style="{StaticResource Card}" Grid.Row="1" Margin="0,10,0,0" Padding="10,8">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="扫码录入:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0"/>
-                            <TextBlock Text="当前工位" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" Margin="0,0,4,0"/>
-                            <TextBlock x:Name="ScanSlotLabel" Text="-" VerticalAlignment="Center" FontWeight="SemiBold"
-                                       Foreground="{StaticResource AccentBrush}" Margin="0,0,12,0"/>
-                            <TextBox x:Name="BarcodeInput" Width="260" Padding="6,4"
-                                     AcceptsReturn="False"
-                                     PreviewKeyDown="OnBarcodeKeyDown"
-                                     TextChanged="OnBarcodeTextChanged"
-                                     InputMethod.IsInputMethodEnabled="False"
-                                     ToolTip="点击此处，然后用扫码枪扫描条码（回车确认并跳到下一工位）"/>
-                            <Button Content="确认" Style="{StaticResource GhostButton}" Padding="10,3" Margin="6,0"
-                                    Click="OnBarcodeConfirm"/>
-                            <TextBlock x:Name="ScanStatusText" Text="" VerticalAlignment="Center"
-                                       Foreground="Green" Margin="8,0,0,0" FontSize="12"/>
-                        </StackPanel>
+                        <DockPanel>
+                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                                <TextBlock Text="扫码录入" VerticalAlignment="Center"
+                                           FontWeight="SemiBold" Margin="0,0,10,0"/>
+                                <TextBlock Text="当前工位" VerticalAlignment="Center"
+                                           Foreground="{StaticResource MutedBrush}" Margin="0,0,5,0"/>
+                                <Border Background="{StaticResource AccentLightBrush}"
+                                        BorderBrush="{StaticResource AccentBrush}"
+                                        BorderThickness="1"
+                                        Padding="8,3"
+                                        Margin="0,0,10,0">
+                                    <TextBlock x:Name="ScanSlotLabel" Text="-"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource AccentBrush}"/>
+                                </Border>
+                                <TextBox x:Name="BarcodeInput" Width="280" Padding="8,5"
+                                         AcceptsReturn="False"
+                                         PreviewKeyDown="OnBarcodeKeyDown"
+                                         TextChanged="OnBarcodeTextChanged"
+                                         InputMethod.IsInputMethodEnabled="False"
+                                         ToolTip="点击此处，然后用扫码枪扫描条码（回车确认并跳到下一工位）"/>
+                                <Button Content="确认" Style="{StaticResource GhostButton}"
+                                        Padding="12,4" Margin="8,0"
+                                        Click="OnBarcodeConfirm"/>
+                            </StackPanel>
+                            <TextBlock x:Name="ScanStatusText" Text=""
+                                       DockPanel.Dock="Right"
+                                       VerticalAlignment="Center"
+                                       Foreground="{StaticResource SuccessBrush}"
+                                       FontSize="11"/>
+                        </DockPanel>
                     </Border>
 
                     <Border Style="{StaticResource Card}" Grid.Row="2" Margin="0,10,0,0" Padding="0">
-                        <DataGrid x:Name="SlotGrid" ItemsSource="{Binding Slots}" BorderThickness="0"
-                                  SelectionMode="Single"
-                                  AutoGenerateColumns="False"
-                                  EnableRowVirtualization="True"
-                                  EnableColumnVirtualization="True"
-                                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                  SelectionChanged="OnSlotGridSelectionChanged">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="工位"        Binding="{Binding Slot}"          Width="70"/>
-                                <DataGridTextColumn Header="序列号"      Binding="{Binding SerialNo}"      Width="180"/>
-                                <DataGridTextColumn Header="阀位"        Binding="{Binding Valve}"         Width="60"/>
-                                <DataGridTextColumn Header="板卡位"      Binding="{Binding Board}"         Width="80"/>
-                                <DataGridTextColumn Header="板卡工位号"  Binding="{Binding BoardSlotNo}"   Width="90"/>
-                                <DataGridTextColumn Header="层数"        Binding="{Binding Layer}"         Width="60"/>
-                                <DataGridTextColumn Header="夹具位"      Binding="{Binding Fixture}"       Width="70"/>
-                                <DataGridTextColumn Header="夹具工位号"  Binding="{Binding FixtureSlotNo}" Width="90"/>
-                                <DataGridTextColumn Header="压力控制器"  Binding="{Binding PressureController}" Width="90"/>
-                                <DataGridTextColumn Header="数字万用表"  Binding="{Binding Dmm}"           Width="90"/>
-                                <DataGridTextColumn Header="通道"        Binding="{Binding Channel}"       Width="70"/>
-                                <DataGridTextColumn Header="阀门"        Binding="{Binding ValveAddr}"     Width="70"/>
-                            </DataGrid.Columns>
-                        </DataGrid>
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top"
+                                    Background="{StaticResource HeaderBgBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="0,0,0,1"
+                                    Padding="12,7">
+                                <DockPanel>
+                                    <TextBlock Text="工位明细" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextBrush}"/>
+                                    <TextBlock DockPanel.Dock="Right"
+                                               Foreground="{StaticResource MutedBrush}"
+                                               FontSize="11">
+                                        <Run Text="当前 "/>
+                                        <Run Text="{Binding PreviewCount, Mode=OneWay}"/>
+                                        <Run Text=" 行"/>
+                                    </TextBlock>
+                                </DockPanel>
+                            </Border>
+                            <DataGrid x:Name="SlotGrid" ItemsSource="{Binding Slots}" BorderThickness="0"
+                                      SelectionMode="Single"
+                                      AutoGenerateColumns="False"
+                                      EnableRowVirtualization="True"
+                                      EnableColumnVirtualization="True"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                      SelectionChanged="OnSlotGridSelectionChanged">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="工位"        Binding="{Binding Slot}"          Width="70"/>
+                                    <DataGridTextColumn Header="序列号"      Binding="{Binding SerialNo}"      Width="180"/>
+                                    <DataGridTextColumn Header="板卡位"      Binding="{Binding Board}"         Width="80"/>
+                                    <DataGridTextColumn Header="板卡工位号"  Binding="{Binding BoardSlotNo}"   Width="90"/>
+                                    <DataGridTextColumn Header="夹具位"      Binding="{Binding Fixture}"       Width="70"/>
+                                    <DataGridTextColumn Header="夹具工位号"  Binding="{Binding FixtureSlotNo}" Width="90"/>
+                                    <DataGridTextColumn Header="阀位"        Binding="{Binding Valve}"         Width="60"/>
+                                    <DataGridTextColumn Header="阀门"        Binding="{Binding ValveAddr}"     Width="70"/>
+                                    <DataGridTextColumn Header="压力控制器"  Binding="{Binding PressureController}" Width="90"/>
+                                    <DataGridTextColumn Header="数字万用表"  Binding="{Binding Dmm}"           Width="90"/>
+                                    <DataGridTextColumn Header="通道"        Binding="{Binding Channel}"       Width="70"/>
+                                    <DataGridTextColumn Header="层数"        Binding="{Binding Layer}"         Width="60"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
                     </Border>
 
                     <Border Grid.Row="3" Background="{StaticResource HeaderBgBrush}"
                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                            CornerRadius="4" Margin="0,10,0,0" Padding="12,8">
+                            Margin="0,10,0,0" Padding="10,8">
                         <DockPanel>
                             <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                                 <TextBlock Text="批次号" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
                                 <TextBox Text="{Binding BatchNo, UpdateSourceTrigger=PropertyChanged}"
-                                         Width="180" Margin="6,0,16,0"/>
-                                <TextBlock Text="起始ID" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                                         Width="180" Margin="7,0,16,0"/>
+                                <TextBlock Text="起始 ID" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
                                 <TextBox Text="{Binding StartSerial, UpdateSourceTrigger=PropertyChanged}"
-                                         Width="80" Margin="6,0,16,0"/>
+                                         Width="80" Margin="7,0,16,0"/>
                                 <CheckBox Content="自动编号" IsChecked="{Binding AutoNumber}" VerticalAlignment="Center"/>
                             </StackPanel>
-                            <Button DockPanel.Dock="Right" Content="🔄 刷新" Style="{StaticResource PrimaryButton}"
-                                    Padding="14,4" Command="{Binding RegenerateSlotsCommand}"
+                            <Button DockPanel.Dock="Right" Content="刷新工位表"
+                                    Style="{StaticResource PrimaryButton}"
+                                    Padding="14,5" Command="{Binding RegenerateSlotsCommand}"
                                     HorizontalAlignment="Right"/>
                         </DockPanel>
                     </Border>

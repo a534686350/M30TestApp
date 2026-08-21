@@ -95,7 +95,8 @@ public sealed class TaskRunner
             catch (Exception ex)
             {
                 consecutiveErrors++;
-                AppLog.Error("Runner", $"{cmd}: {ex.Message} (连续错误 {consecutiveErrors}/{MaxConsecutiveErrors})");
+                AppLog.Error("Runner",
+                    $"{cmd}: {ex} (连续错误 {consecutiveErrors}/{MaxConsecutiveErrors})");
                 Progress?.Invoke(this, new TaskProgress { Index = i, Total = total, Command = cmd, Phase = "Error", Error = ex.Message });
 
                 if (MaxConsecutiveErrors > 0 && consecutiveErrors >= MaxConsecutiveErrors)

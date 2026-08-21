@@ -1,4 +1,4 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
@@ -20,6 +20,13 @@
     <Color x:Key="RowAltColor">#FF151E28</Color>
     <Color x:Key="SidebarBg">#FF1B2430</Color>
     <Color x:Key="NavHoverBg">#FF263241</Color>
+    <Color x:Key="MenuBarColor">#FF18232F</Color>
+    <Color x:Key="ToolbarColor">#FF1B2835</Color>
+    <Color x:Key="StatusBarColor">#FF202B38</Color>
+    <Color x:Key="PageHeaderColor">#FF18232F</Color>
+    <Color x:Key="SidebarHeaderColor">#FF202B38</Color>
+    <Color x:Key="DeviceStripColor">#FF202B38</Color>
+    <Color x:Key="RunStatusColor">#FF123D3C</Color>
 
     <SolidColorBrush x:Key="BgBrush"          Color="{StaticResource BgColor}"/>
     <SolidColorBrush x:Key="SurfaceBrush"     Color="{StaticResource SurfaceColor}"/>
@@ -35,28 +42,20 @@
     <SolidColorBrush x:Key="HeaderBgBrush"    Color="{StaticResource HeaderBgColor}"/>
     <SolidColorBrush x:Key="RowAltBrush"      Color="{StaticResource RowAltColor}"/>
     <SolidColorBrush x:Key="NavHoverBrush"    Color="{StaticResource NavHoverBg}"/>
+    <SolidColorBrush x:Key="MenuBarBrush"     Color="{StaticResource MenuBarColor}"/>
+    <SolidColorBrush x:Key="ToolbarBrush"     Color="{StaticResource ToolbarColor}"/>
+    <SolidColorBrush x:Key="StatusBarBrush"   Color="{StaticResource StatusBarColor}"/>
+    <SolidColorBrush x:Key="PageHeaderBrush"  Color="{StaticResource PageHeaderColor}"/>
+    <SolidColorBrush x:Key="SidebarBrush"     Color="{StaticResource SidebarBg}"/>
+    <SolidColorBrush x:Key="SidebarHeaderBrush" Color="{StaticResource SidebarHeaderColor}"/>
+    <SolidColorBrush x:Key="DeviceStripBrush" Color="{StaticResource DeviceStripColor}"/>
+    <SolidColorBrush x:Key="RunStatusBrush"   Color="{StaticResource RunStatusColor}"/>
 
-    <!-- Gradient background brush (Dark) -->
-    <LinearGradientBrush x:Key="BgGradientBrush" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="{StaticResource BgGradientStart}" Offset="0"/>
-        <GradientStop Color="{StaticResource BgGradientEnd}"   Offset="0.6"/>
-        <GradientStop Color="#FF101820"                        Offset="1"/>
-    </LinearGradientBrush>
-
-    <!-- TopBar gradient (Dark) -->
-    <LinearGradientBrush x:Key="TopBarBrush" StartPoint="0,0" EndPoint="1,0">
-        <GradientStop Color="#FF1B2430" Offset="0"/>
-        <GradientStop Color="#FF121A23" Offset="0.5"/>
-        <GradientStop Color="#FF1B2430" Offset="1"/>
-    </LinearGradientBrush>
-
-    <!-- Card shadow effect -->
-    <DropShadowEffect x:Key="CardShadow" BlurRadius="10" ShadowDepth="1"
-                      Direction="270" Color="#40000000" Opacity="0.38"/>
-    <DropShadowEffect x:Key="CardShadowHover" BlurRadius="16" ShadowDepth="3"
-                      Direction="270" Color="#50000000" Opacity="0.55"/>
-    <DropShadowEffect x:Key="NavShadow" BlurRadius="16" ShadowDepth="2"
-                      Direction="270" Color="#40000000" Opacity="0.45"/>
+    <SolidColorBrush x:Key="BgGradientBrush" Color="{StaticResource BgColor}"/>
+    <SolidColorBrush x:Key="TopBarBrush" Color="#FF182E46"/>
+    <DropShadowEffect x:Key="CardShadow" BlurRadius="0" ShadowDepth="0" Opacity="0"/>
+    <DropShadowEffect x:Key="CardShadowHover" BlurRadius="0" ShadowDepth="0" Opacity="0"/>
+    <DropShadowEffect x:Key="NavShadow" BlurRadius="0" ShadowDepth="0" Opacity="0"/>
 
     <sys:Double x:Key="FontSizeNormal">13</sys:Double>
     <sys:Double x:Key="FontSizeSmall">12</sys:Double>
@@ -74,7 +73,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                            CornerRadius="8" Padding="{TemplateBinding Padding}"
+                            CornerRadius="0" Padding="{TemplateBinding Padding}"
                             Effect="{DynamicResource CardShadow}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
@@ -101,7 +100,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                            CornerRadius="8" Padding="{TemplateBinding Padding}"
+                            CornerRadius="0" Padding="{TemplateBinding Padding}"
                             Effect="{DynamicResource CardShadow}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
@@ -131,7 +130,7 @@
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Bd" Background="{TemplateBinding Background}"
                             BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                            CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            CornerRadius="0" Padding="{TemplateBinding Padding}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
@@ -150,7 +149,7 @@
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="CornerRadius" Value="0"/>
         <Setter Property="Padding" Value="16"/>
         <Setter Property="Effect" Value="{DynamicResource CardShadow}"/>
     </Style>
@@ -162,7 +161,91 @@
         <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
     </Style>
 
-    <!-- ────────── Nav button ────────── -->
+    <Style x:Key="ToolbarButton" TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="10,5"/>
+        <Setter Property="Margin" Value="1,0"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource NavHoverBrush}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentLightBrush}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="ToolbarStartButton" TargetType="Button" BasedOn="{StaticResource ToolbarButton}">
+        <Setter Property="Background" Value="{DynamicResource SuccessBrush}"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Padding" Value="18,6"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{DynamicResource SuccessBrush}"
+                            BorderThickness="1"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#FF059669"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#FF047857"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="ToolbarSeparator" TargetType="Separator">
+        <Setter Property="Width" Value="1"/>
+        <Setter Property="Height" Value="24"/>
+        <Setter Property="Margin" Value="8,0"/>
+        <Setter Property="Background" Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Separator">
+                    <Border Width="1" Height="24" Background="{TemplateBinding Background}"/>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ────────── Nav button (sidebar, left indicator) ────────── -->
     <Style x:Key="NavButton" TargetType="RadioButton">
         <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
         <Setter Property="Background" Value="Transparent"/>
@@ -174,18 +257,25 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="RadioButton">
-                    <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                            CornerRadius="8" Padding="{TemplateBinding Padding}" Margin="2,2">
-                        <ContentPresenter VerticalAlignment="Center"/>
-                    </Border>
+                    <Grid Margin="2,1">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="0" Padding="{TemplateBinding Padding}"/>
+                        <Border x:Name="Indicator"
+                                Width="3"
+                                HorizontalAlignment="Left"
+                                Background="Transparent"/>
+                        <ContentPresenter Margin="12,0,0,0"
+                                          VerticalAlignment="Center"/>
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{DynamicResource NavHoverBrush}"/>
                             <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentBrush}"/>
-                            <Setter Property="Foreground" Value="White"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentLightBrush}"/>
+                            <Setter TargetName="Indicator" Property="Background" Value="{DynamicResource AccentBrush}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
                             <Setter Property="FontWeight" Value="SemiBold"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
@@ -264,7 +354,7 @@
                 <ControlTemplate TargetType="TextBox">
                     <Border x:Name="Bd" Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            CornerRadius="0" Padding="{TemplateBinding Padding}">
                         <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
@@ -304,7 +394,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
                     <Border x:Name="Bd" Background="Transparent"
-                            CornerRadius="8"
+                            CornerRadius="0"
                             BorderBrush="Transparent" BorderThickness="1"
                             Padding="{TemplateBinding Padding}" Margin="2,0,2,6">
                         <ContentPresenter ContentSource="Header" VerticalAlignment="Center"/>

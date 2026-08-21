@@ -384,6 +384,19 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         return await operation.Task.WaitAsync(ct);
     }
 
+    private async Task<bool> ConfirmPressureInstabilityAsync(string message, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var operation = Application.Current.Dispatcher.InvokeAsync(() =>
+            MessageBox.Show(
+                Application.Current.MainWindow,
+                message,
+                "压力波动",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) == MessageBoxResult.Yes);
+        return await operation.Task.WaitAsync(ct);
+    }
+
     private void TogglePause()
     {
         if (_cts is null) return;
@@ -468,15 +481,6 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         }
         catch (Exception ex) { AppLog.Error("Run", $"泄压失败: {ex.Message}"); }
 
-        try
-        {
-            if (_session.Context.Power is not null)
-            {
-                AppLog.Info("Run", "关闭电源…");
-                await RunShutdownStepAsync("关闭电源", ct => _session.Context.Power.OutputOffAsync(ct));
-            }
-        }
-        catch (Exception ex) { AppLog.Error("Run", $"关闭电源失败: {ex.Message}"); }
     }
 
     private static async Task RunShutdownStepAsync(string name, Func<CancellationToken, Task> action)
@@ -654,20 +658,22 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
 
         var savedPressure = _session.Context.Pressure;
         var savedOven = _session.Context.Oven;
-        var savedPower = _session.Context.Power;
         var savedSkipLeak = _session.Context.SkipLeakCheck;
         var savedSkipUt = _session.Context.SkipUt;
         var savedSkipUsc = _session.Context.SkipUsc;
         var savedSkipIsc = _session.Context.SkipIsc;
         var savedSkipUsg = _session.Context.SkipUsg;
         var savedSkipOvenTemp = _session.Context.SkipOvenTemp;
+        var savedLeakCheckNote = _session.Context.LeakCheckNote;
         var savedPauseWaiter = _session.Context.PauseWaiter;
         var savedConfirmLeakCheckExceededAsync = _session.Context.ConfirmLeakCheckExceededAsync;
+        var savedConfirmPressureInstabilityAsync = _session.Context.ConfirmPressureInstabilityAsync;
         var savedResumeSoakMinutesOverride = _session.Context.ResumeSoakMinutesOverride;
         var savedTaskScript = _session.Plan.TaskScript;
 
         _session.Context.PauseWaiter = WaitIfPausedAsync;
         _session.Context.ConfirmLeakCheckExceededAsync = ConfirmLeakCheckExceededAsync;
+        _session.Context.ConfirmPressureInstabilityAsync = ConfirmPressureInstabilityAsync;
         _session.Context.ResumeSoakMinutesOverride = setupVm.ResumeFromCheckpoint ? resumePrompt.ResumeSoakMinutes : null;
         _session.Context.UseVentForGaugeZeroPressure = setupVm.UseVentForGaugeZeroPressure;
 
@@ -681,14 +687,10 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
             _session.Context.Oven = null;
             AppLog.Info("Run", "已跳过烘箱");
         }
-        if (!setupVm.UsePower)
-        {
-            _session.Context.Power = null;
-            AppLog.Info("Run", "已跳过电源");
-        }
         if (!setupVm.UseLeakCheck)
         {
             _session.Context.SkipLeakCheck = true;
+            _session.Context.LeakCheckNote = "探漏已跳过";
             AppLog.Info("Run", "已跳过探漏");
         }
         AppLog.Info("Run", setupVm.UseVentForGaugeZeroPressure
@@ -711,6 +713,10 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         }
         else
         {
+            // 运行设置中的模式选择必须真正切换执行脚本。
+            // 之前这里只在长期稳定性模式赋值，导致 DMM 自动测试界面选中后
+            // 实际仍可能执行方案文件里的 Run:PerformanceTest。
+            _session.Plan.TaskScript = setupVm.RunTaskScript;
             if (!setupVm.CollectUt) AppLog.Info("Run", "已跳过UT采集");
             if (!setupVm.CollectUsc) AppLog.Info("Run", "已跳过USC采集");
             if (!setupVm.CollectIsc) AppLog.Info("Run", "已跳过ISC采集");
@@ -762,15 +768,16 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         {
             _session.Context.Pressure = savedPressure;
             _session.Context.Oven = savedOven;
-            _session.Context.Power = savedPower;
             _session.Context.SkipLeakCheck = savedSkipLeak;
             _session.Context.SkipUt = savedSkipUt;
             _session.Context.SkipUsc = savedSkipUsc;
             _session.Context.SkipIsc = savedSkipIsc;
             _session.Context.SkipUsg = savedSkipUsg;
             _session.Context.SkipOvenTemp = savedSkipOvenTemp;
+            _session.Context.LeakCheckNote = savedLeakCheckNote;
             _session.Context.PauseWaiter = savedPauseWaiter;
             _session.Context.ConfirmLeakCheckExceededAsync = savedConfirmLeakCheckExceededAsync;
+            _session.Context.ConfirmPressureInstabilityAsync = savedConfirmPressureInstabilityAsync;
             _session.Context.ResumeSoakMinutesOverride = savedResumeSoakMinutesOverride;
             _session.Plan.TaskScript = savedTaskScript;
             _session.Context.Plan = _session.Plan;
@@ -780,6 +787,8 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
             _cts?.Dispose();
             _cts = null;
             _startedAt = null;
+            try { await AppLog.FlushAsync(TimeSpan.FromSeconds(3)); }
+            catch (Exception ex) { AppLog.Error("Log", $"等待日志写入完成失败：{ex}"); }
         }
     }
 

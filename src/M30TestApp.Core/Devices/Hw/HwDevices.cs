@@ -157,6 +157,7 @@ internal static class SerialHelpers
 public sealed class HwOven : DeviceBase, IOven
 {
     private readonly DeviceProfile _profile;
+    private readonly object _portGate = new();
     private SerialPort? _port;
     private float _target;
 
@@ -170,7 +171,14 @@ public sealed class HwOven : DeviceBase, IOven
 
     protected override Task OnCloseAsync(CancellationToken ct)
     {
-        _port?.Close();
+        lock (_portGate)
+        {
+            try { _port?.DiscardInBuffer(); } catch { }
+            try { _port?.DiscardOutBuffer(); } catch { }
+            try { _port?.Close(); } catch { }
+            _port?.Dispose();
+            _port = null;
+        }
         return Task.CompletedTask;
     }
 
@@ -201,18 +209,30 @@ public sealed class HwOven : DeviceBase, IOven
 
     private void EnsureOpen()
     {
-        if (_port is { IsOpen: true }) return;
-        _port?.Dispose();
-        _port = new SerialPort(_profile.Address, _profile.Baud, SerialHelpers.ParseParity(_profile.Parity), _profile.DataBits, SerialHelpers.ParseStopBits(_profile.StopBits))
+        lock (_portGate)
         {
-            ReadTimeout = 2000,
-            WriteTimeout = 2000,
-            DtrEnable = true,
-            RtsEnable = true
-        };
-        DeviceBus.Tx(Model, $"OPEN {_profile.Address} {_profile.Baud} {_profile.Parity} {_profile.DataBits}{_profile.StopBits}");
-        _port.Open();
-        DeviceBus.Rx(Model, "OK");
+            if (_port is { IsOpen: true }) return;
+            _port?.Dispose();
+            _port = new SerialPort(_profile.Address, _profile.Baud, SerialHelpers.ParseParity(_profile.Parity), _profile.DataBits, SerialHelpers.ParseStopBits(_profile.StopBits))
+            {
+                ReadTimeout = 2000,
+                WriteTimeout = 2000,
+                DtrEnable = true,
+                RtsEnable = true
+            };
+            DeviceBus.Tx(Model, $"OPEN {_profile.Address} {_profile.Baud} {_profile.Parity} {_profile.DataBits}{_profile.StopBits}");
+            try
+            {
+                _port.Open();
+            }
+            catch
+            {
+                _port.Dispose();
+                _port = null;
+                throw;
+            }
+            DeviceBus.Rx(Model, "OK");
+        }
     }
 
     private async Task<string> QueryAsync(string command, CancellationToken ct)

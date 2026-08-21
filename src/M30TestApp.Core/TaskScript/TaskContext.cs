@@ -19,7 +19,6 @@ public sealed class TaskContext
     public IOven? Oven { get; set; }
     public IDmm? Dmm { get; set; }
     public IDac? Dac { get; set; }
-    public IPowerSupply? Power { get; set; }
     public IBoard? Board { get; set; }
 
     public TestPlan Plan { get; set; } = new();
@@ -32,9 +31,6 @@ public sealed class TaskContext
     public string CurrentTemp { get; set; } = "";
     /// <summary>Current pressure point name (e.g. "P1").</summary>
     public string CurrentPressure { get; set; } = "";
-    /// <summary>Current supply voltage tag (e.g. "V5").</summary>
-    public string CurrentVoltage { get; set; } = "V5";
-
     /// <summary>When true, skip the leak check phase.</summary>
     public bool SkipLeakCheck { get; set; }
 
@@ -58,6 +54,9 @@ public sealed class TaskContext
     /// <summary>When true, skip oven temperature data collection.</summary>
     public bool SkipOvenTemp { get; set; }
 
+    /// <summary>探漏阶段最终说明，记录通过或人工放行等状态。</summary>
+    public string LeakCheckNote { get; set; } = "";
+
     /// <summary>Long-term stability DMM measure mode (voltage mV or resistance Ω).</summary>
     public Data.LongTermStabilityMeasureMode LongTermMeasureMode { get; set; } =
         Data.LongTermStabilityMeasureMode.Voltage;
@@ -79,9 +78,18 @@ public sealed class TaskContext
     /// </summary>
     public Func<string, CancellationToken, Task<bool>>? ConfirmLeakCheckExceededAsync { get; set; }
 
+    /// <summary>
+    /// Called when a pressure group remains unstable after automatic recovery.
+    /// Return true to retry the current valve group, false to stop the run.
+    /// </summary>
+    public Func<string, CancellationToken, Task<bool>>? ConfirmPressureInstabilityAsync { get; set; }
+
     public Task WaitIfPausedAsync(CancellationToken ct) =>
         PauseWaiter?.Invoke(ct) ?? Task.CompletedTask;
 
     public Task<bool> ConfirmLeakCheckExceededAsyncCore(string message, CancellationToken ct) =>
         ConfirmLeakCheckExceededAsync?.Invoke(message, ct) ?? Task.FromResult(false);
+
+    public Task<bool> ConfirmPressureInstabilityAsyncCore(string message, CancellationToken ct) =>
+        ConfirmPressureInstabilityAsync?.Invoke(message, ct) ?? Task.FromResult(false);
 }

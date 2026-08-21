@@ -193,6 +193,8 @@
                             <TextBlock Text="{Binding UtPowerText}" Style="{StaticResource Lbl}"/>
                             <Button Content="⇄ 切换 UT 电源" Style="{StaticResource ActionButton}"
                                     Command="{Binding SwitchUtPowerCommand}"/>
+                            <Button Content="■ 安全复位" Style="{StaticResource MutedActionButton}"
+                                    Command="{Binding SafeResetCommand}"/>
                         </StackPanel>
                     </Grid>
                     <Separator Margin="0,0,0,6"/>
@@ -208,55 +210,38 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <Button Grid.Row="0" Grid.Column="0" Content="🔋 读驱动电压"
+                        <Button Grid.Row="0" Grid.Column="0" Content="📡 读 Usig"
                                 Style="{StaticResource ReadButton}"
-                                Command="{Binding ReadDriveVCommand}"/>
-                        <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource OutBox}" Text="{Binding ReadDriveV}"/>
-                        <TextBlock Grid.Row="0" Grid.Column="2" Text="V" Margin="4,0,0,0"
+                                Command="{Binding ReadUsigCommand}"/>
+                        <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource OutBox}"
+                                 Text="{Binding ReadUsig}"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="mV" Margin="4,0,0,0"
                                    VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
 
-                        <Button Grid.Row="1" Grid.Column="0" Content="⚡ 读驱动电流"
+                        <Button Grid.Row="1" Grid.Column="0" Content="🌡 读 UT"
                                 Style="{StaticResource ReadButton}"
-                                Command="{Binding ReadDriveICommand}" Margin="0,6,8,0"/>
+                                Command="{Binding ReadUtCommand}" Margin="0,6,8,0"/>
                         <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource OutBox}"
-                                 Text="{Binding ReadDriveI}" Margin="0,6,0,0"/>
-                        <TextBlock Grid.Row="1" Grid.Column="2" Text="mA" Margin="4,6,0,0"
+                                 Text="{Binding ReadUT}" Margin="0,6,0,0"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Text="mV" Margin="4,6,0,0"
                                    VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
 
-                        <Button Grid.Row="2" Grid.Column="0" Content="📡 读 Usig"
+                        <Button Grid.Row="2" Grid.Column="0" Content="🌡 读温度变送器 (T)"
                                 Style="{StaticResource ReadButton}"
-                                Command="{Binding ReadUsigCommand}" Margin="0,6,8,0"/>
+                                Command="{Binding ReadTCommand}" Margin="0,6,8,0"/>
                         <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource OutBox}"
-                                 Text="{Binding ReadUsig}" Margin="0,6,0,0"/>
+                                 Text="{Binding ReadT}" Margin="0,6,0,0"/>
                         <TextBlock Grid.Row="2" Grid.Column="2" Text="mV" Margin="4,6,0,0"
                                    VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
 
-                        <Button Grid.Row="3" Grid.Column="0" Content="🌡 读 UT"
-                                Style="{StaticResource ReadButton}"
-                                Command="{Binding ReadUtCommand}" Margin="0,6,8,0"/>
-                        <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource OutBox}"
-                                 Text="{Binding ReadUT}" Margin="0,6,0,0"/>
-                        <TextBlock Grid.Row="3" Grid.Column="2" Text="mV" Margin="4,6,0,0"
-                                   VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
-
-                        <Button Grid.Row="4" Grid.Column="0" Content="🌡 读温度变送器 (T)"
-                                Style="{StaticResource ReadButton}"
-                                Command="{Binding ReadTCommand}" Margin="0,6,8,0"/>
-                        <TextBox Grid.Row="4" Grid.Column="1" Style="{StaticResource OutBox}"
-                                 Text="{Binding ReadT}" Margin="0,6,0,0"/>
-                        <TextBlock Grid.Row="4" Grid.Column="2" Text="mV" Margin="4,6,0,0"
-                                   VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
-
-                        <Button Grid.Row="5" Grid.Column="0" Content="🔬 读 40uA"
+                        <Button Grid.Row="3" Grid.Column="0" Content="🔬 读 40uA"
                                 Style="{StaticResource ReadButton}"
                                 Command="{Binding Read40uACommand}" Margin="0,6,8,0"/>
-                        <TextBox Grid.Row="5" Grid.Column="1" Style="{StaticResource OutBox}"
+                        <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource OutBox}"
                                  Text="{Binding Read40uA}" Margin="0,6,0,0"/>
-                        <TextBlock Grid.Row="5" Grid.Column="2" Text="uA" Margin="4,6,0,0"
+                        <TextBlock Grid.Row="3" Grid.Column="2" Text="uA" Margin="4,6,0,0"
                                    VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
                     </Grid>
                 </StackPanel>

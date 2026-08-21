@@ -21,6 +21,39 @@ public partial class ConfigView : UserControl
         Loaded += (_, _) => ResetScanSlot();
     }
 
+    public void EnableSlotsOnlyMode()
+    {
+        foreach (var item in ConfigTabs.Items)
+        {
+            if (item is TabItem tab)
+                tab.Visibility = string.Equals(tab.Header?.ToString(), "工位", StringComparison.Ordinal)
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+        }
+
+        ConfigTabs.SelectedValue = "工位";
+        OpenSlotsWindowButton.Visibility = Visibility.Collapsed;
+    }
+
+    private void OpenSlotsWindow_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ConfigViewModel vm) return;
+        var owner = Window.GetWindow(this);
+        if (owner is null) return;
+
+        var window = new SlotsWindow(vm);
+        window.Closed += (_, _) =>
+        {
+            if (!owner.IsLoaded) return;
+            owner.Show();
+            owner.Activate();
+        };
+
+        owner.Hide();
+        window.Show();
+        window.Activate();
+    }
+
     private void ResetScanSlot()
     {
         _scanSlotIndex = 0;

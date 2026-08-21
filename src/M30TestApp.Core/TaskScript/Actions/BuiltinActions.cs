@@ -114,20 +114,12 @@ public sealed class DaqTestTypeAction : IAction
 public sealed class DaqDownAction : IAction
 {
     public string Key => "DAQ:Down";
-    public async Task ExecuteAsync(TaskContext ctx, TaskCommand cmd, CancellationToken ct)
+    public Task ExecuteAsync(TaskContext ctx, TaskCommand cmd, CancellationToken ct)
     {
-        if (ctx.Power is not null)
-        {
-            try
-            {
-                await ctx.Power.OutputOffAsync(ct);
-            }
-            catch (Exception ex)
-            {
-                AppLog.Warn("DAQ", $"Power down skipped: {ex.Message}");
-            }
-        }
-        AppLog.Info("DAQ", "Power down");
+        // 旧脚本仍可能包含 DAQ:Down；外部电源已从运行链路移除，
+        // 保留动作键只是为了兼容旧方案，不再发送任何电源指令。
+        AppLog.Info("DAQ", "DAQ:Down 已兼容处理（外部电源功能已移除）");
+        return Task.CompletedTask;
     }
 }
 
@@ -155,13 +147,20 @@ public sealed class TpSetPressurePointAction : IAction
 
             await ctx.Pressure.SetPressureAsync(pp.Value, ctx.Plan.PressureUnit, ctx.Plan.Precision, ct);
             // wait for stable (simplified)
+            var stable = false;
             for (int i = 0; i < 100; i++)
             {
                 ct.ThrowIfCancellationRequested();
                 var v = await ctx.Pressure.ReadPressureAsync(ct);
-                if (Math.Abs(v - pp.Value) <= ctx.Plan.Precision) break;
+                if (Math.Abs(v - pp.Value) <= ctx.Plan.Precision)
+                {
+                    stable = true;
+                    break;
+                }
                 await Task.Delay(50, ct);
             }
+            if (!stable)
+                throw new TimeoutException($"压力点 {pp.Name} 在规定时间内未稳定：目标 {pp.Value}{ctx.Plan.PressureUnit}");
         }
         AppLog.Info("TP", $"Pressure point {pp.Name}={pp.Value}{ctx.Plan.PressureUnit} [{pp.PressureTypeDisplay}]");
     }
@@ -520,54 +519,45 @@ public sealed class RunPerformanceTestAction : IAction
         {
             try
             {
-                await ctx.Pressure.OpenAsync(ct);
+                if (!await ctx.Pressure.OpenAsync(ct))
+                    throw new InvalidOperationException($"{ctx.Pressure.Model}@{ctx.Pressure.Address} 未连接");
                 await ctx.Pressure.SetMeasureAsync(ct);
                 AppLog.Info("Init", $"压力控制器 {ctx.Pressure.Model} 已连接");
             }
-            catch (Exception ex) { AppLog.Warn("Init", $"压力控制器连接失败: {ex.Message}"); }
+            catch (Exception ex) { throw new InvalidOperationException($"压力控制器初始化失败：{ex.Message}", ex); }
         }
 
         if (ctx.Oven is not null)
         {
             try
             {
-                await ctx.Oven.OpenAsync(ct);
+                if (!await ctx.Oven.OpenAsync(ct))
+                    throw new InvalidOperationException($"{ctx.Oven.Model}@{ctx.Oven.Address} 未连接");
                 AppLog.Info("Init", $"烘箱 {ctx.Oven.Model} 已连接");
             }
-            catch (Exception ex) { AppLog.Warn("Init", $"烘箱连接失败: {ex.Message}"); }
+            catch (Exception ex) { throw new InvalidOperationException($"烘箱初始化失败：{ex.Message}", ex); }
         }
 
         if (ctx.Dmm is not null)
         {
             try
             {
-                await ctx.Dmm.OpenAsync(ct);
+                if (!await ctx.Dmm.OpenAsync(ct))
+                    throw new InvalidOperationException($"{ctx.Dmm.Model}@{ctx.Dmm.Address} 未连接");
                 AppLog.Info("Init", $"DMM {ctx.Dmm.Model} 已连接");
             }
-            catch (Exception ex) { AppLog.Warn("Init", $"DMM连接失败: {ex.Message}"); }
+            catch (Exception ex) { throw new InvalidOperationException($"DMM 初始化失败：{ex.Message}", ex); }
         }
 
         if (ctx.Dac is not null)
         {
             try
             {
-                await ctx.Dac.OpenAsync(ct);
+                if (!await ctx.Dac.OpenAsync(ct))
+                    throw new InvalidOperationException($"{ctx.Dac.Model}@{ctx.Dac.Address} 未连接");
                 AppLog.Info("Init", $"采集板 {ctx.Dac.Model} 已连接");
             }
-            catch (Exception ex) { AppLog.Warn("Init", $"采集板连接失败: {ex.Message}"); }
-        }
-
-        if (ctx.Power is not null)
-        {
-            try
-            {
-                await ctx.Power.OpenAsync(ct);
-                if (ctx.Power.State == ConnectionState.Connected)
-                    AppLog.Info("Init", $"电源 {ctx.Power.Model} 已连接");
-                else
-                    AppLog.Warn("Init", $"电源 {ctx.Power.Model} 未连接");
-            }
-            catch (Exception ex) { AppLog.Warn("Init", $"电源连接失败: {ex.Message}"); }
+            catch (Exception ex) { throw new InvalidOperationException($"采集板初始化失败：{ex.Message}", ex); }
         }
 
         if (ctx.Board is not null)
@@ -578,10 +568,13 @@ public sealed class RunPerformanceTestAction : IAction
                 var sharesPort = ctx.Dac is not null &&
                     string.Equals(ctx.Board.Address, ctx.Dac.Address, StringComparison.OrdinalIgnoreCase);
                 if (!sharesPort)
-                    await ctx.Board.OpenAsync(ct);
+                {
+                    if (!await ctx.Board.OpenAsync(ct))
+                        throw new InvalidOperationException($"{ctx.Board.Model}@{ctx.Board.Address} 未连接");
+                }
                 AppLog.Info("Init", $"板卡 {ctx.Board.Model} 已连接");
             }
-            catch (Exception ex) { AppLog.Warn("Init", $"板卡连接失败: {ex.Message}"); }
+            catch (Exception ex) { throw new InvalidOperationException($"板卡初始化失败：{ex.Message}", ex); }
         }
 
         AppLog.Info("Init", "设备初始化完成");
@@ -648,14 +641,25 @@ public sealed class RunPerformanceTestAction : IAction
         var masterValve = ctx.Settings.Get("ValveSettings", "MasterValve", "");
         var switchMs = GetDelayMs(ctx, "ValveSwitchMs", 500);
 
-        if (!string.IsNullOrWhiteSpace(masterValve))
-            await ctx.Dmm.CloseRelayAsync(masterValve, ct);
-        foreach (var group in groups)
-            await ctx.Dmm.CloseRelayAsync(group.Address, ct);
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(masterValve))
+                await ctx.Dmm.CloseRelayAsync(masterValve, ct);
+            foreach (var group in groups)
+                await ctx.Dmm.CloseRelayAsync(group.Address, ct);
 
-        await ctx.Dmm.OpenRelayAsync(targetGroup.Address, ct);
-        await Task.Delay(switchMs, ct);
-        AppLog.Info(source, $"阀门切换：关闭总阀 {masterValve}，只打开 {targetGroup.ValveNo} 号阀 {targetGroup.Address}");
+            await ctx.Dmm.OpenRelayAsync(targetGroup.Address, ct);
+            await Task.Delay(switchMs, ct);
+            AppLog.Info(source,
+                $"阀门切换完成：关闭总阀 {masterValve}，只打开 {targetGroup.ValveNo} 号阀 {targetGroup.Address}");
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Valve",
+                $"阀门切换失败：目标阀{targetGroup.ValveNo} 地址{targetGroup.Address}，" +
+                $"总阀{masterValve}，{ex}");
+            throw;
+        }
     }
 
     private static async Task OpenAllPressureValvesAsync(TaskContext ctx, string source, CancellationToken ct)
@@ -705,20 +709,6 @@ public sealed class RunPerformanceTestAction : IAction
             if (ctx.Pressure is not null)
                 await SetAndWaitPressureAsync(ctx, pp, ct);
             await PressureHoldAsync(ctx, pp, ct);
-            await DacBatchSampler.SampleAllAsync(ctx, DacMeasureKind.Usig, column, pp.Value, tp.Celsius, ct);
-            return;
-        }
-
-        foreach (var group in groups)
-        {
-            await ctx.WaitIfPausedAsync(ct);
-            await ActivateValveGroupAsync(ctx, group, "Run", ct);
-
-            if (ctx.Pressure is not null)
-                await SetAndWaitPressureAsync(ctx, pp, ct);
-            await PressureHoldAsync(ctx, pp, ct);
-
-            ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit} / 阀{group.ValveNo}";
             await DacBatchSampler.SampleAllAsync(
                 ctx,
                 DacMeasureKind.Usig,
@@ -726,7 +716,131 @@ public sealed class RunPerformanceTestAction : IAction
                 pp.Value,
                 tp.Celsius,
                 ct,
-                slotsOverride: group.Slots);
+                beforeSlotAsync: (sampleIndex, token) =>
+                    MonitorPressureForSamplingAsync(ctx, "全工位", pp, sampleIndex, token),
+                beforeSlotEvery: GetIntSetting(ctx, "PressureMonitorEverySlots", 4));
+            return;
+        }
+
+        foreach (var group in groups)
+        {
+            await SamplePressureGroupWithRecoveryAsync(ctx, group, tp, pp, column, ct);
+        }
+    }
+
+    private static async Task SamplePressureGroupWithRecoveryAsync(
+        TaskContext ctx,
+        ValveGroup group,
+        TempPoint tp,
+        PressurePoint pp,
+        string column,
+        CancellationToken ct)
+    {
+        var configuredAttempts = GetIntSetting(ctx, "PressureGroupRetryCount", 2);
+        var maxAttempts = Math.Max(1, configuredAttempts);
+        var attempt = 0;
+
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+            attempt++;
+            try
+            {
+                AppLog.Info("Pressure",
+                    $"阀{group.ValveNo} {pp.Name} 开始稳压/采集，第{attempt}/{maxAttempts}次");
+                await ctx.WaitIfPausedAsync(ct);
+                await ActivateValveGroupAsync(ctx, group, "Run", ct);
+                await SetAndWaitPressureAsync(ctx, pp, ct);
+                await PressureHoldAsync(ctx, pp, ct);
+
+                ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit} / 阀{group.ValveNo}";
+                var monitorEvery = GetIntSetting(ctx, "PressureMonitorEverySlots", 4);
+                await DacBatchSampler.SampleAllAsync(
+                    ctx,
+                    DacMeasureKind.Usig,
+                    column,
+                    pp.Value,
+                    tp.Celsius,
+                    ct,
+                    slotsOverride: group.Slots,
+                    beforeSlotAsync: (sampleIndex, token) =>
+                        MonitorPressureForSamplingAsync(ctx, $"阀{group.ValveNo}", pp, sampleIndex, token),
+                    beforeSlotEvery: monitorEvery);
+
+                AppLog.Info("Pressure",
+                    $"阀{group.ValveNo} {pp.Name} 稳压采集完成，第{attempt}次通过");
+                return;
+            }
+            catch (PressureStabilityException ex)
+            {
+                AppLog.Warn("Pressure",
+                    $"阀{group.ValveNo} {pp.Name} 第{attempt}次稳压/采集失败：{ex.Message}");
+
+                if (attempt < maxAttempts)
+                {
+                    AppLog.Warn("Pressure",
+                        $"阀{group.ValveNo} 将重新切换阀门并重新稳压后重试");
+                    continue;
+                }
+
+                var message =
+                    $"阀{group.ValveNo}（{group.Address}）在 {tp.Name}-{pp.Name} 压力点持续波动。\n" +
+                    $"目标压力：{pp.Value:G6}{ctx.Plan.PressureUnit}\n" +
+                    $"{ex.Message}\n\n" +
+                    "程序已自动重试，但仍未达到稳定条件。\n" +
+                    "选择“是”重试当前阀组，选择“否”停止测试。";
+                var retry = await ctx.ConfirmPressureInstabilityAsyncCore(message, ct);
+                if (retry)
+                {
+                    AppLog.Warn("Pressure",
+                        $"用户确认重试阀{group.ValveNo} {pp.Name}，重新开始当前阀组采集");
+                    attempt = 0;
+                    continue;
+                }
+
+                AppLog.Error("Pressure",
+                    $"用户拒绝重试，停止测试：阀{group.ValveNo} {pp.Name}，{ex}");
+                throw;
+            }
+        }
+    }
+
+    private static async Task MonitorPressureForSamplingAsync(
+        TaskContext ctx,
+        string route,
+        PressurePoint pp,
+        int sampleIndex,
+        CancellationToken ct)
+    {
+        if (ctx.Pressure is null) return;
+
+        var tolerance = GetPressureTolerance(ctx);
+        float current;
+        try
+        {
+            current = await ctx.Pressure.ReadPressureAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Pressure",
+                $"采集中压力读取失败：{route} {pp.Name}，第{sampleIndex + 1}个采样点，{ex}");
+            throw new PressureStabilityException(
+                $"采集中压力读取失败（{route}，采样点#{sampleIndex + 1}）：{ex.Message}", ex);
+        }
+
+        var diff = Math.Abs(current - pp.Value);
+        AppLog.Info("Pressure",
+            $"采集中压力监测：{route} {pp.Name}，采样点#{sampleIndex + 1}，" +
+            $"当前={current:F4}{ctx.Plan.PressureUnit}，目标={pp.Value:F4}，差值={diff:F4}");
+
+        if (!float.IsFinite(current) || diff > tolerance)
+        {
+            var message =
+                $"采集过程中压力波动：{route}，{pp.Name}，采样点#{sampleIndex + 1}，" +
+                $"当前={current:F4}{ctx.Plan.PressureUnit}，目标={pp.Value:F4}，" +
+                $"允许差值±{tolerance:F4}";
+            AppLog.Warn("Pressure", message);
+            throw new PressureStabilityException(message);
         }
     }
 
@@ -848,6 +962,8 @@ public sealed class RunPerformanceTestAction : IAction
             var status = anyExceeded ? "超限" : "通过";
             var worstLeakRatePa = PressureRateToPa(worstLeakRate, pressureUnit);
             AppLog.Info("Leak", $"探漏完成，最高漏率 {worstLeakRatePa:G4}Pa/s（{worstLeakLabel}，{status}）");
+            if (!anyExceeded)
+                ctx.LeakCheckNote = $"探漏通过：最高漏率 {worstLeakRatePa:G4}Pa/s";
             if (anyExceeded)
             {
                 var message =
@@ -860,6 +976,7 @@ public sealed class RunPerformanceTestAction : IAction
                 if (continueTest)
                 {
                     AppLog.Warn("Leak", $"用户确认继续自动测试：{worstLeakLabel}，最高漏率 {worstLeakRatePa:G4}Pa/s，阈值 {leakPrecisionPa:G4}Pa/s");
+                    ctx.LeakCheckNote = $"探漏超限，人工放行：{worstLeakLabel}，最高漏率 {worstLeakRatePa:G4}Pa/s，阈值 {leakPrecisionPa:G4}Pa/s";
                     return;
                 }
 
@@ -870,6 +987,7 @@ public sealed class RunPerformanceTestAction : IAction
         else
         {
             AppLog.Info("Leak", "探漏完成，已泄压，所有阀门已关闭");
+            ctx.LeakCheckNote = "探漏通过";
         }
     }
 
@@ -916,15 +1034,13 @@ public sealed class RunPerformanceTestAction : IAction
             var ok = await ctx.Oven!.SetTempAsync(tp.Celsius, ct);
             if (!ok)
             {
-                AppLog.Warn(source, $"设置烘箱温度或启动加热失败（TEMP/POWER 指令未返回 OK）");
-                return;
+                throw new InvalidOperationException("设置烘箱温度或启动加热失败（TEMP/POWER 指令未返回 OK）");
             }
             AppLog.Info(source, "烘箱已发送加热指令（TEMP + POWER,ON）");
         }
         catch (Exception ex)
         {
-            AppLog.Warn(source, $"设置烘箱温度失败，跳过等待：{ex.Message}");
-            return;
+            throw new InvalidOperationException($"设置烘箱温度失败：{ex.Message}", ex);
         }
 
         var maxMinutes = int.TryParse(ctx.Settings.Get("DelaySettings", "TempReachTimeoutMin", "240"), out var m) ? m : 240;
@@ -945,8 +1061,7 @@ public sealed class RunPerformanceTestAction : IAction
                     AppLog.Warn(source, $"目标温度为 {tp.Celsius}°C;  烘箱已加热 {min} min; 当前温度为 NaN°C（通讯异常）");
                     if (nanCount >= 3)
                     {
-                        AppLog.Warn(source, "连续3次读取温度NaN，烘箱通讯可能异常，跳过加热等待直接进入保温");
-                        return;
+                        throw new InvalidOperationException("连续3次读取烘箱温度失败，停止本轮测试");
                     }
                 }
                 else
@@ -967,14 +1082,13 @@ public sealed class RunPerformanceTestAction : IAction
                 nanCount++;
                 if (nanCount >= 3)
                 {
-                    AppLog.Warn(source, "连续3次读取失败，跳过加热等待");
-                    return;
+                    throw new InvalidOperationException("连续3次读取烘箱温度失败，停止本轮测试", ex);
                 }
             }
             if (min < maxMinutes)
                 await Task.Delay(TimeSpan.FromMinutes(1), ct);
         }
-        AppLog.Warn(source, $"加热超时({maxMinutes}min)，继续进入保温");
+        throw new TimeoutException($"烘箱加热超时（{maxMinutes} min），未达到 {tp.Celsius}℃");
     }
 
     // ── 保温（1分钟间隔日志，显示已保温/剩余）────────────────────────────
@@ -992,7 +1106,7 @@ public sealed class RunPerformanceTestAction : IAction
         }
     }
 
-    // ── 设置压力并等待稳定 ───────────────────────────────────────────────
+    // ── 设置压力并连续确认稳定 ───────────────────────────────────────────
     internal static async Task SetAndWaitPressureAsync(TaskContext ctx, PressurePoint pp, CancellationToken ct)
     {
         if (ctx.Pressure is null)
@@ -1001,30 +1115,140 @@ public sealed class RunPerformanceTestAction : IAction
             return;
         }
 
+        var tolerance = GetPressureTolerance(ctx);
+        var requiredSamples = Math.Max(2, GetIntSetting(ctx, "PressureStableSamples", 5));
+        var sampleMs = Math.Max(100, GetIntSetting(ctx, "PressureStableSampleMs", 500));
+        var timeoutMs = Math.Max(sampleMs * requiredSamples, GetIntSetting(ctx, "PressureStableTimeoutMs", 120000));
+        var maxAttempts = Math.Max(1, GetIntSetting(ctx, "PressureStabilityRetryCount", 3));
+        var lastError = "";
+
         // 自动切换压力类型（绝压/表压/差压）
         await ctx.Pressure.SetPressureTypeAsync(pp.PressureType, ct);
-        AppLog.Info("Run", $"压力类型切换为 {pp.PressureType} ({pp.PressureTypeDisplay})");
+        AppLog.Info("Pressure",
+            $"压力类型切换为 {pp.PressureType} ({pp.PressureTypeDisplay})，" +
+            $"稳定条件：连续{requiredSamples}次、间隔{sampleMs}ms、允许差值±{tolerance:G6}{ctx.Plan.PressureUnit}");
 
-        await ctx.Pressure.SetPressureAsync(pp.Value, ctx.Plan.PressureUnit, ctx.Plan.Precision, ct);
-        for (var i = 0; i < 120; i++)
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            ct.ThrowIfCancellationRequested();
-            await ctx.WaitIfPausedAsync(ct);
-            var current = await ctx.Pressure.ReadPressureAsync(ct);
-            var diff = Math.Abs(current - pp.Value);
-            ctx.CurrentPressure = $"{pp.Name} 目标{pp.Value} 当前{current:F4} 差值{diff:F4} {ctx.Plan.PressureUnit}";
-            if (i % 10 == 0)
-                AppLog.Info("Run", $"等待压力稳定：目标={pp.Value} 当前={current:F4} 差值={diff:F4} ({i}/120)");
-            if (diff <= ctx.Plan.Precision)
+            try
             {
-                AppLog.Info("Run", $"压力已稳定：{current:F4}{ctx.Plan.PressureUnit}（目标{pp.Value}，精度{ctx.Plan.Precision}）");
-                break;
+                await ctx.Pressure.SetPressureAsync(pp.Value, ctx.Plan.PressureUnit, ctx.Plan.Precision, ct);
+                AppLog.Info("Pressure",
+                    $"{pp.Name} 第{attempt}/{maxAttempts}次设定压力：目标={pp.Value:G6}{ctx.Plan.PressureUnit}");
+
+                var stableSamples = 0;
+                var readCount = 0;
+                var readErrors = 0;
+                var min = double.PositiveInfinity;
+                var max = double.NegativeInfinity;
+                var started = DateTime.UtcNow;
+
+                while ((DateTime.UtcNow - started).TotalMilliseconds < timeoutMs)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    await ctx.WaitIfPausedAsync(ct);
+                    readCount++;
+
+                    float current;
+                    try
+                    {
+                        current = await ctx.Pressure.ReadPressureAsync(ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        readErrors++;
+                        stableSamples = 0;
+                        lastError = ex.Message;
+                        AppLog.Error("Pressure",
+                            $"{pp.Name} 第{attempt}次稳压读取失败（第{readCount}次）：{ex}");
+                        await Task.Delay(sampleMs, ct);
+                        continue;
+                    }
+
+                    if (!float.IsFinite(current))
+                    {
+                        stableSamples = 0;
+                        lastError = $"压力控制器返回无效值 {current}";
+                        AppLog.Error("Pressure",
+                            $"{pp.Name} 第{attempt}次稳压读取到无效值：{current}");
+                        await Task.Delay(sampleMs, ct);
+                        continue;
+                    }
+
+                    var diff = Math.Abs(current - pp.Value);
+                    min = Math.Min(min, current);
+                    max = Math.Max(max, current);
+                    ctx.CurrentPressure =
+                        $"{pp.Name} 目标{pp.Value:F4} 当前{current:F4} 差值{diff:F4} {ctx.Plan.PressureUnit} " +
+                        $"稳定计数{stableSamples}/{requiredSamples}";
+
+                    if (diff <= tolerance)
+                    {
+                        stableSamples++;
+                    }
+                    else
+                    {
+                        if (stableSamples > 0)
+                        {
+                            AppLog.Warn("Pressure",
+                                $"{pp.Name} 稳定计数被打断：当前={current:F4}，目标={pp.Value:F4}，" +
+                                $"差值={diff:F4}，允许±{tolerance:F4}");
+                        }
+                        stableSamples = 0;
+                    }
+
+                    if (readCount == 1 || readCount % 10 == 0 || stableSamples == requiredSamples)
+                    {
+                        AppLog.Info("Pressure",
+                            $"{pp.Name} 稳压监测：目标={pp.Value:F4} 当前={current:F4} 差值={diff:F4} " +
+                            $"({stableSamples}/{requiredSamples})，读取#{readCount}");
+                    }
+
+                    if (stableSamples >= requiredSamples)
+                    {
+                        AppLog.Info("Pressure",
+                            $"{pp.Name} 连续稳定通过：当前={current:F4}{ctx.Plan.PressureUnit}，" +
+                            $"连续样本={requiredSamples}，监测范围={min:F4}~{max:F4}，" +
+                            $"读取错误={readErrors}");
+                        return;
+                    }
+
+                    await Task.Delay(sampleMs, ct);
+                }
+
+                lastError =
+                    $"稳定超时：读取{readCount}次，读取错误{readErrors}次，" +
+                    $"监测范围={(double.IsInfinity(min) ? "无有效值" : $"{min:F4}~{max:F4}")}";
+                AppLog.Warn("Pressure",
+                    $"{pp.Name} 第{attempt}/{maxAttempts}次{lastError}，准备重新设压");
             }
-            await Task.Delay(500, ct);
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                lastError = ex.Message;
+                AppLog.Error("Pressure",
+                    $"{pp.Name} 第{attempt}/{maxAttempts}次设压/稳压异常：{ex}");
+            }
+
+            if (attempt < maxAttempts)
+            {
+                await Task.Delay(GetDelayMs(ctx, "PressureRecoveryWaitMs", 1000), ct);
+                AppLog.Warn("Pressure",
+                    $"{pp.Name} 自动重新稳压：第{attempt + 1}/{maxAttempts}次");
+            }
         }
+
+        var finalMessage =
+            $"压力点 {pp.Name} 无法稳定：目标 {pp.Value:G6}{ctx.Plan.PressureUnit}，" +
+            $"允许差值±{tolerance:G6}，已重试{maxAttempts}次。{lastError}";
+        AppLog.Error("Pressure", finalMessage);
+        throw new PressureStabilityException(finalMessage);
     }
 
-    /// <summary>Pressure hold with countdown logging.</summary>
+    /// <summary>保压期间持续读取压力，发现波动时自动重新稳压。</summary>
     internal static async Task PressureHoldAsync(TaskContext ctx, PressurePoint pp, CancellationToken ct)
     {
         if (ctx.Pressure is null)
@@ -1035,16 +1259,74 @@ public sealed class RunPerformanceTestAction : IAction
 
         var holdMs = GetDelayMs(ctx, "PressureAfterMs", 60000);
         if (holdMs <= 0) return;
+
+        var monitorMs = Math.Max(250, GetIntSetting(ctx, "PressureMonitorIntervalMs", 1000));
+        var tolerance = GetPressureTolerance(ctx);
         var holdSec = holdMs / 1000;
-        AppLog.Info("Run", $"{pp.Value}{ctx.Plan.PressureUnit} 开始保压 {holdSec}s");
-        for (var s = 0; s < holdSec; s++)
+        var monitorCount = 0;
+        var recoveryCount = 0;
+        var started = DateTime.UtcNow;
+        AppLog.Info("Pressure",
+            $"{pp.Value}{ctx.Plan.PressureUnit} 开始保压 {holdSec}s，" +
+            $"监测间隔={monitorMs}ms，允许差值±{tolerance:G6}");
+
+        while ((DateTime.UtcNow - started).TotalMilliseconds < holdMs)
         {
             ct.ThrowIfCancellationRequested();
             await ctx.WaitIfPausedAsync(ct);
-            ctx.CurrentPressure = $"{pp.Name} {pp.Value}{ctx.Plan.PressureUnit} 保压中 {s}/{holdSec}s";
-            await Task.Delay(1000, ct);
+            monitorCount++;
+            var current = float.NaN;
+            try
+            {
+                current = await ctx.Pressure.ReadPressureAsync(ct);
+                if (!float.IsFinite(current))
+                    throw new InvalidOperationException($"压力控制器返回无效值 {current}");
+
+                var diff = Math.Abs(current - pp.Value);
+                ctx.CurrentPressure =
+                    $"{pp.Name} {pp.Value}{ctx.Plan.PressureUnit} 保压中 " +
+                    $"{(int)(DateTime.UtcNow - started).TotalSeconds}/{holdSec}s，当前{current:F4}";
+
+                if (diff > tolerance)
+                {
+                    recoveryCount++;
+                    AppLog.Warn("Pressure",
+                        $"{pp.Name} 保压期间发现压力波动：当前={current:F4}，" +
+                        $"目标={pp.Value:F4}，差值={diff:F4}，允许±{tolerance:F4}，" +
+                        $"第{recoveryCount}次自动恢复");
+                    await SetAndWaitPressureAsync(ctx, pp, ct);
+                    AppLog.Info("Pressure", $"{pp.Name} 保压压力已重新稳定，继续保压");
+                }
+                else if (monitorCount == 1 || monitorCount % 10 == 0)
+                {
+                    AppLog.Info("Pressure",
+                        $"{pp.Name} 保压监测正常：当前={current:F4}，差值={diff:F4}，" +
+                        $"进度={(int)(DateTime.UtcNow - started).TotalSeconds}/{holdSec}s");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (PressureStabilityException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error("Pressure",
+                    $"{pp.Name} 保压期间压力读取/恢复失败：当前={current:F4}，{ex}");
+                throw new PressureStabilityException(
+                    $"{pp.Name} 保压期间压力读取/恢复失败：{ex.Message}", ex);
+            }
+
+            var remaining = holdMs - (int)(DateTime.UtcNow - started).TotalMilliseconds;
+            if (remaining > 0)
+                await Task.Delay(Math.Min(monitorMs, remaining), ct);
         }
-        AppLog.Info("Run", $"{pp.Value}{ctx.Plan.PressureUnit} 保压完成");
+
+        AppLog.Info("Pressure",
+            $"{pp.Value}{ctx.Plan.PressureUnit} 保压完成，监测次数={monitorCount}，自动恢复={recoveryCount}");
     }
 
     // ── 读取烘箱实际温度，写入所有工位（每温度点采集完成后调用一次）─────────
@@ -1081,7 +1363,29 @@ public sealed class RunPerformanceTestAction : IAction
     }
 
     private static int GetDelayMs(TaskContext ctx, string key, int fallback) =>
-        int.TryParse(ctx.Settings.Get("DelaySettings", key, fallback.ToString(CultureInfo.InvariantCulture)), out var ms) ? ms : fallback;
+        GetIntSetting(ctx, key, fallback);
+
+    private static int GetIntSetting(TaskContext ctx, string key, int fallback)
+    {
+        var text = ctx.Settings.Get(
+            "DelaySettings",
+            key,
+            fallback.ToString(CultureInfo.InvariantCulture));
+        return int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+            ? Math.Max(0, value)
+            : fallback;
+    }
+
+    private static double GetPressureTolerance(TaskContext ctx)
+    {
+        var configured = ctx.Settings.Get("DelaySettings", "PressureStabilityTolerance", "");
+        if (double.TryParse(configured, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) &&
+            value > 0 &&
+            double.IsFinite(value))
+            return value;
+
+        return Math.Max(ctx.Plan.Precision, 0.01f);
+    }
 
     private static double PressureRateToPa(double value, string unit) =>
         unit.Trim().ToUpperInvariant() switch
@@ -1158,13 +1462,27 @@ public sealed class RunPerformanceTestAction : IAction
         var serialMap = ctx.Slots.Entries.ToDictionary(s => s.Slot, s => s.SerialNo);
         if (LegacyCsvExporter.IsLegacyProfile(ctx.Plan))
         {
-            var csvName = $"{dateStr} {timeStr}-{seq:D2} {safeSensor}(性能测试).csv";
-            var csv = Path.Combine(batchDir, csvName);
-            ctx.Matrix.ExportCsv(csv, ctx.Columns, serialMap);
-            AppLog.Info("Save", $"数据保存到 {csv}");
+            var templateXlsxName = $"{dateStr} {timeStr}-{seq:D2} {safeSensor}(全性能).xlsx";
+            var templateXlsx = Path.Combine(batchDir, templateXlsxName);
+            try
+            {
+                TemplatePerformanceExporter.Export(ctx, templateXlsx);
+                AppLog.Info("Save", $"全性能模板数据保存到 {templateXlsx}");
+            }
+            catch (Exception ex)
+            {
+                // 保留旧导出作为兜底，避免现场没有随程序部署模板时丢失数据。
+                AppLog.Warn("Save", $"全性能模板导出失败，改用通用 XLSX：{ex.Message}");
+                ctx.Matrix.ExportXlsx(templateXlsx, ctx.Columns, serialMap);
+                AppLog.Info("Save", $"通用 XLSX 数据保存到 {templateXlsx}");
+            }
 
             try
             {
+                var csvName = $"{dateStr} {timeStr}-{seq:D2} {safeSensor}(性能测试).csv";
+                var csv = Path.Combine(batchDir, csvName);
+                ctx.Matrix.ExportCsv(csv, ctx.Columns, serialMap);
+                AppLog.Info("Save", $"兼容 CSV 数据保存到 {csv}");
                 LegacyCsvExporter.Export(ctx);
             }
             catch (Exception ex)

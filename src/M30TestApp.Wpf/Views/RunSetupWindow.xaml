@@ -82,8 +82,6 @@
                                         <CheckBox Content="压力控制器" IsChecked="{Binding UsePressure}" Margin="0,0,10,0"/>
                                         <CheckBox Content="烘箱" IsChecked="{Binding UseOven}" Margin="0,0,10,0"
                                                   IsEnabled="{Binding OvenRequiredForRun, Converter={StaticResource InverseBoolConverter}}"/>
-                                        <CheckBox Content="电源" IsChecked="{Binding UsePower}" Margin="0,0,10,0"
-                                                  Visibility="{Binding ShowAutoTestModeOptions, Converter={StaticResource BoolToVis}}"/>
                                         <CheckBox Content="探漏" IsChecked="{Binding UseLeakCheck}"
                                                   Visibility="{Binding ShowAutoTestModeOptions, Converter={StaticResource BoolToVis}}"/>
                                     </StackPanel>
@@ -227,55 +225,130 @@
                                        Foreground="{StaticResource AccentBrush}" FontSize="11"
                                        Visibility="{Binding ShowLongTermSlotLayout, Converter={StaticResource BoolToVis}}"/>
 
-                            <!-- 自动测试 / 板卡模式 -->
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
-                                        Visibility="{Binding ShowLegacySlotLayoutFields, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="所需工位" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Style="{StaticResource NumBox}"
-                                             Text="{Binding SlotCount, UpdateSourceTrigger=PropertyChanged}"/>
-                                </StackPanel>
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="起始编号" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Style="{StaticResource NumBox}"
-                                             Text="{Binding StartIndex, UpdateSourceTrigger=PropertyChanged}"/>
-                                </StackPanel>
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="起始板卡" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Style="{StaticResource NumBox}"
-                                             Text="{Binding StartBoard, UpdateSourceTrigger=PropertyChanged}"/>
-                                </StackPanel>
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="起始板卡工位" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Style="{StaticResource NumBox}"
-                                             Text="{Binding StartBoardSlot, UpdateSourceTrigger=PropertyChanged}"/>
-                                </StackPanel>
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="板卡工位总数" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Style="{StaticResource NumBox}"
-                                             Text="{Binding BoardSlotCapacity, UpdateSourceTrigger=PropertyChanged}"/>
-                                </StackPanel>
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="起始阀位" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Style="{StaticResource NumBox}"
-                                             Text="{Binding StartValve, UpdateSourceTrigger=PropertyChanged}"/>
-                                </StackPanel>
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="单个夹具工位" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Style="{StaticResource NumBox}"
-                                             Text="{Binding FixtureSlotCapacity, UpdateSourceTrigger=PropertyChanged}"/>
-                                </StackPanel>
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="夹具夹数" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Style="{StaticResource NumBox}"
-                                             Text="{Binding FixtureCount, UpdateSourceTrigger=PropertyChanged}"/>
-                                </StackPanel>
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="万用表起始通道" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Style="{StaticResource NumBox}"
-                                             Text="{Binding StartChannel, UpdateSourceTrigger=PropertyChanged}"/>
-                                </StackPanel>
-                            </StackPanel>
+                            <!-- 自动测试 / 板卡模式：按现场排查顺序分组 -->
+                            <Grid Visibility="{Binding ShowLegacySlotLayoutFields, Converter={StaticResource BoolToVis}}"
+                                  Margin="0,2,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="1.05*"/>
+                                    <ColumnDefinition Width="1.55*"/>
+                                    <ColumnDefinition Width="1.35*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Border Grid.Column="0" Background="{StaticResource HeaderBgBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                        Padding="8" Margin="0,0,6,6">
+                                    <StackPanel>
+                                        <TextBlock Text="工位范围" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource AccentBrush}" Margin="0,0,0,7"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Margin="0,0,4,0">
+                                                <TextBlock Text="所需工位" Style="{StaticResource FieldLabel}"/>
+                                                <TextBox Style="{StaticResource NumBox}"
+                                                         Text="{Binding SlotCount, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="4,0,0,0">
+                                                <TextBlock Text="起始编号" Style="{StaticResource FieldLabel}"/>
+                                                <TextBox Style="{StaticResource NumBox}"
+                                                         Text="{Binding StartIndex, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Grid.Column="1" Background="{StaticResource HeaderBgBrush}"
+                                        BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
+                                        Padding="8" Margin="0,0,6,6">
+                                    <StackPanel>
+                                        <TextBlock Text="板卡映射" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource AccentBrush}" Margin="0,0,0,7"/>
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Margin="0,0,4,5">
+                                                <TextBlock Text="起始板卡" Style="{StaticResource FieldLabel}"/>
+                                                <TextBox Style="{StaticResource NumBox}"
+                                                         Text="{Binding StartBoard, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="4,0,0,5">
+                                                <TextBlock Text="起始板卡工位" Style="{StaticResource FieldLabel}"/>
+                                                <TextBox Style="{StaticResource NumBox}"
+                                                         Text="{Binding StartBoardSlot, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Row="1" Margin="0,0,4,0">
+                                                <TextBlock Text="每块板卡工位数" Style="{StaticResource FieldLabel}"/>
+                                                <TextBox Style="{StaticResource NumBox}"
+                                                         Text="{Binding BoardSlotCapacity, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </StackPanel>
+                                            <TextBlock Grid.Row="1" Grid.Column="1" VerticalAlignment="Bottom"
+                                                       Margin="4,0,0,4" FontSize="11"
+                                                       Foreground="{StaticResource TextBrush}"
+                                                       Text="{Binding BoardMappingSummary}"
+                                                       TextWrapping="Wrap"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Grid.Column="2" Background="{StaticResource HeaderBgBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                        Padding="8" Margin="0,0,0,6">
+                                    <StackPanel>
+                                        <TextBlock Text="夹具 / 阀位 / 通道" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource AccentBrush}" Margin="0,0,0,7"/>
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Margin="0,0,4,5">
+                                                <TextBlock Text="起始阀位" Style="{StaticResource FieldLabel}"/>
+                                                <TextBox Style="{StaticResource NumBox}"
+                                                         Text="{Binding StartValve, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="4,0,0,5">
+                                                <TextBlock Text="单个夹具工位" Style="{StaticResource FieldLabel}"/>
+                                                <TextBox Style="{StaticResource NumBox}"
+                                                         Text="{Binding FixtureSlotCapacity, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Row="1" Margin="0,0,4,0">
+                                                <TextBlock Text="夹具数量" Style="{StaticResource FieldLabel}"/>
+                                                <TextBox Style="{StaticResource NumBox}"
+                                                         Text="{Binding FixtureCount, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Row="1" Grid.Column="1" Margin="4,0,0,0">
+                                                <TextBlock Text="万用表起始通道" Style="{StaticResource FieldLabel}"/>
+                                                <TextBox Style="{StaticResource NumBox}"
+                                                         Text="{Binding StartChannel, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Grid.Row="1" Grid.ColumnSpan="3"
+                                        Background="{StaticResource AccentLightBrush}"
+                                        BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
+                                        Padding="8,5" Margin="0,0,0,2">
+                                    <TextBlock Text="{Binding BoardMappingSummary}" FontSize="11"
+                                               Foreground="{StaticResource TextBrush}"/>
+                                </Border>
+                            </Grid>
                             <TextBlock HorizontalAlignment="Right" Margin="0,8,0,0"
                                        Foreground="{StaticResource MutedBrush}" FontSize="11">
                                 <Run Text="工位上限"/>
@@ -323,16 +396,16 @@
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="工位"        Binding="{Binding Slot}"          Width="70"/>
                                 <DataGridTextColumn Header="序列号"      Binding="{Binding SerialNo}"      Width="180"/>
-                                <DataGridTextColumn Header="阀位"        Binding="{Binding Valve}"         Width="60"/>
                                 <DataGridTextColumn Header="板卡位"      Binding="{Binding Board}"         Width="80"/>
                                 <DataGridTextColumn Header="板卡工位号"  Binding="{Binding BoardSlotNo}"   Width="90"/>
-                                <DataGridTextColumn Header="层数"        Binding="{Binding Layer}"         Width="60"/>
                                 <DataGridTextColumn Header="夹具位"      Binding="{Binding Fixture}"       Width="70"/>
                                 <DataGridTextColumn Header="夹具工位号"  Binding="{Binding FixtureSlotNo}" Width="90"/>
+                                <DataGridTextColumn Header="阀位"        Binding="{Binding Valve}"         Width="60"/>
+                                <DataGridTextColumn Header="阀门"        Binding="{Binding ValveAddr}"     Width="70"/>
                                 <DataGridTextColumn Header="压力控制器"  Binding="{Binding PressureController}" Width="90"/>
                                 <DataGridTextColumn Header="数字万用表"  Binding="{Binding Dmm}"           Width="90"/>
                                 <DataGridTextColumn Header="通道"        Binding="{Binding Channel}"       Width="70"/>
-                                <DataGridTextColumn Header="阀门"        Binding="{Binding ValveAddr}"     Width="70"/>
+                                <DataGridTextColumn Header="层数"        Binding="{Binding Layer}"         Width="60"/>
                             </DataGrid.Columns>
                         </DataGrid>
                     </Border>

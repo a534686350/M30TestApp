@@ -218,6 +218,32 @@ public sealed class ConfigViewModel : ViewModelBase
     private int _startChannel = 1;
     public int StartChannel { get => _startChannel; set => SetSlotLayoutField(ref _startChannel, value); }
 
+    public int BoardCount
+    {
+        get
+        {
+            var capacity = Math.Max(1, _boardSlotCapacity);
+            var firstSlot = Math.Clamp(_startBoardSlot, 1, capacity);
+            return Math.Max(1, (firstSlot - 1 + Math.Max(1, _slotCount) + capacity - 1) / capacity);
+        }
+    }
+
+    public int LastBoard => _startBoard + BoardCount - 1;
+
+    public int LastBoardSlot
+    {
+        get
+        {
+            var capacity = Math.Max(1, _boardSlotCapacity);
+            var firstSlot = Math.Clamp(_startBoardSlot, 1, capacity);
+            var offset = (firstSlot - 1 + Math.Max(1, _slotCount) - 1) % capacity;
+            return offset + 1;
+        }
+    }
+
+    public string BoardMappingSummary =>
+        $"板卡 {_startBoard} / 工位 {_startBoardSlot}  →  板卡 {LastBoard} / 工位 {LastBoardSlot}    共 {BoardCount} 块";
+
     private int _startSerial = 1;
     public int StartSerial { get => _startSerial; set => SetSlotLayoutField(ref _startSerial, value); }
 
@@ -1273,8 +1299,19 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         var changed = SetField(ref storage, value, name);
         if (changed)
+        {
+            NotifyBoardLayoutChanged();
             RegenerateSlots();
+        }
         return changed;
+    }
+
+    private void NotifyBoardLayoutChanged()
+    {
+        OnPropertyChanged(nameof(BoardCount));
+        OnPropertyChanged(nameof(LastBoard));
+        OnPropertyChanged(nameof(LastBoardSlot));
+        OnPropertyChanged(nameof(BoardMappingSummary));
     }
 
     private void ConfirmAndRegenerateSlots()
@@ -1404,6 +1441,15 @@ public sealed class ConfigViewModel : ViewModelBase
         DelaySettings.Add(new SettingPairVm("Usource采集延迟", LoadSetting(DelaySection, "UsourceDelayMs", "300"), null, "毫秒(ms)", DelaySection, "UsourceDelayMs"));
         DelaySettings.Add(new SettingPairVm("Isource采集延迟", LoadSetting(DelaySection, "IsourceDelayMs", "300"), null, "毫秒(ms)", DelaySection, "IsourceDelayMs"));
         DelaySettings.Add(new SettingPairVm("继电器阀门等待时间", LoadSetting(DelaySection, "ValveSwitchMs", "500"), null, "毫秒(ms)", DelaySection, "ValveSwitchMs"));
+        DelaySettings.Add(new SettingPairVm("压力稳定连续采样次数", LoadSetting(DelaySection, "PressureStableSamples", "5"), null, "次", DelaySection, "PressureStableSamples"));
+        DelaySettings.Add(new SettingPairVm("压力稳定采样间隔", LoadSetting(DelaySection, "PressureStableSampleMs", "500"), null, "毫秒(ms)", DelaySection, "PressureStableSampleMs"));
+        DelaySettings.Add(new SettingPairVm("压力稳定超时时间", LoadSetting(DelaySection, "PressureStableTimeoutMs", "120000"), null, "毫秒(ms)", DelaySection, "PressureStableTimeoutMs"));
+        DelaySettings.Add(new SettingPairVm("压力自动重稳压次数", LoadSetting(DelaySection, "PressureStabilityRetryCount", "3"), null, "次", DelaySection, "PressureStabilityRetryCount"));
+        DelaySettings.Add(new SettingPairVm("阀组采集失败重试次数", LoadSetting(DelaySection, "PressureGroupRetryCount", "2"), null, "次", DelaySection, "PressureGroupRetryCount"));
+        DelaySettings.Add(new SettingPairVm("采集过程压力监测间隔", LoadSetting(DelaySection, "PressureMonitorIntervalMs", "1000"), null, "毫秒(ms)", DelaySection, "PressureMonitorIntervalMs"));
+        DelaySettings.Add(new SettingPairVm("每隔多少工位监测压力", LoadSetting(DelaySection, "PressureMonitorEverySlots", "4"), null, "工位", DelaySection, "PressureMonitorEverySlots"));
+        DelaySettings.Add(new SettingPairVm("压力波动允许差值", LoadSetting(DelaySection, "PressureStabilityTolerance", "0.01"), null, "压力单位", DelaySection, "PressureStabilityTolerance"));
+        DelaySettings.Add(new SettingPairVm("重稳压前等待时间", LoadSetting(DelaySection, "PressureRecoveryWaitMs", "1000"), null, "毫秒(ms)", DelaySection, "PressureRecoveryWaitMs"));
         DelaySettings.Add(new SettingPairVm("设定温度等待时间", LoadSetting(DelaySection, "SetTempMs", "10000"), null, "毫秒(ms)", DelaySection, "SetTempMs"));
         DelaySettings.Add(new SettingPairVm("保温时间", LoadSetting(DelaySection, "SoakMinutes", "120"), null, "分钟(min)", DelaySection, "SoakMinutes"));
         DelaySettings.Add(new SettingPairVm("零点校验等待时间", LoadSetting(DelaySection, "ZeroCheckMs", "0"), null, "毫秒(ms)", DelaySection, "ZeroCheckMs"));
@@ -1618,8 +1664,6 @@ public sealed class ConfigViewModel : ViewModelBase
                 new[] { "Open", "Usig", "Usource", "Isource", "UT", "SelfTest" }),
             ("通道/板卡",  new[] { "Board" },
                 new[] { "Open", "Close", "SelfTest" }),
-            ("电源",      new[] { "ADCMT-6146" },
-                new[] { "Open", "VoltageSource", "CurrentSource", "OutputON", "OutputOFF", "SelfTest" }),
         };
 
         foreach (var grp in slice)

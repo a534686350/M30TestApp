@@ -13,9 +13,9 @@
     <RootNamespace>M30TestApp.Wpf</RootNamespace>
     <AssemblyName>M30TestApp.V2</AssemblyName>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Version>1.2.33</Version>
-    <AssemblyVersion>1.2.33.0</AssemblyVersion>
-    <FileVersion>1.2.33.0</FileVersion>
+    <Version>1.2.34</Version>
+    <AssemblyVersion>1.2.34.0</AssemblyVersion>
+    <FileVersion>1.2.34.0</FileVersion>
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="app.ico" />
@@ -27,6 +27,10 @@
     </Content>
     <!-- Ship current test plans / sensor models maintained from the configuration UI. -->
     <Content Include="..\..\setting\TestConfig\**\*.*" Link="setting\TestConfig\%(RecursiveDir)%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- Keep the field-provided full-performance workbook beside the executable. -->
+    <Content Include="..\..\保存数据格式\全性能.xlsx" Link="保存数据格式\全性能.xlsx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

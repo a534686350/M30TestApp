@@ -31,7 +31,6 @@ public sealed class TestSession : IDisposable
     public IOven Oven { get; private set; } = null!;
     public IDmm Dmm { get; private set; } = null!;
     public IDac Dac { get; private set; } = null!;
-    public IPowerSupply Power { get; private set; } = null!;
     public IBoard Board { get; private set; } = null!;
 
     public DataMatrix Matrix { get; } = new();
@@ -55,7 +54,7 @@ public sealed class TestSession : IDisposable
 
         Context = new TaskContext
         {
-            Pressure = Pressure, Oven = Oven, Dmm = Dmm, Dac = Dac, Power = Power, Board = Board,
+            Pressure = Pressure, Oven = Oven, Dmm = Dmm, Dac = Dac, Board = Board,
             Plan = Plan, Slots = Slots, Matrix = Matrix, Commands = Commands, Settings = settings ?? new IniFile(),
         };
         Runner = new TaskRunner().RegisterBuiltins();
@@ -70,7 +69,7 @@ public sealed class TestSession : IDisposable
             return;
         }
 
-        var oldDevices = new IDevice[] { Pressure, Oven, Dmm, Dac, Power, Board };
+        var oldDevices = new IDevice[] { Pressure, Oven, Dmm, Dac, Board };
         DebugMode = debugMode;
         CreateDevices(debugMode);
         ApplyDevicesToContext();
@@ -94,7 +93,6 @@ public sealed class TestSession : IDisposable
         Oven     = factory.CreateOven(Station.Require(DeviceKind.Oven));
         Dmm      = factory.CreateDmm(Station.Require(DeviceKind.Dmm));
         Dac      = factory.CreateDac(Station.Require(DeviceKind.Dac));
-        Power    = factory.CreatePower(Station.Require(DeviceKind.Power));
         Board    = factory.CreateBoard(Station.Require(DeviceKind.Board));
     }
 
@@ -104,7 +102,6 @@ public sealed class TestSession : IDisposable
         Context.Oven = Oven;
         Context.Dmm = Dmm;
         Context.Dac = Dac;
-        Context.Power = Power;
         Context.Board = Board;
     }
 
@@ -139,6 +136,6 @@ public sealed class TestSession : IDisposable
     public void Dispose()
     {
         Pressure.Dispose(); Oven.Dispose(); Dmm.Dispose();
-        Dac.Dispose(); Power.Dispose(); Board.Dispose();
+        Dac.Dispose(); Board.Dispose();
     }
 }

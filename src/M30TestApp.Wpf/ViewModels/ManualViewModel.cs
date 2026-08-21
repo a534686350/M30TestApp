@@ -36,7 +36,7 @@ public class FrequencySampleResult
 
 /// <summary>
 /// Manual debug page (recreated to match the original ASLab layout):
-///  - 设备控制 + 通道 + 电源切换 + 串口设置 cards
+///  - 设备控制 + 通道 + UT继电器 + 串口设置 cards
 ///  - 6 路读取数据
 ///  - 阀门 1..8 + 排气阀
 ///  - 两个大底栏: 数据I/O (TX/RX 原始报文)  +  历史记录 (操作日志)
@@ -202,18 +202,12 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
     private string _readOvenText = "";
     public string ReadOvenText { get => _readOvenText; set => SetField(ref _readOvenText, value); }
 
-    // ─── 电源 ──────────────────────────────────────────────────────────────
-    private string _currentVoltage = "—";
-    public string CurrentVoltage { get => _currentVoltage; set => SetField(ref _currentVoltage, value); }
-
     private string _closedUtPowerCard = "";
     public string UtPowerText => string.Equals(_closedUtPowerCard, CardAddr, StringComparison.OrdinalIgnoreCase)
         ? $"UT：板卡{CardAddr}关闭 ({GetSelectedUtPowerChannel()})"
         : $"UT：默认开启 ({GetSelectedUtPowerChannel()})";
 
     // ─── 读取数据 ───────────────────────────────────────────────────────────
-    private string _readDriveV = ""; public string ReadDriveV { get => _readDriveV; set => SetField(ref _readDriveV, value); }
-    private string _readDriveI = ""; public string ReadDriveI { get => _readDriveI; set => SetField(ref _readDriveI, value); }
     private string _readUsig   = ""; public string ReadUsig   { get => _readUsig;   set => SetField(ref _readUsig,   value); }
     private string _readUT     = ""; public string ReadUT     { get => _readUT;     set => SetField(ref _readUT,     value); }
     private string _readT      = ""; public string ReadT      { get => _readT;      set => SetField(ref _readT,      value); }
@@ -340,12 +334,10 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
     public AsyncRelayCommand StopOvenCommand { get; }
     public AsyncRelayCommand ReadOvenCommand { get; }
 
-    public AsyncRelayCommand SwitchVoltageCommand { get; }
+    public AsyncRelayCommand SafeResetCommand { get; }
     public AsyncRelayCommand SwitchUtPowerCommand { get; }
     public AsyncRelayCommand RefreshValveStatesCommand { get; }
 
-    public AsyncRelayCommand ReadDriveVCommand { get; }
-    public AsyncRelayCommand ReadDriveICommand { get; }
     public AsyncRelayCommand ReadUsigCommand { get; }
     public AsyncRelayCommand ReadUtCommand { get; }
     public AsyncRelayCommand ReadTCommand { get; }
@@ -495,7 +487,6 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
             await session.Oven.SelfTestAsync();
             await session.Dmm.SelfTestAsync();
             await session.Dac.SelfTestAsync();
-            await session.Power.SelfTestAsync();
             await session.Board.SelfTestAsync();
             Hist("自检完成");
         });
@@ -546,15 +537,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
             Hist($"温度 = {ReadOvenText}");
         });
 
-        SwitchVoltageCommand = Wrap("切换电压", async () =>
-        {
-            // 在 5V / 12V 之间循环：当前显示哪个就切到另一个，输出立即生效。
-            var target = string.Equals(CurrentVoltage, "5", StringComparison.OrdinalIgnoreCase) ? 12f : 5f;
-            await session.Power.SetVoltageAsync(target);
-            await session.Power.OutputOnAsync();
-            CurrentVoltage = target.ToString(CultureInfo.InvariantCulture);
-            Hist($"切换电压 → {target} V");
-        });
+        SafeResetCommand = Wrap("安全复位", SafeResetAsync);
         SwitchUtPowerCommand = Wrap("切换UT电源", async () =>
         {
             if (_session.Dmm.State != ConnectionState.Connected)
@@ -573,10 +556,6 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
 
         RefreshValveStatesCommand = Wrap("刷新阀门状态", RefreshValveStatesAsync);
 
-        ReadDriveVCommand = Wrap("读驱动电压", async () =>
-            await ReadDacValueAsync(2, "USource", v => ReadDriveV = $"{v:F7}", "V"));
-        ReadDriveICommand = Wrap("读驱动电流", async () =>
-            await ReadDacValueAsync(3, "ISource", v => ReadDriveI = $"{v:F7}", "mA"));
         ReadUsigCommand = Wrap("读 Usig", async () =>
             await ReadDacValueAsync(4, "USignal", v => ReadUsig = $"{v:F9}", "mV"));
         ReadUtCommand = Wrap("读 UT", async () =>
@@ -710,6 +689,46 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
             await _session.Dmm.CloseRelayAsync(channel);    // ROUT:CLOSE = 阀门关
         await Task.Delay(GetDelaySettingMs("ValveSwitchMs", 500));
         Hist($"{GetValveLabel(index)}({channel}) → {(on ? "开" : "关")}");
+    }
+
+    private async Task SafeResetAsync()
+    {
+        var errors = new List<string>();
+
+        try
+        {
+            if (_session.Pressure.State == ConnectionState.Connected)
+            {
+                await _session.Pressure.VentAsync();
+                Hist("安全复位：压力已泄放");
+            }
+        }
+        catch (Exception ex) { errors.Add($"泄压：{ex.Message}"); }
+
+        try
+        {
+            if (_session.Oven.State == ConnectionState.Connected)
+            {
+                await _session.Oven.StopAsync();
+                Hist("安全复位：烘箱已停止");
+            }
+        }
+        catch (Exception ex) { errors.Add($"烘箱：{ex.Message}"); }
+
+        try
+        {
+            if (_session.Dmm.State != ConnectionState.Connected)
+                await _session.Dmm.OpenAsync();
+            foreach (var valve in Valves)
+                await _session.Dmm.CloseRelayAsync(GetValveChannel(valve.Index));
+            foreach (var valve in Valves)
+                valve.SetState(false);
+            Hist("安全复位：阀门已关闭");
+        }
+        catch (Exception ex) { errors.Add($"阀门：{ex.Message}"); }
+
+        if (errors.Count > 0)
+            throw new InvalidOperationException(string.Join("；", errors));
     }
 
     /// <summary>从DMM读取所有阀门通道(101-109)的实际继电器状态，更新 UI。</summary>

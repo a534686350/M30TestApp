@@ -1,146 +1,366 @@
-﻿<Window x:Class="M30TestApp.Wpf.MainWindow"
+<Window x:Class="M30TestApp.Wpf.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:M30TestApp.Wpf.ViewModels"
-        xmlns:views="clr-namespace:M30TestApp.Wpf.Views"
         d:DataContext="{d:DesignInstance vm:MainViewModel}"
         mc:Ignorable="d"
         Title="{DynamicResource App.Title}"
         Icon="/app.ico"
         Height="800" Width="1400"
-        Background="{DynamicResource BgGradientBrush}"
-        WindowStartupLocation="CenterScreen"
-        ResizeMode="CanResize">
+        MinHeight="620" MinWidth="1000"
+        Background="{DynamicResource BgBrush}"
+        WindowStartupLocation="CenterScreen">
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="60"/>
+            <RowDefinition Height="28"/>
+            <RowDefinition Height="72"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="30"/>
+            <RowDefinition Height="28"/>
         </Grid.RowDefinitions>
 
-        <!-- ────────── Top bar (frosted glass feel) ────────── -->
-        <Border Grid.Row="0" Background="{DynamicResource TopBarBrush}"
-                BorderBrush="Transparent" BorderThickness="0"
-                Effect="{DynamicResource CardShadow}">
-            <Grid Margin="0,0,0,0">
+        <!-- 传统菜单栏：只放导航和视图入口，不再和设备状态混排 -->
+        <Menu Grid.Row="0"
+              Background="{DynamicResource MenuBarBrush}"
+              Foreground="{DynamicResource TextBrush}"
+              BorderBrush="{DynamicResource BorderBrush}"
+              BorderThickness="0,0,0,1"
+              Padding="6,0"
+              VerticalContentAlignment="Center">
+            <MenuItem Header="测试">
+                <MenuItem Header="{DynamicResource Nav.TestRun}"
+                          Command="{Binding ShowTestRunCommand}"/>
+                <MenuItem Header="{DynamicResource Nav.LongTermStability}"
+                          Command="{Binding ShowLongTermStabilityCommand}"/>
+                <MenuItem Header="{DynamicResource Nav.QuickTest}"
+                          Command="{Binding ShowQuickTestCommand}"/>
+            </MenuItem>
+            <MenuItem Header="调试">
+                <MenuItem Header="{DynamicResource Nav.Manual}"
+                          Command="{Binding ShowManualCommand}"/>
+            </MenuItem>
+            <MenuItem Header="配置">
+                <MenuItem Header="{DynamicResource Nav.Config}"
+                          Command="{Binding ShowConfigCommand}"/>
+                <MenuItem Header="{DynamicResource Nav.Plan}"
+                          Command="{Binding ShowConfigPlanCommand}"/>
+                <MenuItem Header="{DynamicResource Nav.Slots}"
+                          Command="{Binding ShowConfigSlotsCommand}"/>
+            </MenuItem>
+            <MenuItem Header="视图">
+                <MenuItem Header="{DynamicResource Nav.Log}"
+                          Command="{Binding ShowLogCommand}"/>
+                <MenuItem Header="{DynamicResource Nav.Settings}"
+                          Command="{Binding ShowSettingsCommand}"/>
+            </MenuItem>
+            <MenuItem Header="帮助">
+                <MenuItem Header="全屏切换 (F11)" IsEnabled="False"/>
+            </MenuItem>
+        </Menu>
+
+        <!-- 两行工具栏：第一行是测试入口，第二行是设备状态 -->
+        <Border Grid.Row="1"
+                Background="{DynamicResource ToolbarBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="42"/>
+                    <RowDefinition Height="30"/>
+                </Grid.RowDefinitions>
+
+                <DockPanel Grid.Row="0" LastChildFill="False">
+                    <StackPanel DockPanel.Dock="Left"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="10,0,0,0">
+                        <StackPanel Width="178" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding StationTitle}"
+                                       FontSize="14"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource TextBrush}"/>
+                            <TextBlock Text="M30 压力传感器测试控制台"
+                                       FontSize="10"
+                                       Foreground="{DynamicResource MutedBrush}"
+                                       Margin="0,1,0,0"/>
+                        </StackPanel>
+
+                        <Separator Style="{DynamicResource ToolbarSeparator}"/>
+
+                        <Button Content="开始"
+                                Style="{DynamicResource ToolbarStartButton}"
+                                Command="{Binding StartSelectedRunCommand}"
+                                ToolTip="按左侧当前选中的测试模式开始测试"/>
+                        <Border Padding="9,4"
+                                Margin="4,0,8,0"
+                                Background="{DynamicResource RunStatusBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                VerticalAlignment="Center">
+                            <StackPanel>
+                                <TextBlock Text="{Binding CurrentRunModeTitle}"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextBrush}"/>
+                                <TextBlock Text="当前测试模式"
+                                           FontSize="9"
+                                           Foreground="{DynamicResource MutedBrush}"
+                                           Margin="0,1,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Separator Style="{DynamicResource ToolbarSeparator}"/>
+
+                        <Button Content="手动调试"
+                                Style="{DynamicResource ToolbarButton}"
+                                Command="{Binding ShowManualCommand}"
+                                ToolTip="进入手动调试页面"/>
+                        <Button Content="日志"
+                                Style="{DynamicResource ToolbarButton}"
+                                Command="{Binding ShowLogCommand}"/>
+                        <Button Content="配置"
+                                Style="{DynamicResource ToolbarButton}"
+                                Command="{Binding ShowConfigCommand}"/>
+                    </StackPanel>
+
+                    <Border DockPanel.Dock="Right"
+                            Margin="8,0,12,0"
+                            Padding="10,3"
+                            Background="{DynamicResource RunStatusBrush}"
+                            BorderBrush="{DynamicResource AccentBrush}"
+                            BorderThickness="1"
+                            VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="7" Height="7"
+                                     Fill="{DynamicResource AccentBrush}"
+                                     VerticalAlignment="Center"
+                                     Margin="0,0,6,0"/>
+                            <TextBlock Text="{Binding CurrentRunStatus}"
+                                       FontWeight="SemiBold"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextBrush}"/>
+                        </StackPanel>
+                    </Border>
+                </DockPanel>
+
+                <StackPanel Grid.Row="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            Margin="12,0,0,0">
+                    <TextBlock Text="设备状态"
+                               FontSize="10"
+                               Foreground="{DynamicResource MutedBrush}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,0"/>
+                    <ItemsControl ItemsSource="{Binding Devices}"
+                                  VerticalAlignment="Center">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="5,0,0,0"
+                                        Padding="6,2"
+                                        Background="{DynamicResource DeviceStripBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="1">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="7" Height="7"
+                                                 Fill="{Binding DotBrush}"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,5,0"/>
+                                        <TextBlock Text="{Binding Title}"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextBrush}"/>
+                                        <TextBlock Text="{Binding StateText}"
+                                                   FontSize="11"
+                                                   Foreground="{Binding DotBrush}"
+                                                   Margin="4,0,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 主工作区 -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="190"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 左侧功能导航 -->
+            <Border Grid.Column="0"
+                    Background="{DynamicResource SidebarBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,1,0">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top"
+                            Background="{DynamicResource SidebarHeaderBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="14,11">
+                        <StackPanel>
+                            <TextBlock Text="功能导航"
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource TextBrush}"/>
+                            <TextBlock Text="测试 / 调试 / 配置"
+                                       FontSize="10"
+                                       Foreground="{DynamicResource MutedBrush}"
+                                       Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="8,12">
+                            <TextBlock Text="测试功能"
+                                       Style="{DynamicResource NavGroupTitle}"
+                                       Margin="8,0,0,5"/>
+                            <RadioButton Style="{DynamicResource NavButton}"
+                                         IsChecked="True"
+                                         GroupName="MainNav"
+                                         Content="{DynamicResource Nav.TestRun}"
+                                         Command="{Binding ShowTestRunCommand}"/>
+                            <RadioButton Style="{DynamicResource NavButton}"
+                                         GroupName="MainNav"
+                                         Content="{DynamicResource Nav.LongTermStability}"
+                                         Command="{Binding ShowLongTermStabilityCommand}"/>
+                            <RadioButton Style="{DynamicResource NavButton}"
+                                         GroupName="MainNav"
+                                         Content="{DynamicResource Nav.Manual}"
+                                         Command="{Binding ShowManualCommand}"/>
+                            <RadioButton Style="{DynamicResource NavButton}"
+                                         GroupName="MainNav"
+                                         Content="{DynamicResource Nav.QuickTest}"
+                                         Command="{Binding ShowQuickTestCommand}"/>
+
+                            <Border Height="1"
+                                    Background="{DynamicResource BorderBrush}"
+                                    Margin="8,13"/>
+
+                            <TextBlock Text="配置与记录"
+                                       Style="{DynamicResource NavGroupTitle}"
+                                       Margin="8,0,0,5"/>
+                            <RadioButton Style="{DynamicResource NavButton}"
+                                         GroupName="MainNav"
+                                         Content="{DynamicResource Nav.Config}"
+                                         Command="{Binding ShowConfigCommand}"/>
+                            <RadioButton Style="{DynamicResource NavButton}"
+                                         GroupName="MainNav"
+                                         Content="{DynamicResource Nav.Plan}"
+                                         Command="{Binding ShowConfigPlanCommand}"/>
+                            <RadioButton Style="{DynamicResource NavButton}"
+                                         GroupName="MainNav"
+                                         Content="{DynamicResource Nav.Slots}"
+                                         Command="{Binding ShowConfigSlotsCommand}"/>
+                            <RadioButton Style="{DynamicResource NavButton}"
+                                         GroupName="MainNav"
+                                         Content="{DynamicResource Nav.Log}"
+                                         Command="{Binding ShowLogCommand}"/>
+                            <RadioButton Style="{DynamicResource NavButton}"
+                                         GroupName="MainNav"
+                                         Content="{DynamicResource Nav.Settings}"
+                                         Command="{Binding ShowSettingsCommand}"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- 页面标题与内容区 -->
+            <Grid Grid.Column="1" Background="{DynamicResource BgBrush}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="60"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0"
+                        Background="{DynamicResource PageHeaderBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="0,0,0,1"
+                        Padding="18,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="测试工作区"
+                                       FontSize="17"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource TextBrush}"/>
+                            <TextBlock Text="{Binding PlanTitle}"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource MutedBrush}"
+                                       Margin="0,3,0,0"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Right">
+                            <TextBlock Text="{Binding CurrentRunStep}"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource MutedBrush}"
+                                       HorizontalAlignment="Right"
+                                       TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="当前工步"
+                                       FontSize="10"
+                                       Foreground="{DynamicResource MutedBrush}"
+                                       HorizontalAlignment="Right"
+                                       Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="1"
+                        Padding="12"
+                        Background="{DynamicResource BgBrush}">
+                    <ContentControl Content="{Binding CurrentView}"/>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- 底部状态栏：保留一条信息带，不再重复显示大块状态 -->
+        <Border Grid.Row="3"
+                Background="{DynamicResource StatusBarBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="10,0">
+            <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-
-                <StackPanel Orientation="Horizontal" Margin="24,0">
-                    <Border Width="36" Height="36" CornerRadius="10"
-                            Background="{DynamicResource AccentBrush}"
-                            Effect="{DynamicResource CardShadow}"
-                            VerticalAlignment="Center">
-                        <TextBlock Text="M" Foreground="White" FontWeight="Bold" FontSize="18"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    </Border>
-                    <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding StationTitle}" FontWeight="SemiBold" FontSize="15"/>
-                        <TextBlock Text="{Binding PlanTitle}" Foreground="{DynamicResource MutedBrush}" FontSize="11"/>
-                    </StackPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="7" Height="7"
+                             Fill="{DynamicResource SuccessBrush}"
+                             VerticalAlignment="Center"
+                             Margin="0,0,5,0"/>
+                    <TextBlock Text="系统就绪"
+                               FontSize="11"
+                               Foreground="{DynamicResource TextBrush}"/>
                 </StackPanel>
-
-                <!-- Device status indicators (pill badges) -->
-                <ItemsControl Grid.Column="1" ItemsSource="{Binding Devices}"
-                              HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border Background="{DynamicResource HeaderBgBrush}" CornerRadius="10"
-                                    Padding="10,5" Margin="3,0"
-                                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
-                                <StackPanel Orientation="Horizontal">
-                                    <Ellipse Width="8" Height="8" Fill="{Binding DotBrush}" VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding StatusLabel}" Margin="6,0,0,0" FontWeight="SemiBold" FontSize="12"/>
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-
-                <TextBlock Grid.Column="2" Text="{Binding CurrentRunStatus}" VerticalAlignment="Center"
-                           Margin="0,0,20,0" HorizontalAlignment="Right"
-                           Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold"/>
+                <TextBlock Grid.Column="1"
+                           Text="{Binding PlanTitle}"
+                           FontSize="11"
+                           Foreground="{DynamicResource MutedBrush}"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Center"/>
+                <TextBlock Grid.Column="2"
+                           Text="{Binding CurrentRunStep}"
+                           FontSize="11"
+                           Foreground="{DynamicResource MutedBrush}"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           MaxWidth="360"/>
             </Grid>
-        </Border>
-
-        <!-- ────────── Body: nav + content ────────── -->
-        <Grid Grid.Row="1" Margin="0,4,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="180"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-
-            <!-- Sidebar (floating card) -->
-            <Border Grid.Column="0" Background="{DynamicResource SurfaceBrush}"
-                    CornerRadius="0,16,16,0" Margin="0,8,0,8"
-                    Effect="{DynamicResource NavShadow}">
-                <StackPanel Margin="10,16,10,10">
-                    <TextBlock Text="{DynamicResource Nav.Label}" Foreground="{DynamicResource MutedBrush}" Margin="8,0,0,10"
-                               FontSize="11" FontWeight="SemiBold" Opacity="0.7"/>
-                    <TextBlock Text="{DynamicResource Nav.TestGroup}"
-                               Style="{DynamicResource NavGroupTitle}"
-                               Margin="8,4,0,4"/>
-                    <RadioButton Style="{DynamicResource NavButton}" IsChecked="True"
-                                 GroupName="MainNav" Content="{DynamicResource Nav.TestRun}"
-                                 Command="{Binding ShowTestRunCommand}"
-                                 Margin="14,1,0,0"/>
-                    <RadioButton Style="{DynamicResource NavButton}"
-                                 GroupName="MainNav" Content="{DynamicResource Nav.LongTermStability}"
-                                 Command="{Binding ShowLongTermStabilityCommand}"
-                                 Margin="14,1,0,0"/>
-                    <RadioButton Style="{DynamicResource NavButton}"
-                                 GroupName="MainNav" Content="{DynamicResource Nav.Manual}"
-                                 Command="{Binding ShowManualCommand}"
-                                 Margin="14,1,0,0"/>
-                    <RadioButton Style="{DynamicResource NavButton}"
-                                 GroupName="MainNav" Content="{DynamicResource Nav.QuickTest}"
-                                 Command="{Binding ShowQuickTestCommand}"
-                                 Margin="14,1,0,8"/>
-                    <RadioButton Style="{DynamicResource NavButton}"
-                                 GroupName="MainNav" Content="{DynamicResource Nav.Config}"
-                                 Command="{Binding ShowConfigCommand}"/>
-                    <RadioButton Style="{DynamicResource NavButton}"
-                                 GroupName="MainNav" Content="{DynamicResource Nav.Plan}"
-                                 Command="{Binding ShowConfigPlanCommand}"
-                                 Margin="18,2,0,0"/>
-                    <RadioButton Style="{DynamicResource NavButton}"
-                                 GroupName="MainNav" Content="{DynamicResource Nav.Slots}"
-                                 Command="{Binding ShowConfigSlotsCommand}"
-                                 Margin="18,2,0,0"/>
-                    <RadioButton Style="{DynamicResource NavButton}"
-                                 GroupName="MainNav" Content="{DynamicResource Nav.Log}"
-                                 Command="{Binding ShowLogCommand}"/>
-
-                    <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="8,10"/>
-
-                    <RadioButton Style="{DynamicResource NavButton}"
-                                 GroupName="MainNav" Content="{DynamicResource Nav.Settings}"
-                                 Command="{Binding ShowSettingsCommand}"/>
-                </StackPanel>
-            </Border>
-
-            <ContentControl Grid.Column="1" Content="{Binding CurrentView}" Margin="8,8,8,8"/>
-        </Grid>
-
-        <!-- ────────── Bottom status bar (subtle) ────────── -->
-        <Border Grid.Row="2" Background="#08000000" CornerRadius="0">
-            <DockPanel>
-                <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Common.Ready}" Margin="20,0"
-                           VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" FontSize="11"/>
-                <TextBlock DockPanel.Dock="Right" Text="{Binding CurrentRunStep}"
-                           VerticalAlignment="Center" Margin="20,0"
-                           Foreground="{DynamicResource MutedBrush}" FontSize="11"
-                           HorizontalAlignment="Right"/>
-            </DockPanel>
         </Border>
     </Grid>
 </Window>

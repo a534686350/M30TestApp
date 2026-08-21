@@ -46,7 +46,9 @@ public static class DacBatchSampler
         int? startSlot = null,
         int? endSlot = null,
         int customIntervalMs = -1,
-        IReadOnlyList<SlotEntry>? slotsOverride = null)
+        IReadOnlyList<SlotEntry>? slotsOverride = null,
+        Func<int, CancellationToken, Task>? beforeSlotAsync = null,
+        int beforeSlotEvery = 1)
     {
         if (ctx.Dac is null)
         {
@@ -54,7 +56,8 @@ public static class DacBatchSampler
             return;
         }
 
-        await ctx.Dac.OpenAsync(ct).ConfigureAwait(false);
+        if (!await ctx.Dac.OpenAsync(ct).ConfigureAwait(false))
+            throw new InvalidOperationException($"采集板 {ctx.Dac.Model}@{ctx.Dac.Address} 未连接");
         if (!ctx.Columns.Contains(matrixColumn))
             ctx.Columns.Add(matrixColumn);
 
@@ -86,10 +89,15 @@ public static class DacBatchSampler
 
         AppLog.Info("Read", $"批量采集 {measure}：{slots.Count} 工位 → 列 {matrixColumn} @ P={pressure:G4}, T={tempC:G2} 间隔={ioDelay}ms");
 
+        var sampleIndex = 0;
+        beforeSlotEvery = Math.Max(1, beforeSlotEvery);
         foreach (var slot in slots)
         {
             ct.ThrowIfCancellationRequested();
             await ctx.WaitIfPausedAsync(ct).ConfigureAwait(false);
+            if (beforeSlotAsync is not null && (sampleIndex == 0 || sampleIndex % beforeSlotEvery == 0))
+                await beforeSlotAsync(sampleIndex, ct).ConfigureAwait(false);
+
             ctx.Matrix.EnsureSlot(slot.Slot);
             var (card, channel) = SlotDacAddress.Get(slot);
 
@@ -104,19 +112,30 @@ public static class DacBatchSampler
             try
             {
                 var value = await ReadAsync(ctx.Dac, measure, pressure, tempC, card, channel, ct).ConfigureAwait(false);
-                ctx.Matrix.Set(slot.Slot, matrixColumn, value, CellStatus.Ok);
-                AppLog.Info("Read", $"{slot.Slot} {matrixColumn}={value:G6} (卡{card} 通{channel})");
-                onSlotComplete?.Invoke(slot, value, true);
+                if (!float.IsFinite(value) || Math.Abs(value) > GetMaxAbsValue(ctx.Settings))
+                {
+                    ctx.Matrix.Set(slot.Slot, matrixColumn, double.NaN, CellStatus.Error);
+                    AppLog.Error("Read", $"{slot.Slot} {matrixColumn} 返回无效值 {value:G6} (卡{card} 通{channel})");
+                    onSlotComplete?.Invoke(slot, double.NaN, false);
+                }
+                else
+                {
+                    ctx.Matrix.Set(slot.Slot, matrixColumn, value, CellStatus.Ok);
+                    AppLog.Info("Read", $"{slot.Slot} {matrixColumn}={value:G6} (卡{card} 通{channel})");
+                    onSlotComplete?.Invoke(slot, value, true);
+                }
             }
             catch (Exception ex)
             {
                 ctx.Matrix.Set(slot.Slot, matrixColumn, double.NaN, CellStatus.Error);
-                AppLog.Error("Read", $"{slot.Slot} {matrixColumn} 卡{card} 通{channel} 失败: {ex.Message}");
+                AppLog.Error("Read", $"{slot.Slot} {matrixColumn} 卡{card} 通{channel} 失败: {ex}");
                 onSlotComplete?.Invoke(slot, double.NaN, false);
             }
 
             if (ioDelay > 0)
                 await Task.Delay(ioDelay, ct).ConfigureAwait(false);
+
+            sampleIndex++;
         }
     }
 
@@ -133,7 +152,10 @@ public static class DacBatchSampler
     {
         if (ctx.Dmm is null) return;
         if (ctx.Dmm.State != ConnectionState.Connected)
-            await ctx.Dmm.OpenAsync(ct).ConfigureAwait(false);
+        {
+            if (!await ctx.Dmm.OpenAsync(ct).ConfigureAwait(false))
+                throw new InvalidOperationException($"DMM {ctx.Dmm.Model}@{ctx.Dmm.Address} 未连接");
+        }
 
         var dmmChannel = ctx.Settings.Get("SwitchUnitCards", $"Card{cardAddr}", (300 + cardAddr).ToString());
         await ctx.Dmm.CloseRelayAsync(dmmChannel, ct).ConfigureAwait(false);
@@ -199,4 +221,13 @@ public static class DacBatchSampler
         int.TryParse(settings.Get("DelaySettings", key, fallback.ToString(CultureInfo.InvariantCulture)), out var value)
             ? Math.Max(0, value)
             : fallback;
+
+    private static double GetMaxAbsValue(IniFile settings) =>
+        double.TryParse(
+            settings.Get("Validation", "DacMaxAbs", "1000000"),
+            NumberStyles.Float,
+            CultureInfo.InvariantCulture,
+            out var value) && value > 0
+                ? value
+                : 1_000_000.0;
 }

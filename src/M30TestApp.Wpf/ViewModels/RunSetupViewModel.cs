@@ -243,6 +243,7 @@ public sealed class RunSetupViewModel : ViewModelBase
             var next = Math.Clamp(value, 1, MaxSlotCountFromStart);
             if (!SetField(ref _slotCount, next)) return;
             NotifySlotRangeChanged();
+            NotifyBoardLayoutChanged();
             Regenerate();
         }
     }
@@ -266,6 +267,7 @@ public sealed class RunSetupViewModel : ViewModelBase
                 OnPropertyChanged(nameof(SlotCount));
             }
             NotifySlotRangeChanged();
+            NotifyBoardLayoutChanged();
             Regenerate();
         }
     }
@@ -286,6 +288,7 @@ public sealed class RunSetupViewModel : ViewModelBase
             _slotCount = nextCount;
             OnPropertyChanged(nameof(SlotCount));
             NotifySlotRangeChanged();
+            NotifyBoardLayoutChanged();
             Regenerate();
         }
     }
@@ -321,6 +324,32 @@ public sealed class RunSetupViewModel : ViewModelBase
     private int _startChannel = 1;
     public int StartChannel { get => _startChannel; set => SetLayoutField(ref _startChannel, value); }
 
+    public int BoardCount
+    {
+        get
+        {
+            var capacity = Math.Max(1, _boardSlotCapacity);
+            var firstSlot = Math.Clamp(_startBoardSlot, 1, capacity);
+            return Math.Max(1, (firstSlot - 1 + Math.Max(1, _slotCount) + capacity - 1) / capacity);
+        }
+    }
+
+    public int LastBoard => _startBoard + BoardCount - 1;
+
+    public int LastBoardSlot
+    {
+        get
+        {
+            var capacity = Math.Max(1, _boardSlotCapacity);
+            var firstSlot = Math.Clamp(_startBoardSlot, 1, capacity);
+            var offset = (firstSlot - 1 + Math.Max(1, _slotCount) - 1) % capacity;
+            return offset + 1;
+        }
+    }
+
+    public string BoardMappingSummary =>
+        $"板卡 {_startBoard} / 工位 {_startBoardSlot}  →  板卡 {LastBoard} / 工位 {LastBoardSlot}    共 {BoardCount} 块";
+
     private int _startSerial = 1;
     public int StartSerial { get => _startSerial; set => SetLayoutField(ref _startSerial, value); }
 
@@ -332,9 +361,6 @@ public sealed class RunSetupViewModel : ViewModelBase
 
     private bool _useOven = true;
     public bool UseOven { get => _useOven; set => SetField(ref _useOven, value); }
-
-    private bool _usePower = true;
-    public bool UsePower { get => _usePower; set => SetField(ref _usePower, value); }
 
     private bool _useLeakCheck = false;
     public bool UseLeakCheck { get => _useLeakCheck; set => SetField(ref _useLeakCheck, value); }
@@ -475,7 +501,6 @@ public sealed class RunSetupViewModel : ViewModelBase
         SeedFromCurrentSlots(session.Slots);
         if (_isLongTermStabilityMode)
         {
-            _usePower = false;
             _useOven = true;
         }
         DetectCheckpoint(session);
@@ -508,14 +533,26 @@ public sealed class RunSetupViewModel : ViewModelBase
         OnPropertyChanged(nameof(SlotCount));
         OnPropertyChanged(nameof(StartChannel));
         NotifySlotRangeChanged();
+        NotifyBoardLayoutChanged();
     }
 
     private bool SetLayoutField<T>(ref T storage, T value, [CallerMemberName] string? name = null)
     {
         var changed = SetField(ref storage, value, name);
         if (changed)
+        {
+            NotifyBoardLayoutChanged();
             Regenerate();
+        }
         return changed;
+    }
+
+    private void NotifyBoardLayoutChanged()
+    {
+        OnPropertyChanged(nameof(BoardCount));
+        OnPropertyChanged(nameof(LastBoard));
+        OnPropertyChanged(nameof(LastBoardSlot));
+        OnPropertyChanged(nameof(BoardMappingSummary));
     }
 
     private void DetectCheckpoint(TestSession session)
@@ -685,7 +722,6 @@ public sealed class RunSetupViewModel : ViewModelBase
 
         if (bool.TryParse(ini.Get("Slots", "UsePressure", ""), out var up)) _usePressure = up;
         if (bool.TryParse(ini.Get("Slots", "UseOven", ""), out var uo)) _useOven = uo;
-        if (bool.TryParse(ini.Get("Slots", "UsePower", ""), out var uw)) _usePower = uw;
         if (bool.TryParse(ini.Get("Slots", "UseLeakCheck", ""), out var ul)) _useLeakCheck = ul;
         // legacy vent setting intentionally ignored; gauge 0kPa uses normal pressure hold.
         _useVentForGaugeZeroPressure = false;
@@ -849,8 +885,6 @@ public sealed class RunSetupViewModel : ViewModelBase
             ini.Set("Slots", "LastPlanFolder", SelectedPlanFolder);
             ini.Set("Slots", "UsePressure", UsePressure.ToString());
             ini.Set("Slots", "UseOven", UseOven.ToString());
-            if (!_isLongTermStabilityMode)
-                ini.Set("Slots", "UsePower", UsePower.ToString());
             ini.Set("Slots", "UseLeakCheck", UseLeakCheck.ToString());
             ini.Set("Slots", "UseVentForGaugeZeroPressure", UseVentForGaugeZeroPressure.ToString());
             ini.Set("Slots", "CollectUt", CollectUt.ToString());
