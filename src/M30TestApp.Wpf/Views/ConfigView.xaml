@@ -940,7 +940,8 @@
                                                    Foreground="{StaticResource AccentBrush}"/>
                                     </Border>
                                 </StackPanel>
-                                <TextBox x:Name="BarcodeInput" Width="380" Height="36"
+                                <TextBox x:Name="BarcodeInput" Width="380"
+                                         Padding="12,8"
                                          VerticalContentAlignment="Center"
                                          FontSize="14" FontWeight="SemiBold"
                                          AcceptsReturn="False"
@@ -949,10 +950,10 @@
                                          InputMethod.IsInputMethodEnabled="False"
                                          ToolTip="点击此框后用扫码枪扫描；每扫一次自动填入下一工位并前移。也可手动键入后回车。"/>
                                 <Button Content="确认" Style="{StaticResource PrimaryButton}"
-                                        Padding="14,0" Height="36" Margin="8,0,0,0"
+                                        Padding="14,0" MinHeight="42" Margin="8,0,0,0"
                                         Click="OnBarcodeConfirm"/>
                                 <Button Content="清空重扫" Style="{StaticResource GhostButton}"
-                                        Padding="12,0" Height="36" Margin="8,0,0,0"
+                                        Padding="12,0" MinHeight="42" Margin="8,0,0,0"
                                         Click="OnScanResetClick"
                                         ToolTip="回到第一个工位重新开始扫码（不清除已扫内容）"/>
                             </StackPanel>

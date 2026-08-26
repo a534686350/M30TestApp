@@ -113,7 +113,7 @@ public partial class ConfigView : UserControl
         }
     }
 
-    private void SyncGridSelectionToScanIndex(int? scrollToIndex = null, bool alignBottom = false)
+    private void SyncGridSelectionToScanIndex(int? scrollToIndex = null)
     {
         var index = scrollToIndex ?? _scanSlotIndex;
         if (SlotGrid.Items.Count == 0 || index < 0 || index >= SlotGrid.Items.Count)
@@ -122,11 +122,14 @@ public partial class ConfigView : UserControl
         _updatingScanSelection = true;
         try
         {
+            // 等容器生成完毕再一次性定位：选中 → 当前单元格 → 单次最小滚动。
+            // 此前多处滚动相互覆盖（自动滚动 + 贴底计算），导致视口来回跳动。
+            SlotGrid.UpdateLayout();
             var item = SlotGrid.Items[index];
             SlotGrid.SelectedItem = item;
             if (SlotGrid.Columns.Count > 0)
                 SlotGrid.CurrentCell = new DataGridCellInfo(item, SlotGrid.Columns[0]);
-            DataGridScrollHelper.ScrollToRow(SlotGrid, index, alignBottom);
+            SlotGrid.ScrollIntoView(item);
         }
         finally
         {
@@ -220,11 +223,11 @@ public partial class ConfigView : UserControl
         ScanStatusText.Foreground = StatusOkBrush;
 
         _scanSlotIndex++;
-        UpdateScanStatusLabels();
 
+        // 单一滚动时机：等布局（含可能的表格扩展重建）稳定后，一次定位到新当前行。
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
         {
-            SyncGridSelectionToScanIndex(CurrentVisibleScanIndex(), alignBottom: true);
+            SyncGridSelectionToScanIndex(CurrentVisibleScanIndex());
             UpdateScanStatusLabels();
         });
 
