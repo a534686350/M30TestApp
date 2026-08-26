@@ -100,9 +100,8 @@ public partial class ConfigView : UserControl
         ScanProgressLabel.Text = total == 0 ? "" : $"已扫 {scanned} / 共 {total}";
 
         // 三态行底色：待录入行单独高亮（IsNext），已录入绿 / 未录入透明
+        // 注意：重扫预填表时当前行可能带旧序列号，仍需琥珀指示扫描位置
         var nextIndex = total == 0 ? -1 : Math.Min(_scanSlotIndex, total - 1);
-        if (total > 0 && SlotGrid.Items[nextIndex] is SlotEntry nextRow && !string.IsNullOrEmpty(nextRow.SerialNo))
-            nextIndex = -1; // 全部已扫完，不再高亮
         for (var i = 0; i < total; i++)
             if (SlotGrid.Items[i] is SlotEntry row)
                 row.IsNext = i == nextIndex;
