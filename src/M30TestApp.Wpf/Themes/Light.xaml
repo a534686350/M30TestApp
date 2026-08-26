@@ -31,6 +31,7 @@
     <SolidColorBrush x:Key="TitleSubBrush" Color="#FFAFC8E0"/>
     <!-- 工位表已扫码行高亮 -->
     <SolidColorBrush x:Key="ScannedRowBrush" Color="#FFE2F6E7"/>
+    <SolidColorBrush x:Key="NextRowBrush" Color="#FFFFF0C2"/>
 
     <SolidColorBrush x:Key="BgBrush"          Color="{StaticResource BgColor}"/>
     <SolidColorBrush x:Key="SurfaceBrush"     Color="{StaticResource SurfaceColor}"/>

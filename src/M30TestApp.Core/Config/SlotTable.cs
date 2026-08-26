@@ -36,6 +36,20 @@ public sealed record SlotEntry(
         }
     }
 
+    private bool _isNext;
+
+    /// <summary>UI-only: 当前扫码目标行（待录入）。不参与 CSV 读写。</summary>
+    public bool IsNext
+    {
+        get => _isNext;
+        set
+        {
+            if (_isNext == value) return;
+            _isNext = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsNext)));
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 }
 

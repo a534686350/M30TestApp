@@ -59,6 +59,7 @@
     <SolidColorBrush x:Key="TitleSubBrush" Color="#FF7E8B99"/>
     <!-- 工位表已扫码行高亮 -->
     <SolidColorBrush x:Key="ScannedRowBrush" Color="#FF12281C"/>
+    <SolidColorBrush x:Key="NextRowBrush" Color="#FF33260D"/>
 
     <SolidColorBrush x:Key="BgGradientBrush" Color="{StaticResource BgColor}"/>
     <!-- 标题栏：钢质纵向渐变横幅 -->
