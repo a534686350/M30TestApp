@@ -40,8 +40,9 @@ public sealed record SlotEntry(
 }
 
 /// <summary>
-/// Reads `工位对应表.csv`. The file is a UTF-8 CSV with header in Chinese:
+/// Reads `工位对应表.csv`. Header in Chinese:
 ///     工位,序列号,阀位,板卡位,板卡工位号,层数,夹具位,夹具工位号,压力控制器,数字万用表,通道,阀门
+/// 编码经 SmartText 兼容历史 GBK/ANSI 与 UTF-8（含 BOM）文件；保存统一 UTF-8 with BOM。
 /// </summary>
 public sealed class SlotTable
 {
@@ -53,7 +54,7 @@ public sealed class SlotTable
     {
         if (!File.Exists(path)) return new SlotTable(Array.Empty<SlotEntry>());
         var list = new List<SlotEntry>();
-        var lines = File.ReadAllLines(path, Encoding.UTF8);
+        var lines = Common.SmartText.ReadAllLines(path);
         foreach (var line in lines.Skip(1))
         {
             if (string.IsNullOrWhiteSpace(line)) continue;
@@ -73,6 +74,6 @@ public sealed class SlotTable
         foreach (var s in Entries)
             sb.AppendLine(string.Join(',', s.Slot, s.SerialNo, s.Valve, s.Board, s.BoardSlotNo,
                 s.Layer, s.Fixture, s.FixtureSlotNo, s.PressureController, s.Dmm, s.Channel, s.ValveAddr));
-        File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
+        File.WriteAllText(path, sb.ToString(), Common.SmartText.WriteEncoding);
     }
 }

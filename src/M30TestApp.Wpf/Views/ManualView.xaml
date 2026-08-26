@@ -624,7 +624,7 @@
                             </StackPanel>
                         </DockPanel>
                     </Border>
-                    <TextBox x:Name="DataIoTextBox" Text="{Binding DataIoText, Mode=OneWay}"
+                    <TextBox x:Name="DataIoTextBox" Text="{Binding DataIo.Text, Mode=OneWay}"
                              BorderThickness="0" FontFamily="Consolas" FontSize="12"
                              Background="{StaticResource SurfaceBrush}"
                              IsReadOnly="True" AcceptsReturn="True" AcceptsTab="True"
@@ -650,7 +650,7 @@
                                     Command="{Binding ClearHistoryCommand}"/>
                         </DockPanel>
                     </Border>
-                    <TextBox x:Name="HistoryTextBox" Text="{Binding HistoryText, Mode=OneWay}"
+                    <TextBox x:Name="HistoryTextBox" Text="{Binding History.Text, Mode=OneWay}"
                              BorderThickness="0" FontFamily="Consolas" FontSize="12"
                              Background="{StaticResource SurfaceBrush}"
                              IsReadOnly="True" AcceptsReturn="True" AcceptsTab="True"

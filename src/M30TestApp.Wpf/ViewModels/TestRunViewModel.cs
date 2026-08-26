@@ -35,19 +35,15 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     private double _okCount, _warnCount, _errCount;
     private string _lastError = "";
     private const int MaxLogLines = 500;
-    private readonly object _logGate = new();
-    private readonly Queue<string> _pendingLogLines = new();
     private readonly Dictionary<string, CellStatus> _rowStatusBySlot = new(StringComparer.OrdinalIgnoreCase);
-    private bool _logFlushPending;
     private readonly DispatcherTimer _timer;
 
     public ObservableCollection<MatrixRowVm> Rows { get; } = new();
     public ObservableCollection<MatrixColumnVm> MatrixColumns { get; } = new();
     public ObservableCollection<LongTermMatrixColumnVm> LongTermColumns { get; } = new();
-    public ObservableCollection<string> LogLines { get; } = new();
 
-    private string _logText = "";
-    public string LogText { get => _logText; private set => SetField(ref _logText, value); }
+    /// <summary>运行日志缓冲：绑定其 <see cref="UiLogBuffer.Text"/>，Flushed 驱动自动滚动。</summary>
+    public UiLogBuffer Log { get; } = new(MaxLogLines, trimChunk: 100);
 
     public string Status { get => _status; set => SetField(ref _status, value); }
     public string CurrentStep { get => _currentStep; set => SetField(ref _currentStep, value); }
@@ -143,6 +139,10 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
             System.Windows.Input.CommandManager.InvalidateRequerySuggested();
         };
         _timer.Start();
+
+        // 33ms 矩阵单元格合批刷新定时器
+        _cellFlushTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(CellFlushMs) };
+        _cellFlushTimer.Tick += FlushCellUpdates;
     }
 
     private bool IsActiveRunPage => ReferenceEquals(s_activeRunPage, this);
@@ -200,19 +200,51 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         return 0;
     }
 
+    // ─── 矩阵单元格合批刷新 ─────────────────────────────────────────────────
+    // 历史实现：每个 CellUpdated 一次 Dispatcher.BeginInvoke + 列存在性线性扫描，
+    // 256 工位高频采集时 dispatcher 队列被灌满。现在入队 + 33ms 定时 drain。
+    private const int CellFlushMs = 33;
+    private readonly object _cellQueueGate = new();
+    private readonly List<CellUpdate> _pendingCellUpdates = new();
+    private readonly HashSet<string> _matrixColumnKeys = new(StringComparer.OrdinalIgnoreCase);
+    private readonly DispatcherTimer _cellFlushTimer;
+
     private void OnCellUpdated(object? sender, CellUpdate update)
     {
         if (!IsActiveRunPage) return;
-        Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+        lock (_cellQueueGate)
         {
-            EnsureRowMap();
-            if (_rowBySlot!.TryGetValue(update.Slot, out var row))
+            _pendingCellUpdates.Add(update);
+            if (!_cellFlushTimer.IsEnabled) _cellFlushTimer.Start();
+        }
+    }
+
+    private void FlushCellUpdates(object? sender, EventArgs e)
+    {
+        List<CellUpdate> batch;
+        lock (_cellQueueGate)
+        {
+            batch = new List<CellUpdate>(_pendingCellUpdates);
+            _pendingCellUpdates.Clear();
+            _cellFlushTimer.Stop();
+        }
+        if (batch.Count == 0) return;
+
+        EnsureRowMap();
+        MatrixRowVm? lastRow = null;
+        foreach (var update in batch)
+        {
+            if (!_rowBySlot!.TryGetValue(update.Slot, out var row)) continue;
+            row.Cells[update.Cell.Key] = update.Cell;
+            EnsureMatrixColumn(update.Cell.Key);
+
+            // 同一行连续更新只做一次状态重算
+            if (!ReferenceEquals(row, lastRow))
             {
-                row.Cells[update.Cell.Key] = update.Cell;
-                EnsureMatrixColumn(update.Cell.Key);
                 ApplyRowStatus(row);
+                lastRow = row;
             }
-        }));
+        }
     }
 
     private System.Collections.Generic.Dictionary<string, MatrixRowVm>? _rowBySlot;
@@ -221,33 +253,6 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         if (_rowBySlot is not null) return;
         _rowBySlot = new System.Collections.Generic.Dictionary<string, MatrixRowVm>();
         foreach (var r in Rows) _rowBySlot[r.Slot] = r;
-    }
-
-    private void RecalculateCounts()
-    {
-        var ok = 0;
-        var warn = 0;
-        var err = 0;
-        foreach (var row in Rows)
-        {
-            var status = GetRowStatus(row);
-            switch (status)
-            {
-                case CellStatus.Ok:
-                    ok++;
-                    break;
-                case CellStatus.Warn:
-                    warn++;
-                    break;
-                case CellStatus.Error:
-                    err++;
-                    break;
-            }
-        }
-
-        OkCount = ok;
-        WarnCount = warn;
-        ErrCount = err;
     }
 
     private void ApplyRowStatus(MatrixRowVm row)
@@ -311,6 +316,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
             Rows.Clear();
             MatrixColumns.Clear();
             LongTermColumns.Clear();
+            _matrixColumnKeys.Clear();
             _rowStatusBySlot.Clear();
             _rowBySlot = null;
             foreach (var slot in _session.Slots.Entries)
@@ -349,15 +355,13 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     private void EnsureMatrixColumn(string columnKey)
     {
         if (_isLongTermStabilityMode) return;
-        if (MatrixColumns.Any(c => c.Key == columnKey)) return;
+        if (!_matrixColumnKeys.Add(columnKey)) return; // HashSet 判重，替代 Any() 线性扫描
         MatrixColumns.Add(new MatrixColumnVm(columnKey, columnKey));
     }
 
     private void ClearLog()
     {
-        lock (_logGate) _pendingLogLines.Clear();
-        LogLines.Clear();
-        LogText = "";
+        Log.Clear();
         LastError = "";
         CurrentStep = "—";
         ProgressIndex = 0;
@@ -420,34 +424,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         System.Windows.Input.CommandManager.InvalidateRequerySuggested();
     }
 
-    private void QueueLogLine(string line)
-    {
-        lock (_logGate)
-        {
-            _pendingLogLines.Enqueue(line);
-            if (_logFlushPending) return;
-            _logFlushPending = true;
-        }
-
-        Application.Current.Dispatcher.BeginInvoke(new Action(FlushLogLines));
-    }
-
-    private void FlushLogLines()
-    {
-        List<string> lines;
-        lock (_logGate)
-        {
-            lines = _pendingLogLines.ToList();
-            _pendingLogLines.Clear();
-            _logFlushPending = false;
-        }
-
-        foreach (var line in lines)
-            LogLines.Add(line);
-        while (LogLines.Count > MaxLogLines)
-            LogLines.RemoveAt(0);
-        LogText = string.Join(Environment.NewLine, LogLines);
-    }
+    private void QueueLogLine(string line) => Log.Post(line);
 
     private async Task ShutdownGracefullyAsync(bool saveData)
     {
@@ -795,6 +772,8 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         _timer.Stop();
+        _cellFlushTimer.Stop();
+        if (ReferenceEquals(s_activeRunPage, this)) s_activeRunPage = null; // 释放静态根，避免 VM 被持有到进程结束
         AppLog.Logged -= OnAppLogLogged;
         _session.Matrix.CellUpdated -= OnCellUpdated;
         _session.Runner.Progress -= OnProgress;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
@@ -17,108 +17,11 @@ using M30TestApp.Wpf.Themes;
 
 namespace M30TestApp.Wpf.ViewModels;
 
-public sealed class MetricSwitch : ViewModelBase
-{
-    public string Code { get; init; } = "";
-    public string Name { get; init; } = "";
-    public string Description { get; init; } = "";
-
-    private bool _enabled;
-    public bool Enabled { get => _enabled; set => SetField(ref _enabled, value); }
-
-    private SpecRange? _spec;
-    public string Min
-    {
-        get => _spec?.Min ?? "";
-        set
-        {
-            if (_spec is null || _spec.Min == value) return;
-            _spec.Min = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public string Max
-    {
-        get => _spec?.Max ?? "";
-        set
-        {
-            if (_spec is null || _spec.Max == value) return;
-            _spec.Max = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public void BindSpec(SpecRange spec)
-    {
-        _spec = spec;
-        OnPropertyChanged(nameof(Min));
-        OnPropertyChanged(nameof(Max));
-    }
-}
-
-public sealed class CommandTemplateVm : ViewModelBase
-{
-    public string Action { get; init; } = "";
-
-    private string _template = "";
-    public string Template { get => _template; set => SetField(ref _template, value); }
-}
-
-public sealed class ModelCommandsVm
-{
-    public string Kind { get; init; } = "";
-    public string Model { get; init; } = "";
-    public string DisplayName => $"{Kind} · {Model}";
-    public ObservableCollection<CommandTemplateVm> Templates { get; } = new();
-}
-
-public sealed class TaskStepVm : ViewModelBase
-{
-    private int _index;
-    public int Index { get => _index; set => SetField(ref _index, value); }
-
-    public string Text { get; init; } = "";
-    public string Module => Text.Split(':') is { Length: >= 1 } parts ? parts[0] : "";
-}
-
-public sealed class SettingPairVm : ViewModelBase
-{
-    public SettingPairVm(string name, string value, IEnumerable<string>? options = null, string unit = "", string section = "", string key = "")
-    {
-        Name = name;
-        _value = value;
-        Unit = unit;
-        Section = section;
-        Key = string.IsNullOrWhiteSpace(key) ? name : key;
-        Options = options is null ? new ObservableCollection<string>() : new ObservableCollection<string>(options);
-    }
-
-    public string Name { get; }
-    public string Unit { get; }
-    public string Section { get; }
-    public string Key { get; }
-    public ObservableCollection<string> Options { get; }
-    public bool HasOptions => Options.Count > 0;
-
-    private string _value;
-    public string Value { get => _value; set => SetField(ref _value, value); }
-}
-
-public sealed class PressureCommandSettingVm : ViewModelBase
-{
-    public PressureCommandSettingVm(string name, string command)
-    {
-        Name = name;
-        _command = command;
-    }
-
-    public string Name { get; }
-    private string _command;
-    public string Command { get => _command; set => SetField(ref _command, value); }
-}
-
-public sealed class ConfigViewModel : ViewModelBase
+// 配置中心主 ViewModel。物理拆分为多个 partial 文件（同目录）：
+//   ConfigViewModel.Slots.cs  —— 工位布局
+//   ConfigViewModel.Plan.cs   —— 方案/压力温度点/探漏
+// 小型行 VM 见 ConfigSupportViewModels.cs。
+public sealed partial class ConfigViewModel : ViewModelBase
 {
     private readonly TestSession _session;
     private readonly CommandDictionary _commands;
@@ -179,216 +82,6 @@ public sealed class ConfigViewModel : ViewModelBase
     // ── 设备 ────────────────────────────────────────────────────────────
     public ObservableCollection<DeviceProfile> Devices { get; } = new();
 
-    // ── 工位 ────────────────────────────────────────────────────────────
-    public const int SlotMax = SlotLayoutHelper.SlotMax;
-    public ObservableCollection<SlotEntry> Slots { get; } = new();
-    public int PreviewCount => Slots.Count;
-
-    private int _slotCount = 16;
-    public int SlotCount
-    {
-        get => _slotCount;
-        set => SetSlotLayoutField(ref _slotCount, Math.Clamp(value, 1, SlotMax));
-    }
-
-    private string _batchNo = $"{DateTime.Now:yyMMdd}_01";
-    public string BatchNo { get => _batchNo; set => SetSlotLayoutField(ref _batchNo, value); }
-
-    private int _startIndex = 1;
-    public int StartIndex { get => _startIndex; set => SetSlotLayoutField(ref _startIndex, value); }
-
-    private int _startBoard = 1;
-    public int StartBoard { get => _startBoard; set => SetSlotLayoutField(ref _startBoard, value); }
-
-    private int _startBoardSlot = 1;
-    public int StartBoardSlot { get => _startBoardSlot; set => SetSlotLayoutField(ref _startBoardSlot, value); }
-
-    private int _boardSlotCapacity = 16;
-    public int BoardSlotCapacity { get => _boardSlotCapacity; set => SetSlotLayoutField(ref _boardSlotCapacity, Math.Max(1, value)); }
-
-    private int _startValve = 1;
-    public int StartValve { get => _startValve; set => SetSlotLayoutField(ref _startValve, value); }
-
-    private int _fixtureSlotCapacity = 8;
-    public int FixtureSlotCapacity { get => _fixtureSlotCapacity; set => SetSlotLayoutField(ref _fixtureSlotCapacity, Math.Max(1, value)); }
-
-    private int _fixtureCount = 8;
-    public int FixtureCount { get => _fixtureCount; set => SetSlotLayoutField(ref _fixtureCount, Math.Max(1, value)); }
-
-    private int _startChannel = 1;
-    public int StartChannel { get => _startChannel; set => SetSlotLayoutField(ref _startChannel, value); }
-
-    public int BoardCount
-    {
-        get
-        {
-            var capacity = Math.Max(1, _boardSlotCapacity);
-            var firstSlot = Math.Clamp(_startBoardSlot, 1, capacity);
-            return Math.Max(1, (firstSlot - 1 + Math.Max(1, _slotCount) + capacity - 1) / capacity);
-        }
-    }
-
-    public int LastBoard => _startBoard + BoardCount - 1;
-
-    public int LastBoardSlot
-    {
-        get
-        {
-            var capacity = Math.Max(1, _boardSlotCapacity);
-            var firstSlot = Math.Clamp(_startBoardSlot, 1, capacity);
-            var offset = (firstSlot - 1 + Math.Max(1, _slotCount) - 1) % capacity;
-            return offset + 1;
-        }
-    }
-
-    public string BoardMappingSummary =>
-        $"板卡 {_startBoard} / 工位 {_startBoardSlot}  →  板卡 {LastBoard} / 工位 {LastBoardSlot}    共 {BoardCount} 块";
-
-    private int _startSerial = 1;
-    public int StartSerial { get => _startSerial; set => SetSlotLayoutField(ref _startSerial, value); }
-
-    private bool _autoNumber = true;
-    public bool AutoNumber { get => _autoNumber; set => SetSlotLayoutField(ref _autoNumber, value); }
-
-    /// <summary>扫码录入需要下一行时扩展，不预生成占位 DEMO 行。</summary>
-    public void EnsureSlotCount(int count)
-    {
-        var target = Math.Clamp(count, 1, SlotMax);
-        if (target <= Slots.Count) return;
-        SlotCount = target;
-    }
-
-    public RelayCommand RegenerateSlotsCommand { get; private set; } = null!;
-
-    // ������ �췽�� ��������������������������������������������������������������������������������������������������������������������������
-    private TestPlan _plan = new();
-    public TestPlan Plan { get => _plan; private set => SetField(ref _plan, value); }
-    public string TaskScript => Plan.TaskScript;
-    public ObservableCollection<string> PlanFolders { get; } = new();
-    public ObservableCollection<string> SensorModelFiles { get; } = new();
-    private string _selectedPlanFolder = "";
-    private string _selectedSensorModelFile = "";
-    private string _loadedPlanFolder = "";
-    private string _loadedSensorModelFile = "";
-    private bool _loadingPlan;
-    public string SelectedPlanFolder
-    {
-        get => _selectedPlanFolder;
-        set
-        {
-            if (!SetField(ref _selectedPlanFolder, value)) return;
-            RefreshSensorModelFiles();
-        }
-    }
-    public string SelectedSensorModelFile
-    {
-        get => _selectedSensorModelFile;
-        set
-        {
-            if (!SetField(ref _selectedSensorModelFile, value)) return;
-            if (!_loadingPlan && !string.IsNullOrWhiteSpace(value)) LoadPlanByFile(value);
-        }
-    }
-    public ObservableCollection<PressurePoint> PressurePoints { get; } = new();
-    public ObservableCollection<TempPoint> TempPoints { get; } = new();
-
-    /// <summary>����Ĭ��ѹ�����͵�������ʾ�������� ComboBox ˫��󶨡�</summary>
-    public string PlanDefaultPressureTypeDisplay
-    {
-        get => Plan.DefaultPressureType switch
-        {
-            Core.Config.PressureType.Absolute     => "绝压",
-            Core.Config.PressureType.Differential => "差压",
-            _                                     => "表压",
-        };
-        set
-        {
-            var previous = Plan.DefaultPressureType;
-            var next = ParsePressureTypeDisplay(value, Core.Config.PressureType.Gauge);
-            if (previous == next) return;
-
-            Plan.DefaultPressureType = next;
-            foreach (var pp in PressurePoints.Where(p => p.PressureType == previous))
-                pp.PressureType = next;
-            RefreshPressurePointRows();
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(LeakCheckPressuresHint));
-        }
-    }
-
-    public string LeakCheckPressuresText
-    {
-        get => Plan.LeakCheck.Pressures.Count == 0
-            ? ""
-            : string.Join(", ", Plan.LeakCheck.Pressures.Select(p => p.ToString(CultureInfo.InvariantCulture)));
-        set
-        {
-            Plan.LeakCheck.Pressures.Clear();
-            foreach (var part in (value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            {
-                if (float.TryParse(part, NumberStyles.Float, CultureInfo.InvariantCulture, out var pressure))
-                    Plan.LeakCheck.Pressures.Add(pressure);
-            }
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(LeakCheckPressuresHint));
-        }
-    }
-
-    public string LeakCheckPrecisionText
-    {
-        get => Plan.LeakCheck.Precision?.ToString(CultureInfo.InvariantCulture) ?? "";
-        set
-        {
-            Plan.LeakCheck.Precision = float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var precision)
-                ? precision
-                : null;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool UseDefaultLeakCheckPrecision
-    {
-        get => !Plan.LeakCheck.Precision.HasValue;
-        set
-        {
-            if (value)
-                Plan.LeakCheck.Precision = null;
-            else if (!Plan.LeakCheck.Precision.HasValue)
-                Plan.LeakCheck.Precision = Plan.Precision;
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(LeakCheckPrecisionText));
-            OnPropertyChanged(nameof(LeakCheckPrecisionDisplay));
-        }
-    }
-
-    public string LeakCheckPrecisionDisplay => UseDefaultLeakCheckPrecision
-        ? $"当前型号默认漏率指标：{FormatLeakRate(LeakCheckPlanHelper.ResolveDefaultLeakRateLimit(Plan), Plan.PressureUnit)}（表压/差压=满量程/20000）"
-        : $"手动漏率指标：{FormatLeakRate(Plan.LeakCheck.Precision ?? 0f, Plan.PressureUnit)}";
-
-    private static string FormatLeakRate(float value, string unit)
-    {
-        unit = string.IsNullOrWhiteSpace(unit) ? "kPa" : unit.Trim();
-        var main = value.ToString("G6", CultureInfo.InvariantCulture) + unit + "/s";
-        var paPerSec = unit.Equals("kPa", StringComparison.OrdinalIgnoreCase)
-            ? value * 1000f
-            : unit.Equals("MPa", StringComparison.OrdinalIgnoreCase)
-                ? value * 1000000f
-                : unit.Equals("Pa", StringComparison.OrdinalIgnoreCase) ? value : float.NaN;
-        return float.IsNaN(paPerSec)
-            ? main
-            : $"{main}（{paPerSec.ToString("G6", CultureInfo.InvariantCulture)}Pa/s）";
-    }
-
-    public string LeakCheckPressuresHint
-    {
-        get
-        {
-            var fullScale = LeakCheckPlanHelper.ResolveFullScale(Plan);
-            var unit = string.IsNullOrWhiteSpace(Plan.PressureUnit) ? "kPa" : Plan.PressureUnit;
-            var desc = LeakCheckPlanHelper.DescribeDefaultPressures(Plan);
-            return fullScale > 0 ? $"{desc}（满量程 {fullScale}{unit}）" : desc;
-        }
-    }
 
     // ������ ��ָ�� ��������������������������������������������������������������������������������������������������������������������������
     public ObservableCollection<ModelCommandsVm> ModelCommands { get; } = new();
@@ -681,9 +374,9 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         var rows = PressurePoints
             .Select((p, index) => new Views.PointBatchRuleInput(
-                PointRangeForName(p.Name, "P", index + 1),
+                PointBatchParser.IndexFromName(p.Name, "P", index + 1),
                 p.Value.ToString(CultureInfo.InvariantCulture),
-                PressureTypeToDisplay(p.PressureType)))
+                PointBatchParser.PressureTypeToDisplay(p.PressureType)))
             .ToList();
         if (rows.Count == 0)
             rows.Add(new Views.PointBatchRuleInput("1 20", "0", PlanDefaultPressureTypeDisplay));
@@ -696,7 +389,8 @@ public sealed class ConfigViewModel : ViewModelBase
         if (dlg.ShowDialog() != true) return;
         try
         {
-            var points = BuildPressurePoints(dlg.ResultRules, Plan.DefaultPressureType).ToList();
+            var points = Core.Config.PointBatchParser.BuildPressurePoints(
+                ToRows(dlg.ResultRules), Plan.DefaultPressureType).ToList();
             PressurePoints.Clear();
             foreach (var p in points) PressurePoints.Add(p);
             AppLog.Info("Config", $"批量录入压力点 {points.Count} 个");
@@ -711,7 +405,7 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         var rows = TempPoints
             .Select((t, index) => new Views.PointBatchRuleInput(
-                PointRangeForName(t.Name, "T", index + 1),
+                PointBatchParser.IndexFromName(t.Name, "T", index + 1),
                 t.Celsius.ToString(CultureInfo.InvariantCulture),
                 t.SoakMinutesText))
             .ToList();
@@ -726,7 +420,7 @@ public sealed class ConfigViewModel : ViewModelBase
         if (dlg.ShowDialog() != true) return;
         try
         {
-            var points = BuildTempPoints(dlg.ResultRules).ToList();
+            var points = Core.Config.PointBatchParser.BuildTempPoints(ToRows(dlg.ResultRules)).ToList();
             TempPoints.Clear();
             foreach (var p in points) TempPoints.Add(p);
             AppLog.Info("Config", $"批量录入温度点 {points.Count} 个");
@@ -737,90 +431,9 @@ public sealed class ConfigViewModel : ViewModelBase
         }
     }
 
-    private static IEnumerable<PressurePoint> BuildPressurePoints(
-        IEnumerable<Views.PointBatchRuleInput> rows,
-        Core.Config.PressureType defaultPressureType)
-    {
-        return ParseStructuredPointRows(rows, "P")
-            .Select(p => new PressurePoint(
-                $"P{p.Index}",
-                p.Value,
-                ParsePressureTypeDisplay(p.Extra, defaultPressureType)))
-            .ToList();
-    }
-
-    private static IEnumerable<TempPoint> BuildTempPoints(IEnumerable<Views.PointBatchRuleInput> rows)
-    {
-        return ParseStructuredPointRows(rows, "T")
-            .Select(p => new TempPoint($"T{p.Index}", p.Value, ParseSoakMinutes(p.Extra, p.Source)))
-            .ToList();
-    }
-
-    private static IReadOnlyList<(int Index, float Value, string Extra, string Source)> ParseStructuredPointRows(
-        IEnumerable<Views.PointBatchRuleInput> rows,
-        string prefix)
-    {
-        var inputs = rows
-            .Select(r => new Views.PointBatchRuleInput(r.Range.Trim(), r.Value.Trim(), r.Extra.Trim()))
-            .Where(r => !string.IsNullOrWhiteSpace(r.Range) ||
-                        !string.IsNullOrWhiteSpace(r.Value) ||
-                        !string.IsNullOrWhiteSpace(r.Extra))
-            .ToList();
-        if (inputs.Count == 0)
-            return Array.Empty<(int Index, float Value, string Extra, string Source)>();
-
-        var singleInput = inputs.Count == 1;
-        var values = new SortedDictionary<int, (float Value, string Extra, string Source)>();
-        foreach (var row in inputs)
-        {
-            var source = $"{row.Range} / {row.Value} / {row.Extra}".Trim();
-            if (string.IsNullOrWhiteSpace(row.Range))
-                throw new FormatException($"范围/序号不能为空：{source}");
-            if (string.IsNullOrWhiteSpace(row.Value))
-                throw new FormatException($"数值不能为空：{source}");
-
-            var value = ParseFloat(row.Value, source);
-            var indexes = ParseStructuredPointIndexes(row.Range, source, singleInput).ToList();
-            if (indexes.Count == 0)
-                throw new FormatException($"无法识别点位范围：{source}");
-
-            foreach (var index in indexes)
-                values[index] = (value, row.Extra, source);
-        }
-
-        return values
-            .Select(kv => (kv.Key, kv.Value.Value, kv.Value.Extra, kv.Value.Source))
-            .ToList();
-    }
-
-    private static IEnumerable<int> ParseStructuredPointIndexes(string text, string line, bool singleInput)
-    {
-        try
-        {
-            return PointBatchRangeParser.ExpandIndexes(text, singleInput).ToList();
-        }
-        catch (FormatException ex)
-        {
-            throw new FormatException($"{ex.Message}（{line}）", ex);
-        }
-    }
-
-    private static int? ParseSoakMinutes(string text, string line)
-    {
-        if (string.IsNullOrWhiteSpace(text)) return null;
-        var normalized = NormalizePointBatchLine(text);
-        if (int.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out var minutes))
-            return minutes;
-        throw new FormatException($"保温时间请输入整数分钟：{line}");
-    }
-
-    private static string PointRangeForName(string name, string prefix, int fallback)
-    {
-        var match = Regex.Match(name ?? "", $@"^{Regex.Escape(prefix)}(?<index>\d+)$", RegexOptions.IgnoreCase);
-        return match.Success
-            ? match.Groups["index"].Value
-            : fallback.ToString(CultureInfo.InvariantCulture);
-    }
+    private static IEnumerable<Core.Config.PointBatchRow> ToRows(
+        IEnumerable<Views.PointBatchRuleInput> rules) =>
+        rules.Select(r => new Core.Config.PointBatchRow(r.Range, r.Value, r.Extra));
 
     private void RefreshPressurePointRows()
     {
@@ -828,270 +441,6 @@ public sealed class ConfigViewModel : ViewModelBase
         var rows = PressurePoints.ToList();
         PressurePoints.Clear();
         foreach (var row in rows) PressurePoints.Add(row);
-    }
-
-    private static Core.Config.PressureType ParsePressureTypeDisplay(
-        string? text,
-        Core.Config.PressureType fallback)
-    {
-        var normalized = NormalizeComboText(text);
-        if (string.IsNullOrWhiteSpace(normalized)) return fallback;
-        if (normalized.Contains("绝压", StringComparison.OrdinalIgnoreCase) ||
-            normalized.Contains("Absolute", StringComparison.OrdinalIgnoreCase) ||
-            normalized.Equals("ABS", StringComparison.OrdinalIgnoreCase))
-            return Core.Config.PressureType.Absolute;
-        if (normalized.Contains("差压", StringComparison.OrdinalIgnoreCase) ||
-            normalized.Contains("Differential", StringComparison.OrdinalIgnoreCase) ||
-            normalized.Equals("DIFF", StringComparison.OrdinalIgnoreCase))
-            return Core.Config.PressureType.Differential;
-        if (normalized.Contains("表压", StringComparison.OrdinalIgnoreCase) ||
-            normalized.Contains("Gauge", StringComparison.OrdinalIgnoreCase) ||
-            normalized.Equals("GAUG", StringComparison.OrdinalIgnoreCase))
-            return Core.Config.PressureType.Gauge;
-        return fallback;
-    }
-
-    private static string PressureTypeToDisplay(Core.Config.PressureType pressureType) => pressureType switch
-    {
-        Core.Config.PressureType.Absolute     => "绝压",
-        Core.Config.PressureType.Differential => "差压",
-        _                                     => "表压",
-    };
-
-    private static string NormalizeComboText(string? text)
-    {
-        var normalized = (text ?? "").Trim();
-        var colon = normalized.LastIndexOf(':');
-        return colon >= 0 ? normalized[(colon + 1)..].Trim() : normalized;
-    }
-
-    private static IEnumerable<PressurePoint> ParsePressurePoints(string text)
-    {
-        var lines = ExpandPointBatchLines(text);
-        if (lines.Any(IsPointBatchRule))
-            return ParsePointBatchValues(lines, "P").Select(v => new PressurePoint($"P{v.Index}", v.Value)).ToList();
-
-        var index = 1;
-        var points = new List<PressurePoint>();
-        foreach (var line in lines)
-        {
-            var parts = SplitPointParts(line);
-            if (parts.Length == 1)
-                points.Add(new PressurePoint($"P{index}", ParseFloat(parts[0], line)));
-            else
-                points.Add(new PressurePoint(parts[0], ParseFloat(parts[1], line)));
-            index++;
-        }
-        return points;
-    }
-
-    private static IEnumerable<TempPoint> ParseTempPoints(string text)
-    {
-        var lines = ExpandPointBatchLines(text);
-        if (lines.Any(IsPointBatchRule))
-            return ParsePointBatchValues(lines, "T").Select(v => new TempPoint($"T{v.Index}", v.Value, v.Extra)).ToList();
-
-        var index = 1;
-        var points = new List<TempPoint>();
-        foreach (var line in lines)
-        {
-            var parts = SplitPointParts(line);
-            if (parts.Length == 1)
-            {
-                points.Add(new TempPoint($"T{index}", ParseFloat(parts[0], line)));
-            }
-            else
-            {
-                int? soak = parts.Length >= 3 && int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var minutes) ? minutes : null;
-                points.Add(new TempPoint(parts[0], ParseFloat(parts[1], line), soak));
-            }
-            index++;
-        }
-        return points;
-    }
-
-    private static readonly Regex PointBatchSeedRegex = new(
-        @"^\s*(?:[PT])?(?<count>\d+)\s*(?:@|\*|x|X)\s*(?<value>[-+]?\d+(?:\.\d+)?)\s*(?:[,，]\s*(?<extra>\d+))?\s*(?:℃|°C|C)?\s*$",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-    private static readonly Regex PointBatchDefaultRegex = new(
-        @"^\s*(?:default|rest|默认|其余)\s*[:=]\s*(?<value>[-+]?\d+(?:\.\d+)?)\s*(?:[,，]\s*(?<extra>\d+))?\s*(?:℃|°C|C)?\s*$",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-    private static readonly Regex PointBatchRuleRegex = new(
-        @"^\s*(?<range>.+?)\s*[:=]\s*(?<value>[-+]?\d+(?:\.\d+)?)\s*(?:[,，]\s*(?<extra>\d+))?\s*(?:℃|°C|C)?\s*$",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-    private static readonly Regex PointRangeTokenRegex = new(
-        @"^[PT]?\d+\s*[-~至到]\s*[PT]?\d+$",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-    private static readonly Regex PointValueTokenRegex = new(
-        @"^(?<value>[-+]?\d+(?:\.\d+)?)(?:℃|°C|C|kPa|MPa|Pa)?(?:[,，](?<extra>\d+))?$",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-    private static readonly Regex PointBatchIndexRegex = new(
-        @"[PT]?\s*(?<start>\d+)\s*(?:[-~至到]\s*[PT]?\s*(?<end>\d+))?",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-    private static List<string> ExpandPointBatchLines(string text)
-    {
-        var result = new List<string>();
-        foreach (var line in SplitPointLines(text))
-        {
-            var expanded = TryExpandSpacePointRules(line);
-            if (expanded.Count > 0)
-                result.AddRange(expanded);
-            else
-                result.Add(line);
-        }
-        return result;
-    }
-
-    private static List<string> TryExpandSpacePointRules(string line)
-    {
-        var tokens = NormalizePointBatchLine(line)
-            .Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var result = new List<string>();
-        if (tokens.Length < 2) return result;
-
-        var i = 0;
-        while (i < tokens.Length)
-        {
-            var range = tokens[i];
-            if (!PointRangeTokenRegex.IsMatch(range)) return new List<string>();
-            i++;
-            if (i >= tokens.Length) return new List<string>();
-
-            var value = tokens[i];
-            if (!PointValueTokenRegex.IsMatch(value)) return new List<string>();
-            i++;
-
-            result.Add($"{range}={value}");
-        }
-
-        return result;
-    }
-
-    private static bool IsPointBatchRule(string line)
-    {
-        var normalized = NormalizePointBatchLine(line);
-        return PointBatchSeedRegex.IsMatch(normalized) ||
-               PointBatchDefaultRegex.IsMatch(normalized) ||
-               (normalized.Contains('=') || normalized.Contains(':')) && PointBatchRuleRegex.IsMatch(normalized);
-    }
-
-    private static IReadOnlyList<(int Index, float Value, int? Extra)> ParsePointBatchValues(IReadOnlyList<string> lines, string prefix)
-    {
-        int? count = null;
-        float? defaultValue = null;
-        int? defaultExtra = null;
-        var overrides = new List<(int Index, float Value, int? Extra)>();
-
-        foreach (var rawLine in lines)
-        {
-            var line = NormalizePointBatchLine(rawLine);
-            var seed = PointBatchSeedRegex.Match(line);
-            if (seed.Success)
-            {
-                count = int.Parse(seed.Groups["count"].Value, CultureInfo.InvariantCulture);
-                defaultValue = ParseFloat(seed.Groups["value"].Value, rawLine);
-                defaultExtra = ParseOptionalInt(seed.Groups["extra"].Value);
-                continue;
-            }
-
-            var defaultMatch = PointBatchDefaultRegex.Match(line);
-            if (defaultMatch.Success)
-            {
-                defaultValue = ParseFloat(defaultMatch.Groups["value"].Value, rawLine);
-                defaultExtra = ParseOptionalInt(defaultMatch.Groups["extra"].Value);
-                continue;
-            }
-
-            var rule = PointBatchRuleRegex.Match(line);
-            if (!rule.Success)
-                throw new FormatException($"无法识别批量规则：{rawLine}");
-
-            var value = ParseFloat(rule.Groups["value"].Value, rawLine);
-            var extra = ParseOptionalInt(rule.Groups["extra"].Value);
-            var indexes = ParsePointIndexes(rule.Groups["range"].Value, rawLine).ToList();
-            if (indexes.Count == 0)
-                throw new FormatException($"无法识别点位序号：{rawLine}");
-
-            foreach (var i in indexes)
-                overrides.Add((i, value, extra));
-            count = Math.Max(count ?? 0, indexes.Max());
-        }
-
-        if (!count.HasValue || count.Value <= 0)
-            throw new FormatException($"请先指定点位数量，例如：20@{(prefix == "T" ? "85" : "100")}");
-
-        var result = Enumerable.Range(1, count.Value)
-            .Select(i => (Index: i, Value: defaultValue, Extra: defaultExtra))
-            .ToList();
-
-        foreach (var item in overrides)
-        {
-            if (item.Index < 1 || item.Index > result.Count)
-                throw new FormatException($"点位序号超出范围：{prefix}{item.Index}");
-            result[item.Index - 1] = item;
-        }
-
-        var missing = result.FirstOrDefault(x => !x.Value.HasValue);
-        if (missing.Index > 0)
-            throw new FormatException($"点位 {prefix}{missing.Index} 没有录入数值。请补齐范围，或先写默认值，例如 45@{(prefix == "T" ? "85" : "100")}。");
-
-        return result.Select(x => (x.Index, x.Value!.Value, x.Extra)).ToList();
-    }
-
-    private static string NormalizePointBatchLine(string line) =>
-        line.Replace('，', ',')
-            .Replace('：', ':')
-            .Replace("℃", "")
-            .Replace("°C", "", StringComparison.OrdinalIgnoreCase)
-            .Replace("摄氏度", "")
-            .Replace("kPa", "", StringComparison.OrdinalIgnoreCase)
-            .Replace("MPa", "", StringComparison.OrdinalIgnoreCase)
-            .Replace("Pa", "", StringComparison.OrdinalIgnoreCase)
-            .Trim();
-
-    private static IEnumerable<int> ParsePointIndexes(string text, string line)
-    {
-        foreach (Match match in PointBatchIndexRegex.Matches(text))
-        {
-            var start = int.Parse(match.Groups["start"].Value, CultureInfo.InvariantCulture);
-            var end = match.Groups["end"].Success
-                ? int.Parse(match.Groups["end"].Value, CultureInfo.InvariantCulture)
-                : start;
-            if (start <= 0 || end <= 0)
-                throw new FormatException($"点位序号必须大于 0：{line}");
-
-            var step = start <= end ? 1 : -1;
-            for (var i = start; ; i += step)
-            {
-                yield return i;
-                if (i == end) break;
-            }
-        }
-    }
-
-    private static int? ParseOptionalInt(string value) =>
-        int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var result) ? result : null;
-
-    private static IEnumerable<string> SplitPointLines(string text) =>
-        text.Split(new[] { "\r\n", "\n", "\r", ";" }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(l => l.Trim())
-            .Where(l => !string.IsNullOrWhiteSpace(l));
-
-    private static string[] SplitPointParts(string line) =>
-        line.Split(new[] { ',', '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-    private static float ParseFloat(string value, string line)
-    {
-        var normalized = NormalizePointBatchLine(value);
-        if (float.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out var result))
-            return result;
-        throw new FormatException($"�޷�������ֵ��{line}");
     }
 
     private void RefreshPlanFolders()
@@ -1281,19 +630,7 @@ public sealed class ConfigViewModel : ViewModelBase
         AppLog.Info("Config", $"已导出 {Slots.Count} 行工位到 {dlg.FileName}");
     }
 
-    private SlotLayoutOptions BuildSlotLayoutOptions() => new(
-        SlotCount: _slotCount,
-        BatchNo: _batchNo,
-        StartIndex: _startIndex,
-        StartBoard: _startBoard,
-        StartBoardSlot: _startBoardSlot,
-        BoardSlotCapacity: _boardSlotCapacity,
-        StartValve: _startValve,
-        FixtureSlotCapacity: _fixtureSlotCapacity,
-        FixtureCount: _fixtureCount,
-        StartChannel: _startChannel,
-        StartSerial: _startSerial,
-        AutoNumber: _autoNumber);
+    private SlotLayoutOptions BuildSlotLayoutOptions() => CurrentSlotLayout.ToOptions();
 
     private bool SetSlotLayoutField<T>(ref T storage, T value, [System.Runtime.CompilerServices.CallerMemberName] string? name = null)
     {
@@ -1338,36 +675,15 @@ public sealed class ConfigViewModel : ViewModelBase
 
     private void LoadSlotLayoutFromIni()
     {
-        if (int.TryParse(_settingIni.Get("Slots", "Count", ""), out var savedCount) && savedCount > 0)
-            _slotCount = Math.Clamp(savedCount, 1, SlotMax);
-        var savedBatch = _settingIni.Get("Slots", "BatchNo", "");
-        if (!string.IsNullOrWhiteSpace(savedBatch)) _batchNo = savedBatch;
-        if (int.TryParse(_settingIni.Get("Slots", "StartIndex", ""), out var si)) _startIndex = si;
-        if (int.TryParse(_settingIni.Get("Slots", "StartBoard", ""), out var sb)) _startBoard = sb;
-        if (int.TryParse(_settingIni.Get("Slots", "StartBoardSlot", ""), out var sbs)) _startBoardSlot = sbs;
-        if (int.TryParse(_settingIni.Get("Slots", "BoardSlotCapacity", ""), out var bsc) && bsc > 0) _boardSlotCapacity = bsc;
-        if (int.TryParse(_settingIni.Get("Slots", "StartValve", ""), out var sv)) _startValve = sv;
-        if (int.TryParse(_settingIni.Get("Slots", "FixtureSlotCapacity", ""), out var fsc) && fsc > 0) _fixtureSlotCapacity = fsc;
-        if (int.TryParse(_settingIni.Get("Slots", "FixtureCount", ""), out var fc) && fc > 0) _fixtureCount = fc;
-        if (int.TryParse(_settingIni.Get("Slots", "StartChannel", ""), out var sc)) _startChannel = sc;
-        if (int.TryParse(_settingIni.Get("Slots", "StartSerial", ""), out var ss)) _startSerial = ss;
-        if (bool.TryParse(_settingIni.Get("Slots", "AutoNumber", ""), out var an)) _autoNumber = an;
+        (_slotCount, _batchNo, _startIndex, _startBoard, _startBoardSlot,
+         _boardSlotCapacity, _startValve, _fixtureSlotCapacity, _fixtureCount,
+         _startChannel, _startSerial, _autoNumber) =
+            CurrentSlotLayout.PatchedFromIni(_settingIni, SlotMax);
     }
 
     private void SaveSlotLayoutToIni()
     {
-        _settingIni.Set("Slots", "Count", _slotCount.ToString());
-        _settingIni.Set("Slots", "BatchNo", _batchNo);
-        _settingIni.Set("Slots", "StartIndex", _startIndex.ToString());
-        _settingIni.Set("Slots", "StartBoard", _startBoard.ToString());
-        _settingIni.Set("Slots", "StartBoardSlot", _startBoardSlot.ToString());
-        _settingIni.Set("Slots", "BoardSlotCapacity", _boardSlotCapacity.ToString());
-        _settingIni.Set("Slots", "StartValve", _startValve.ToString());
-        _settingIni.Set("Slots", "FixtureSlotCapacity", _fixtureSlotCapacity.ToString());
-        _settingIni.Set("Slots", "FixtureCount", _fixtureCount.ToString());
-        _settingIni.Set("Slots", "StartChannel", _startChannel.ToString());
-        _settingIni.Set("Slots", "StartSerial", _startSerial.ToString());
-        _settingIni.Set("Slots", "AutoNumber", _autoNumber.ToString());
+        CurrentSlotLayout.SaveToIni(_settingIni);
         _settingIni.Set("Slots", "LastPlan", Plan.Name);
         _settingIni.Set("Slots", "LastPlanFolder", _selectedPlanFolder);
     }
@@ -1390,13 +706,15 @@ public sealed class ConfigViewModel : ViewModelBase
 
         var pressure = _session.Station.Get(DeviceKind.Pressure);
         PressureModelName = _settingIni.Get("Device.Pressure", "Model", pressure?.Model ?? PressureModelName);
-        ParseGpibAddress(_settingIni.Get("Device.Pressure", "Address", pressure?.Address ?? ""), out var pressurePort, out var pressureAddress);
+        (var pressurePort, var pressureAddress) =
+            GpibResource.Parse(_settingIni.Get("Device.Pressure", "Address", pressure?.Address ?? ""));
         PressureGpibPort = pressurePort;
         PressureGpibAddress = pressureAddress;
 
         var dmm = _session.Station.Get(DeviceKind.Dmm);
         DmmModelName = _settingIni.Get("Device.Dmm", "Model", dmm?.Model ?? DmmModelName);
-        ParseGpibAddress(_settingIni.Get("Device.Dmm", "Address", dmm?.Address ?? ""), out var tempPort, out var tempAddress);
+        (var tempPort, var tempAddress) =
+            GpibResource.Parse(_settingIni.Get("Device.Dmm", "Address", dmm?.Address ?? ""));
         TempGpibPort = tempPort;
         TempGpibAddress = tempAddress;
     }
@@ -1453,20 +771,6 @@ public sealed class ConfigViewModel : ViewModelBase
         DelaySettings.Add(new SettingPairVm("设定温度等待时间", LoadSetting(DelaySection, "SetTempMs", "10000"), null, "毫秒(ms)", DelaySection, "SetTempMs"));
         DelaySettings.Add(new SettingPairVm("保温时间", LoadSetting(DelaySection, "SoakMinutes", "120"), null, "分钟(min)", DelaySection, "SoakMinutes"));
         DelaySettings.Add(new SettingPairVm("零点校验等待时间", LoadSetting(DelaySection, "ZeroCheckMs", "0"), null, "毫秒(ms)", DelaySection, "ZeroCheckMs"));
-        PressureCommandSettings.Add(new("判断型号", "7250"));
-        PressureCommandSettings.Add(new("Open发送指令", "*RST;*IDN?"));
-        PressureCommandSettings.Add(new("MachineType发送指令", "*IDN?"));
-        PressureCommandSettings.Add(new("UpperLimit发送指令", "CALC:LIM:UPP?"));
-        PressureCommandSettings.Add(new("SetPressure发送指令", "*CLS;UNIT {0};PRES {1};TOL {2};OUTP:MC"));
-        PressureCommandSettings.Add(new("Vent发送指令", "*CLS;OUTP:MODE VENT"));
-        PressureCommandSettings.Add(new("ZeroCheck发送指令", "*CLS;CAL:ZERO:INIT;CAL:ZERO:RUN"));
-        PressureCommandSettings.Add(new("ReadPressure发送指令", "*CLS;MEAS?"));
-        PressureCommandSettings.Add(new("SetMeasure发送指令", "*CLS;OUTP:MODE MEAS"));
-        PressureCommandSettings.Add(new("SelfTest发送指令", "*TST?"));
-        PressureCommandSettings.Add(new("ReadStatus发送指令", "*CLS;STAT:OPER:COND?"));
-        PressureCommandSettings.Add(new("SetAbs发送指令", "*CLS;SENSE:MODE ABS"));
-        PressureCommandSettings.Add(new("SetGaug发送指令", "*CLS;SENSE:MODE GAUG"));
-        PressureCommandSettings.Add(new("SetDiff发送指令", "*CLS;SENSE:MODE DIFF"));
     }
 
     private void LoadPressureCommandSettings()
@@ -1496,6 +800,27 @@ public sealed class ConfigViewModel : ViewModelBase
                 command = _commands.Raw(PressureModelName, "UpperLimt");
             PressureCommandSettings.Add(new($"{label} 发送指令", command));
         }
+    }
+
+    /// <summary>内置默认压力指令行。构造流程中会被随后的 LoadPressureCommandSettings 重填覆盖，
+    /// 仅在 ReloadSettings（重载参数，不重读模型指令配置）后作为最终展示内容使用。</summary>
+    private void LoadDefaultPressureCommands()
+    {
+        PressureCommandSettings.Clear();
+        PressureCommandSettings.Add(new("判断型号", "7250"));
+        PressureCommandSettings.Add(new("Open发送指令", "*RST;*IDN?"));
+        PressureCommandSettings.Add(new("MachineType发送指令", "*IDN?"));
+        PressureCommandSettings.Add(new("UpperLimit发送指令", "CALC:LIM:UPP?"));
+        PressureCommandSettings.Add(new("SetPressure发送指令", "*CLS;UNIT {0};PRES {1};TOL {2};OUTP:MC"));
+        PressureCommandSettings.Add(new("Vent发送指令", "*CLS;OUTP:MODE VENT"));
+        PressureCommandSettings.Add(new("ZeroCheck发送指令", "*CLS;CAL:ZERO:INIT;CAL:ZERO:RUN"));
+        PressureCommandSettings.Add(new("ReadPressure发送指令", "*CLS;MEAS?"));
+        PressureCommandSettings.Add(new("SetMeasure发送指令", "*CLS;OUTP:MODE MEAS"));
+        PressureCommandSettings.Add(new("SelfTest发送指令", "*TST?"));
+        PressureCommandSettings.Add(new("ReadStatus发送指令", "*CLS;STAT:OPER:COND?"));
+        PressureCommandSettings.Add(new("SetAbs发送指令", "*CLS;SENSE:MODE ABS"));
+        PressureCommandSettings.Add(new("SetGaug发送指令", "*CLS;SENSE:MODE GAUG"));
+        PressureCommandSettings.Add(new("SetDiff发送指令", "*CLS;SENSE:MODE DIFF"));
     }
 
     private string LoadSetting(string section, string key, string fallback) =>
@@ -1535,6 +860,7 @@ public sealed class ConfigViewModel : ViewModelBase
         LoadDeviceSettings();
         LoadAppSettings();
         BuildParameterSettings();
+        LoadDefaultPressureCommands();
         AppLog.Info("Config", $"已从 {AppPaths.SettingIni} 重载参数设置");
     }
 
@@ -1624,20 +950,7 @@ public sealed class ConfigViewModel : ViewModelBase
     private static string NormalizeParity(string value) =>
         value.Equals("N", StringComparison.OrdinalIgnoreCase) ? "None" : value;
 
-    private static void ParseGpibAddress(string resource, out string port, out string address)
-    {
-        port = "0";
-        address = "0";
-        if (string.IsNullOrWhiteSpace(resource)) return;
-        if (!resource.StartsWith("GPIB", StringComparison.OrdinalIgnoreCase)) return;
-
-        var parts = resource.Split(new[] { "::" }, StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length < 2) return;
-        port = parts[0].Substring(4);
-        address = parts[1];
-    }
-
-    private static string BuildGpibAddress(string port, string address) => $"GPIB{port}::{address}::INSTR";
+    private static string BuildGpibAddress(string port, string address) => GpibResource.Build(port, address);
 
     private void BuildModelCommands(CommandDictionary commands)
     {

@@ -232,12 +232,21 @@ internal static class ReadHelper
         if (!ctx.Columns.Contains(col)) ctx.Columns.Add(col);
         var dmmSlotDelayMs = dmmRead is null ? 0 : GetDmmSlotDelayMs(ctx);
 
+        // 所需设备缺失时整列标记 Error，绝不把初值 0 当有效测量值写入矩阵。
+        // （历史缺陷：value 初值为 0 且两分支都不执行时，会静默写出一列"合法的 0"。）
+        string? missingDevice =
+            (dmmRead is not null && ctx.Dmm is null) ? "DMM" :
+            (dacRead is not null && ctx.Dac is null) ? "DAC" :
+            (dacRead is null && dmmRead is null) ? "读取回调" : null;
+        if (missingDevice is not null)
+            AppLog.Error("Read", $"{measure}: {missingDevice} 不可用，列 {col} 将全部标记为 Error");
+
         foreach (var slot in ctx.Slots.Entries)
         {
             ct.ThrowIfCancellationRequested();
             try
             {
-                double value = 0;
+                double value = double.NaN;
                 if (dacRead is not null && ctx.Dac is not null)
                 {
                     value = await dacRead(ctx.Dac, slot, ct);
@@ -903,6 +912,8 @@ public sealed class RunPerformanceTestAction : IAction
         var worstLeakLabel = "";
         var worstLeakPressure = 0f;
         var anyExceeded = false;
+        // 执行异常的阀组 = "未检测"。历史缺陷：异常被吞后其余组通过即整体判"探漏通过"。
+        var failedGroups = new List<string>();
 
         foreach (var leakP in leakPressures)
         {
@@ -950,6 +961,7 @@ public sealed class RunPerformanceTestAction : IAction
                 catch (Exception ex)
                 {
                     AppLog.Warn("Leak", $"{vName} @ {leakP}{pressureUnit} 探漏失败: {ex.Message}");
+                    failedGroups.Add($"{vName}@{leakP}{pressureUnit}");
                 }
             }
 
@@ -957,37 +969,46 @@ public sealed class RunPerformanceTestAction : IAction
 
         // 泄压结束
         await ctx.Pressure.VentAsync(ct);
+
+        var failedSummary = failedGroups.Count == 0 ? null : string.Join("、", failedGroups);
+        if (failedSummary is not null)
+            AppLog.Error("Leak", $"探漏异常：{failedGroups.Count} 组执行失败未能检测（{failedSummary}），需人工确认");
+
         if (worstLeakRate > double.NegativeInfinity)
         {
             var status = anyExceeded ? "超限" : "通过";
             var worstLeakRatePa = PressureRateToPa(worstLeakRate, pressureUnit);
             AppLog.Info("Leak", $"探漏完成，最高漏率 {worstLeakRatePa:G4}Pa/s（{worstLeakLabel}，{status}）");
-            if (!anyExceeded)
+            // 存在未完成检测的阀组时不得写"探漏通过"
+            if (!anyExceeded && failedGroups.Count == 0)
                 ctx.LeakCheckNote = $"探漏通过：最高漏率 {worstLeakRatePa:G4}Pa/s";
-            if (anyExceeded)
-            {
-                var message =
-                    $"探漏超限：{worstLeakLabel}\n" +
-                    $"最高漏率：{worstLeakRatePa:G4}Pa/s\n" +
-                    $"漏率指标：{leakPrecisionPa:G4}Pa/s\n\n" +
-                    "是否继续进行自动测试？\n" +
-                    "选择“是”继续，选择“否”停止。";
-                var continueTest = await ctx.ConfirmLeakCheckExceededAsyncCore(message, ct);
-                if (continueTest)
-                {
-                    AppLog.Warn("Leak", $"用户确认继续自动测试：{worstLeakLabel}，最高漏率 {worstLeakRatePa:G4}Pa/s，阈值 {leakPrecisionPa:G4}Pa/s");
-                    ctx.LeakCheckNote = $"探漏超限，人工放行：{worstLeakLabel}，最高漏率 {worstLeakRatePa:G4}Pa/s，阈值 {leakPrecisionPa:G4}Pa/s";
-                    return;
-                }
-
-                throw new InvalidOperationException(
-                    $"探漏超限：{worstLeakLabel}，最高漏率 {worstLeakRatePa:G4}Pa/s，阈值 {leakPrecisionPa:G4}Pa/s");
-            }
         }
-        else
+        else if (failedGroups.Count == 0)
         {
             AppLog.Info("Leak", "探漏完成，已泄压，所有阀门已关闭");
             ctx.LeakCheckNote = "探漏通过";
+        }
+
+        if (anyExceeded || failedGroups.Count > 0)
+        {
+            var reason = anyExceeded
+                ? $"探漏超限：{worstLeakLabel}\n最高漏率：{PressureRateToPa(worstLeakRate, pressureUnit):G4}Pa/s\n漏率指标：{leakPrecisionPa:G4}Pa/s"
+                : "探漏执行异常：部分阀组未能完成检测";
+            if (failedSummary is not null)
+                reason += $"\n异常阀组（未检测）：{failedSummary}";
+
+            var message = reason + "\n\n是否继续进行自动测试？\n选择“是”继续，选择“否”停止。";
+            var continueTest = await ctx.ConfirmLeakCheckExceededAsyncCore(message, ct);
+            if (continueTest)
+            {
+                AppLog.Warn("Leak", $"用户确认继续自动测试：{(anyExceeded ? worstLeakLabel : "存在未完成检测的阀组")}");
+                ctx.LeakCheckNote = failedSummary is null
+                    ? $"探漏超限，人工放行：{worstLeakLabel}"
+                    : $"探漏异常，人工放行：未检测 [{failedSummary}]";
+                return;
+            }
+
+            throw new InvalidOperationException(reason.Replace("\n", "，"));
         }
     }
 
@@ -1398,45 +1419,8 @@ public sealed class RunPerformanceTestAction : IAction
 
     public static void SaveMatrix(TaskContext ctx)
     {
-        if (UseNewSaveLayout())
-        {
-            SaveMatrixWithCurrentLayout(ctx);
-            return;
-        }
-
-        var planDir = Path.Combine(AppPaths.DataDir, SafePath(ctx.Plan.Name));
-        Directory.CreateDirectory(planDir);
-        var sensor = string.IsNullOrWhiteSpace(ctx.Plan.SensorType) ? "传感器" : ctx.Plan.SensorType;
-        var now = DateTime.Now;
-        var dateStr = now.ToString("yyyyMMdd");
-        var timeStr = now.ToString("HHmmss");
-
-        // auto-increment sequence number for today
-        var existing = Directory.GetFiles(planDir, $"{dateStr}*.*");
-        var seq = existing.Length + 1;
-
-        // format: 20260521 142145-02 HRT-HP-K250-G20(性能测试).csv
-        var fileName = $"{dateStr} {timeStr}-{seq:D2} {SafePath(sensor)}(性能测试).csv";
-        var file = Path.Combine(planDir, fileName);
-        var serialMap = ctx.Slots.Entries.ToDictionary(s => s.Slot, s => s.SerialNo);
-        ctx.Matrix.ExportCsv(file, ctx.Columns, serialMap);
-        AppLog.Info("Save", $"数据保存到 {file}");
-
-        // M30方案额外导出旧版格式 CSV 到桌面
-        if (LegacyCsvExporter.IsLegacyProfile(ctx.Plan))
-        {
-            try
-            {
-                LegacyCsvExporter.Export(ctx);
-            }
-            catch (Exception ex)
-            {
-                AppLog.Warn("Save", $"旧版格式CSV导出失败: {ex.Message}");
-            }
-        }
+        SaveMatrixWithCurrentLayout(ctx);
     }
-
-    private static bool UseNewSaveLayout() => true;
 
     private static void SaveMatrixWithCurrentLayout(TaskContext ctx)
     {

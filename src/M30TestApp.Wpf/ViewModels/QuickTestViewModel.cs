@@ -198,53 +198,19 @@ public sealed class QuickTestViewModel : ViewModelBase, IDisposable
 
         if (!string.IsNullOrWhiteSpace(pressure.Model))
             PressureModel = pressure.Model;
-        ParseGpibAddress(pressure.Address, out var port, out var address);
-        PressurePort = port;
-        PressureAddr = address;
+        (PressurePort, PressureAddr) = GpibResource.Parse(pressure.Address);
     }
 
     private void ApplyPressureProfileToSession()
     {
-        var existing = _session.Station.Get(DeviceKind.Pressure);
-        var model = string.IsNullOrWhiteSpace(PressureModel) ? existing?.Model ?? "FLUKE-7250" : PressureModel.Trim();
-        var port = string.IsNullOrWhiteSpace(PressurePort) ? "0" : PressurePort.Trim();
-        var address = string.IsNullOrWhiteSpace(PressureAddr) ? "0" : PressureAddr.Trim();
-        var resource = BuildGpibAddress(port, address);
-        var key = $"{model}|{resource}|{existing?.Backend}|{existing?.Baud}|{existing?.Parity}|{existing?.DataBits}|{existing?.StopBits}";
-
-        if (string.Equals(_appliedPressureKey, key, StringComparison.Ordinal))
-            return;
-
-        _session.Station.Devices[DeviceKind.Pressure] = new DeviceProfile
-        {
-            Kind = DeviceKind.Pressure,
-            Model = model,
-            Backend = existing?.Backend ?? DeviceBackend.Hw,
-            Address = resource,
-            Baud = existing?.Baud ?? 9600,
-            Parity = existing?.Parity ?? "N",
-            DataBits = existing?.DataBits ?? 8,
-            StopBits = existing?.StopBits ?? "1"
-        };
-        _session.RebuildDevices(_session.DebugMode);
-        _appliedPressureKey = key;
-        Log($"压力控制器配置已应用：{model} @ {resource}");
+        var result = PressureProfileApplier.Apply(
+            _session, _appliedPressureKey, PressureModel, PressurePort, PressureAddr);
+        _appliedPressureKey = result.Key;
+        if (!result.Applied) return;
+        Log($"压力控制器配置已应用：{result.Model} @ {result.Resource}");
     }
 
-    private static void ParseGpibAddress(string resource, out string port, out string address)
-    {
-        port = "0";
-        address = "0";
-        if (string.IsNullOrWhiteSpace(resource)) return;
-        if (!resource.StartsWith("GPIB", StringComparison.OrdinalIgnoreCase)) return;
-
-        var parts = resource.Split("::", StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length < 2) return;
-        port = parts[0].Length > 4 ? parts[0][4..] : "0";
-        address = parts[1];
-    }
-
-    private static string BuildGpibAddress(string port, string address) => $"GPIB{port}::{address}::INSTR";
+    private static string BuildGpibAddress(string port, string address) => GpibResource.Build(port, address);
 
     private async Task StartAsync()
     {

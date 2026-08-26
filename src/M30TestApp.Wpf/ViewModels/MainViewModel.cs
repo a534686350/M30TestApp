@@ -9,6 +9,7 @@ using M30TestApp.Core.Common;
 using M30TestApp.Core.Config;
 using M30TestApp.Core.Devices;
 using M30TestApp.Wpf.Mvvm;
+using M30TestApp.Wpf.Themes;
 
 namespace M30TestApp.Wpf.ViewModels;
 
@@ -52,6 +53,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public RelayCommand ShowTestRunCommand  { get; }
     public RelayCommand ShowLongTermStabilityCommand { get; }
     public RelayCommand StartSelectedRunCommand { get; }
+    public RelayCommand StopSelectedRunCommand { get; }
     public RelayCommand ShowManualCommand   { get; }
     public RelayCommand ShowQuickTestCommand { get; }
     public RelayCommand ShowConfigCommand   { get; }
@@ -59,6 +61,23 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public RelayCommand ShowConfigSlotsCommand { get; }
     public RelayCommand ShowLogCommand      { get; }
     public RelayCommand ShowSettingsCommand { get; }
+    public RelayCommand OpenDataDirCommand  { get; }
+    public RelayCommand OpenLogDirCommand   { get; }
+    public RelayCommand OpenTestConfigDirCommand { get; }
+    public RelayCommand ExitCommand         { get; }
+    public RelayCommand ShowDarkThemeCommand { get; }
+    public RelayCommand ShowLightThemeCommand { get; }
+    public RelayCommand ShowVersionInfoCommand { get; }
+
+    /// <summary>标题栏/状态栏显示的程序版本号。</summary>
+    public string VersionText
+    {
+        get
+        {
+            var v = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version;
+            return v is null ? "V1.0" : $"V{v.Major}.{v.Minor}.{v.Build}";
+        }
+    }
 
     public string StationTitle { get; }
     public string PlanTitle => $"测试方案 · {Session.Plan.Name}";
@@ -93,6 +112,10 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             _ => GetSelectedRun()?.RunCommand.Execute(null),
             _ => GetSelectedRun()?.RunCommand.CanExecute(null) == true);
 
+        StopSelectedRunCommand = new RelayCommand(
+            _ => GetSelectedRun()?.CancelCommand.Execute(null),
+            _ => GetSelectedRun()?.CancelCommand.CanExecute(null) == true);
+
         // 左侧导航只选择测试模式；顶部“开始”按钮才启动对应流程。
         ShowTestRunCommand  = new RelayCommand(_ => CurrentView = TestRun);
         ShowLongTermStabilityCommand = new RelayCommand(_ => CurrentView = LongTermStability);
@@ -103,6 +126,18 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         ShowConfigSlotsCommand = new RelayCommand(_ => { Config.SelectedSection = "工位"; CurrentView = Config; });
         ShowLogCommand      = new RelayCommand(_ => CurrentView = Log);
         ShowSettingsCommand = new RelayCommand(_ => OpenSettings());
+
+        OpenDataDirCommand = new RelayCommand(_ => OpenDirectory(AppPaths.DataDir));
+        OpenLogDirCommand  = new RelayCommand(_ => OpenDirectory(AppPaths.LogDir));
+        OpenTestConfigDirCommand = new RelayCommand(_ => OpenDirectory(AppPaths.TestConfigDir));
+        ExitCommand        = new RelayCommand(_ => System.Windows.Application.Current.MainWindow?.Close());
+        ShowDarkThemeCommand  = new RelayCommand(_ => Config.SelectedTheme = ThemeHelper.ToDisplayName(ThemeHelper.Dark));
+        ShowLightThemeCommand = new RelayCommand(_ => Config.SelectedTheme = ThemeHelper.ToDisplayName(ThemeHelper.Light));
+        ShowVersionInfoCommand = new RelayCommand(_ =>
+        {
+            Config.SelectedSection = "版本信息";
+            CurrentView = Config;
+        });
 
         session.Reconfigured += OnSessionReconfigured;
         session.DevicesRebuilt += OnSessionDevicesRebuilt;
@@ -154,6 +189,23 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     }
 
     private void OpenSettings() => CurrentView = Settings;
+
+    private static void OpenDirectory(string path)
+    {
+        try
+        {
+            System.IO.Directory.CreateDirectory(path);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("Shell", $"打开目录失败 {path}: {ex.Message}");
+        }
+    }
 
     private TestRunViewModel? GetSelectedRun() => CurrentView as TestRunViewModel;
 

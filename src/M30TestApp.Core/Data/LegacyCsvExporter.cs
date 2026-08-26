@@ -62,8 +62,9 @@ public static class LegacyCsvExporter
         // 构建列定义（按旧版顺序）
         var columns = BuildFullColumns(plan);
 
-        // 编码与旧版一致：系统默认 ANSI
-        using var sw = new StreamWriter(path, false, Encoding.Default);
+        // 编码与旧版工具链一致：显式 GBK(936)。
+        // 历史缺陷：原注释写"系统默认 ANSI"，但 .NET 8 的 Encoding.Default 实为无 BOM UTF-8。
+        using var sw = new StreamWriter(path, false, Common.SmartText.GbkEncoding);
 
         // 写表头
         sw.WriteLine(string.Join(",", columns.Select(c => c.Header)));
@@ -77,47 +78,6 @@ public static class LegacyCsvExporter
                 values.Add(col.GetValue(ctx, slot, now, endTime));
             }
             sw.WriteLine(string.Join(",", values));
-        }
-    }
-
-    /// <summary>客户用 CSV：仅 17 列精选指标。</summary>
-    private static void ExportCustomer(TaskContext ctx, string path, DateTime now)
-    {
-        using var sw = new StreamWriter(path, false, Encoding.Default);
-
-        // 固定 17 列表头
-        var headers = new[]
-        {
-            "SensorType", "SerialNo", "TestTime",
-            "Rb12 [KOhm]", "Rb5 T1 [KOhm]", "Rb5 T2 [KOhm]", "Rb5 T3 [KOhm]",
-            "Offset [mV]", "Span [mV]", "NL [%FSS]",
-            "TCO [%FSS/K]", "TCS [%FSS/K]", "TCR [%/K]",
-            "THO [%FSS]", "THS [%FSS]", "PH [%FSS]", "TCT"
-        };
-        sw.WriteLine(string.Join(",", headers));
-
-        // 对应的矩阵 key
-        var metricKeys = new[]
-        {
-            "Rb5_T1", "Rb5_T2", "Rb5_T3",
-            "Offset", "Span", "NL",
-            "TCO", "TCS", "TCR",
-            "THO", "THS", "PH", "TCT"
-        };
-
-        foreach (var slot in ctx.Slots.Entries)
-        {
-            var vals = new List<string>
-            {
-                ctx.Plan.SensorType,
-                slot.SerialNo,
-                now.ToString("yyyy-MM-dd"),
-            };
-            foreach (var key in metricKeys)
-            {
-                vals.Add(GetCellValue(ctx, slot.Slot, key));
-            }
-            sw.WriteLine(string.Join(",", vals));
         }
     }
 

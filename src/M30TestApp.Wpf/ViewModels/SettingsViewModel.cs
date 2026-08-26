@@ -115,6 +115,20 @@ public sealed class SettingsViewModel : ViewModelBase
 
     public RelayCommand OpenRepoCommand { get; }
     public AsyncRelayCommand CheckUpdateCommand { get; }
+    public RelayCommand RollbackCommand { get; }
+
+    /// <summary>是否存在可回退的上一版本备份（升级时自动生成）。</summary>
+    public bool HasRollbackBackup => SelfUpdater.HasRollbackBackup;
+
+    /// <summary>备份中的上一版本号；无备份时为空串（用于隐藏回退按钮）。</summary>
+    public string RollbackVersionText
+    {
+        get
+        {
+            var v = SelfUpdater.ReadRollbackVersion();
+            return v.Length > 4 && v.EndsWith(".0", StringComparison.Ordinal) ? v[..^2] : v;
+        }
+    }
 
     private readonly TestSession _session;
 
@@ -132,6 +146,35 @@ public sealed class SettingsViewModel : ViewModelBase
         });
 
         CheckUpdateCommand = new AsyncRelayCommand(CheckForUpdateAsync);
+
+        RollbackCommand = new RelayCommand(_ => RollbackToPreviousVersion());
+    }
+
+    private void RollbackToPreviousVersion()
+    {
+        if (!SelfUpdater.HasRollbackBackup)
+        {
+            UpdateStatus = "没有可用的版本备份，无法回退。";
+            return;
+        }
+
+        var ver = RollbackVersionText;
+        var message = Language == "zh-CN"
+            ? $"确认回退到上一版本 v{ver}？\n\n当前程序将被替换为备份版本；设置与测试数据不受影响。\n回退完成后应用将自动重启。"
+            : $"Roll back to v{ver}?\n\nCurrent binaries will be replaced by the backup. Settings and test data are kept.\nThe app will restart automatically.";
+        if (MessageBox.Show(Application.Current.MainWindow, message, "M30TestApp",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+
+        try
+        {
+            SelfUpdater.LaunchRollbackAndExit(AppPaths.BaseDir);
+        }
+        catch (Exception ex)
+        {
+            UpdateStatus = "回退失败：" + ex.Message;
+            AppLog.Error("Update", UpdateStatus);
+        }
     }
 
     public Task CheckForUpdateOnStartupAsync() => CheckForUpdateAsync();

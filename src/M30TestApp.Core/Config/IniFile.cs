@@ -51,7 +51,8 @@ public sealed class IniFile
         if (!File.Exists(path)) return ini;
 
         string current = "";
-        foreach (var raw in File.ReadAllLines(path))
+        // 智能编码读取：BOM → 严格 UTF-8 → 回退 GBK（兼容 LabVIEW/记事本生成的 ANSI 文件）
+        foreach (var raw in Common.SmartText.ReadAllLines(path))
         {
             var line = raw.Trim();
             if (line.Length == 0 || line[0] == ';' || line[0] == '#') continue;
@@ -77,7 +78,8 @@ public sealed class IniFile
     public void Save(string path)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        using var sw = new StreamWriter(path);
+        // 统一写 UTF-8 with BOM；读取端 SmartText 已兼容历史 GBK 文件
+        using var sw = new StreamWriter(path, false, Common.SmartText.WriteEncoding);
         bool first = true;
         foreach (var (sec, kvs) in _sections.OrderBy(s => s.Key))
         {

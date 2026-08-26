@@ -3,7 +3,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Windows;
-using System.Windows.Data;
 
 namespace M30TestApp.Wpf.Mvvm;
 
@@ -34,18 +33,14 @@ public sealed class ObservableConcurrentDictionary<TKey, TValue>
     private void RaiseItem(TKey key)
     {
         if (PropertyChanged is null) return;
+        // 只发 Item[key]：绑定路径 Cells[key].Value 只需重估目标列。
+        // 历史实现同时发 Binding.IndexerName("Item[]")，会导致该行所有列绑定全部重估。
         var indexer = $"Item[{key}]";
         if (Application.Current?.Dispatcher.CheckAccess() == false)
             Application.Current.Dispatcher.BeginInvoke(new System.Action(() =>
-            {
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(Binding.IndexerName));
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(indexer));
-            }));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(indexer))));
         else
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(Binding.IndexerName));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(indexer));
-        }
     }
 
     public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() => _inner.GetEnumerator();

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Globalization;
 
 namespace M30TestApp.Core.Config;
@@ -129,7 +129,20 @@ public sealed class TestPlan
     public bool IsMetricEnabled(string code)
     {
         if (EnabledMetrics.Count == 0) return true;
-        return EnabledMetrics.TryGetValue(code, out var on) && on;
+        code = code?.Trim() ?? "";
+        if (EnabledMetrics.TryGetValue(code, out var on)) return on;
+
+        // 别名兜底（与 SpecLimits.GetSpecValue 的别名规则保持一致）：
+        // 历史缺陷：[Metrics] 写规范名（如 Linearity=1）时查询短码 "NL" 不命中，
+        // 该指标被误判为禁用，超标会静默显示 pass。
+        var alias = code switch
+        {
+            "NL" => "Linearity",
+            "PH" => "PressureHysteresis",
+            "TCT" => "CT",
+            _ => null,
+        };
+        return alias is not null && EnabledMetrics.TryGetValue(alias, out var onAlias) && onAlias;
     }
 
     /// <summary>灏嗗瓧绗︿覆锛堣嫳鏂囨垨涓枃锛夎В鏋愪负 <see cref="PressureType"/>锛屾棤娉曡瘑鍒椂杩斿洖 Gauge銆?/summary>

@@ -317,7 +317,11 @@ public sealed class HwDac : DeviceBase, IDac
             await Task.Delay(100, ct).ConfigureAwait(false);
         }
 
-        DeviceBus.Info(Model, "UT power switch echo failed after retries, continuing anyway");
+        // 回声校验重试耗尽：绝不能带着未确认的电源切换继续读数，
+        // 否则整列 UT 数据可能来自上一张仍通电的板卡且无任何 Error 标记。
+        // 抛出后由 DacBatchSampler 的逐工位 catch 转成该工位 Error 单元格。
+        throw new InvalidOperationException(
+            $"UT 电源切换失败（回声校验 3 次重试无效）：卡{card} 通{channel}，已拒绝读数以防数据污染");
     }
 
     private void EnsureOpen()

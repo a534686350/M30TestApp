@@ -19,7 +19,7 @@
                                 Command="{Binding ClearCommand}" HorizontalAlignment="Right"/>
                     </DockPanel>
                 </Border>
-                <TextBox Text="{Binding LogText, Mode=OneWay}" BorderThickness="0"
+                <TextBox x:Name="LogTextBox" Text="{Binding Buffer.Text, Mode=OneWay}" BorderThickness="0"
                          FontFamily="Consolas" FontSize="12"
                          Background="{StaticResource SurfaceBrush}"
                          IsReadOnly="True" AcceptsReturn="True" AcceptsTab="True"

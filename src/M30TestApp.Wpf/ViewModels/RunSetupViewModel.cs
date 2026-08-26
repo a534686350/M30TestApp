@@ -324,31 +324,13 @@ public sealed class RunSetupViewModel : ViewModelBase
     private int _startChannel = 1;
     public int StartChannel { get => _startChannel; set => SetLayoutField(ref _startChannel, value); }
 
-    public int BoardCount
-    {
-        get
-        {
-            var capacity = Math.Max(1, _boardSlotCapacity);
-            var firstSlot = Math.Clamp(_startBoardSlot, 1, capacity);
-            return Math.Max(1, (firstSlot - 1 + Math.Max(1, _slotCount) + capacity - 1) / capacity);
-        }
-    }
+    public int BoardCount => CurrentSlotLayout.BoardCount;
 
-    public int LastBoard => _startBoard + BoardCount - 1;
+    public int LastBoard => CurrentSlotLayout.LastBoard;
 
-    public int LastBoardSlot
-    {
-        get
-        {
-            var capacity = Math.Max(1, _boardSlotCapacity);
-            var firstSlot = Math.Clamp(_startBoardSlot, 1, capacity);
-            var offset = (firstSlot - 1 + Math.Max(1, _slotCount) - 1) % capacity;
-            return offset + 1;
-        }
-    }
+    public int LastBoardSlot => CurrentSlotLayout.LastBoardSlot;
 
-    public string BoardMappingSummary =>
-        $"板卡 {_startBoard} / 工位 {_startBoardSlot}  →  板卡 {LastBoard} / 工位 {LastBoardSlot}    共 {BoardCount} 块";
+    public string BoardMappingSummary => CurrentSlotLayout.BoardMappingSummary;
 
     private int _startSerial = 1;
     public int StartSerial { get => _startSerial; set => SetLayoutField(ref _startSerial, value); }
@@ -691,18 +673,11 @@ public sealed class RunSetupViewModel : ViewModelBase
         if (!_isLongTermStabilityMode)
             _useDmmAutoTest = ini.Get("Slots", "AutoTestMode", "Board").Equals("Dmm", StringComparison.OrdinalIgnoreCase);
 
-        if (int.TryParse(ini.Get("Slots", "Count", ""), out var savedCount) && savedCount > 0)
-            _slotCount = Math.Clamp(savedCount, 1, SlotLimit);
-        var savedBatch = ini.Get("Slots", "BatchNo", "");
-        if (!string.IsNullOrWhiteSpace(savedBatch)) _batchNo = savedBatch;
-        if (int.TryParse(ini.Get("Slots", "StartIndex", ""), out var si)) _startIndex = si;
-        if (int.TryParse(ini.Get("Slots", "StartBoard", ""), out var sb)) _startBoard = sb;
-        if (int.TryParse(ini.Get("Slots", "StartBoardSlot", ""), out var sbs)) _startBoardSlot = sbs;
-        if (int.TryParse(ini.Get("Slots", "BoardSlotCapacity", ""), out var bsc) && bsc > 0) _boardSlotCapacity = bsc;
-        if (int.TryParse(ini.Get("Slots", "StartValve", ""), out var sv)) _startValve = sv;
-        if (int.TryParse(ini.Get("Slots", "FixtureSlotCapacity", ""), out var fsc) && fsc > 0) _fixtureSlotCapacity = fsc;
-        if (int.TryParse(ini.Get("Slots", "FixtureCount", ""), out var fc) && fc > 0) _fixtureCount = fc;
-        if (int.TryParse(ini.Get("Slots", "StartChannel", ""), out var sc)) _startChannel = sc;
+        (_slotCount, _batchNo, _startIndex, _startBoard, _startBoardSlot,
+         _boardSlotCapacity, _startValve, _fixtureSlotCapacity, _fixtureCount,
+         _startChannel, _startSerial, _autoNumber) =
+            CurrentSlotLayout.PatchedFromIni(ini, SlotLimit);
+
         if (_isLongTermStabilityMode)
         {
             var savedMode = ini.Get("Slots", "LongTermMeasureMode", "Voltage");
@@ -717,8 +692,6 @@ public sealed class RunSetupViewModel : ViewModelBase
         }
         else if (UsesFixedDmmSlotMap)
             _startChannel = DmmAutoVoltageChannelForSlot(_startIndex);
-        if (int.TryParse(ini.Get("Slots", "StartSerial", ""), out var ss)) _startSerial = ss;
-        if (bool.TryParse(ini.Get("Slots", "AutoNumber", ""), out var an)) _autoNumber = an;
 
         if (bool.TryParse(ini.Get("Slots", "UsePressure", ""), out var up)) _usePressure = up;
         if (bool.TryParse(ini.Get("Slots", "UseOven", ""), out var uo)) _useOven = uo;
@@ -749,7 +722,8 @@ public sealed class RunSetupViewModel : ViewModelBase
         NormalizeFixedDmmLayout();
     }
 
-    private SlotLayoutOptions BuildSlotLayoutOptions() => new(
+    /// <summary>当前布局参数快照（公式计算 / 批量生成 / ini 持久化共用，与 ConfigViewModel 一致）。</summary>
+    private SlotLayoutSnapshot CurrentSlotLayout => new(
         SlotCount: _slotCount,
         BatchNo: _batchNo,
         StartIndex: _startIndex,
@@ -762,6 +736,8 @@ public sealed class RunSetupViewModel : ViewModelBase
         StartChannel: _startChannel,
         StartSerial: _startSerial,
         AutoNumber: _autoNumber);
+
+    private SlotLayoutOptions BuildSlotLayoutOptions() => CurrentSlotLayout.ToOptions();
 
     public void Regenerate()
     {
@@ -869,18 +845,7 @@ public sealed class RunSetupViewModel : ViewModelBase
         try
         {
             var ini = _session.Context.Settings;
-            ini.Set("Slots", "Count", SlotCount.ToString());
-            ini.Set("Slots", "BatchNo", BatchNo);
-            ini.Set("Slots", "StartIndex", StartIndex.ToString());
-            ini.Set("Slots", "StartBoard", StartBoard.ToString());
-            ini.Set("Slots", "StartBoardSlot", StartBoardSlot.ToString());
-            ini.Set("Slots", "BoardSlotCapacity", BoardSlotCapacity.ToString());
-            ini.Set("Slots", "StartValve", StartValve.ToString());
-            ini.Set("Slots", "FixtureSlotCapacity", FixtureSlotCapacity.ToString());
-            ini.Set("Slots", "FixtureCount", FixtureCount.ToString());
-            ini.Set("Slots", "StartChannel", StartChannel.ToString());
-            ini.Set("Slots", "StartSerial", StartSerial.ToString());
-            ini.Set("Slots", "AutoNumber", AutoNumber.ToString());
+            CurrentSlotLayout.SaveToIni(ini);
             ini.Set("Slots", "LastPlan", SelectedPlan.Name);
             ini.Set("Slots", "LastPlanFolder", SelectedPlanFolder);
             ini.Set("Slots", "UsePressure", UsePressure.ToString());

@@ -4,158 +4,199 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:M30TestApp.Wpf.ViewModels"
+        xmlns:local="clr-namespace:M30TestApp.Wpf"
         d:DataContext="{d:DesignInstance vm:MainViewModel}"
         mc:Ignorable="d"
         Title="{DynamicResource App.Title}"
         Icon="/app.ico"
-        Height="800" Width="1400"
-        MinHeight="620" MinWidth="1000"
+        Height="820" Width="1440"
+        MinHeight="640" MinWidth="1080"
         Background="{DynamicResource BgBrush}"
         WindowStartupLocation="CenterScreen">
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="28"/>
-            <RowDefinition Height="72"/>
+            <RowDefinition Height="32"/>
+            <RowDefinition Height="31"/>
+            <RowDefinition Height="48"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="28"/>
         </Grid.RowDefinitions>
 
-        <!-- 传统菜单栏：只放导航和视图入口，不再和设备状态混排 -->
-        <Menu Grid.Row="0"
-              Background="{DynamicResource MenuBarBrush}"
-              Foreground="{DynamicResource TextBrush}"
-              BorderBrush="{DynamicResource BorderBrush}"
-              BorderThickness="0,0,0,1"
-              Padding="6,0"
-              VerticalContentAlignment="Center">
-            <MenuItem Header="测试">
-                <MenuItem Header="{DynamicResource Nav.TestRun}"
-                          Command="{Binding ShowTestRunCommand}"/>
-                <MenuItem Header="{DynamicResource Nav.LongTermStability}"
-                          Command="{Binding ShowLongTermStabilityCommand}"/>
-                <MenuItem Header="{DynamicResource Nav.QuickTest}"
-                          Command="{Binding ShowQuickTestCommand}"/>
-            </MenuItem>
-            <MenuItem Header="调试">
-                <MenuItem Header="{DynamicResource Nav.Manual}"
-                          Command="{Binding ShowManualCommand}"/>
-            </MenuItem>
-            <MenuItem Header="配置">
-                <MenuItem Header="{DynamicResource Nav.Config}"
-                          Command="{Binding ShowConfigCommand}"/>
-                <MenuItem Header="{DynamicResource Nav.Plan}"
-                          Command="{Binding ShowConfigPlanCommand}"/>
-                <MenuItem Header="{DynamicResource Nav.Slots}"
-                          Command="{Binding ShowConfigSlotsCommand}"/>
-            </MenuItem>
-            <MenuItem Header="视图">
-                <MenuItem Header="{DynamicResource Nav.Log}"
-                          Command="{Binding ShowLogCommand}"/>
-                <MenuItem Header="{DynamicResource Nav.Settings}"
-                          Command="{Binding ShowSettingsCommand}"/>
-            </MenuItem>
-            <MenuItem Header="帮助">
-                <MenuItem Header="全屏切换 (F11)" IsEnabled="False"/>
-            </MenuItem>
-        </Menu>
+        <!-- ═══ Row0 标题栏：品牌块 | 运行状态 LED | 工步 | 时钟 ═══ -->
+        <Border Grid.Row="0" Background="{DynamicResource TopBarBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+            <DockPanel LastChildFill="False">
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Rectangle Width="4" Height="18" Fill="{DynamicResource AccentBrush}" Margin="12,0,8,0"/>
+                    <TextBlock Text="{Binding StationTitle}"
+                               FontSize="13" FontWeight="Bold"
+                               Foreground="{DynamicResource TitleFgBrush}" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding VersionText}"
+                               FontSize="10.5" Margin="10,1,0,0"
+                               Foreground="{DynamicResource TitleSubBrush}" VerticalAlignment="Center"/>
+                    <TextBlock Text="压力传感器自动测试系统 V2"
+                               FontSize="10.5" Margin="14,1,0,0"
+                               Foreground="{DynamicResource TitleSubBrush}" VerticalAlignment="Center"/>
+                </StackPanel>
 
-        <!-- 两行工具栏：第一行是测试入口，第二行是设备状态 -->
-        <Border Grid.Row="1"
-                Background="{DynamicResource ToolbarBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="0,0,0,1">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="42"/>
-                    <RowDefinition Height="30"/>
-                </Grid.RowDefinitions>
-
-                <DockPanel Grid.Row="0" LastChildFill="False">
-                    <StackPanel DockPanel.Dock="Left"
-                                Orientation="Horizontal"
-                                VerticalAlignment="Center"
-                                Margin="10,0,0,0">
-                        <StackPanel Width="178" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding StationTitle}"
-                                       FontSize="14"
-                                       FontWeight="Bold"
-                                       Foreground="{DynamicResource TextBrush}"/>
-                            <TextBlock Text="M30 压力传感器测试控制台"
-                                       FontSize="10"
-                                       Foreground="{DynamicResource MutedBrush}"
-                                       Margin="0,1,0,0"/>
-                        </StackPanel>
-
-                        <Separator Style="{DynamicResource ToolbarSeparator}"/>
-
-                        <Button Content="开始"
-                                Style="{DynamicResource ToolbarStartButton}"
-                                Command="{Binding StartSelectedRunCommand}"
-                                ToolTip="按左侧当前选中的测试模式开始测试"/>
-                        <Border Padding="9,4"
-                                Margin="4,0,8,0"
-                                Background="{DynamicResource RunStatusBrush}"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="1"
-                                VerticalAlignment="Center">
-                            <StackPanel>
-                                <TextBlock Text="{Binding CurrentRunModeTitle}"
-                                           FontSize="11"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextBrush}"/>
-                                <TextBlock Text="当前测试模式"
-                                           FontSize="9"
-                                           Foreground="{DynamicResource MutedBrush}"
-                                           Margin="0,1,0,0"/>
-                            </StackPanel>
-                        </Border>
-
-                        <Separator Style="{DynamicResource ToolbarSeparator}"/>
-
-                        <Button Content="手动调试"
-                                Style="{DynamicResource ToolbarButton}"
-                                Command="{Binding ShowManualCommand}"
-                                ToolTip="进入手动调试页面"/>
-                        <Button Content="日志"
-                                Style="{DynamicResource ToolbarButton}"
-                                Command="{Binding ShowLogCommand}"/>
-                        <Button Content="配置"
-                                Style="{DynamicResource ToolbarButton}"
-                                Command="{Binding ShowConfigCommand}"/>
-                    </StackPanel>
-
-                    <Border DockPanel.Dock="Right"
-                            Margin="8,0,12,0"
-                            Padding="10,3"
-                            Background="{DynamicResource RunStatusBrush}"
-                            BorderBrush="{DynamicResource AccentBrush}"
-                            BorderThickness="1"
-                            VerticalAlignment="Center">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
+                    <Border Padding="7,2" Background="{DynamicResource RunStatusBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
                         <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="7" Height="7"
-                                     Fill="{DynamicResource AccentBrush}"
-                                     VerticalAlignment="Center"
-                                     Margin="0,0,6,0"/>
-                            <TextBlock Text="{Binding CurrentRunStatus}"
-                                       FontWeight="SemiBold"
-                                       FontSize="11"
+                            <Ellipse Width="6" Height="6" Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <TextBlock Text="{Binding CurrentRunStatus}" FontSize="11" FontWeight="Bold"
                                        Foreground="{DynamicResource TextBrush}"/>
                         </StackPanel>
                     </Border>
-                </DockPanel>
+                    <Border MaxWidth="380" Margin="10,0,0,0">
+                        <TextBlock Text="{Binding CurrentRunStep}" FontSize="11"
+                                   Foreground="{DynamicResource TitleSubBrush}"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding CurrentRunStep}"/>
+                    </Border>
+                    <TextBlock x:Name="ClockText" FontSize="11.5" Margin="16,0,0,0"
+                               FontFamily="Consolas"
+                               Foreground="{DynamicResource TitleSubBrush}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
 
-                <StackPanel Grid.Row="1"
-                            Orientation="Horizontal"
-                            VerticalAlignment="Center"
-                            Margin="12,0,0,0">
-                    <TextBlock Text="设备状态"
-                               FontSize="10"
-                               Foreground="{DynamicResource MutedBrush}"
-                               VerticalAlignment="Center"
-                               Margin="0,0,8,0"/>
-                    <ItemsControl ItemsSource="{Binding Devices}"
-                                  VerticalAlignment="Center">
+        <!-- ═══ Row1 菜单栏 ═══ -->
+        <Menu Grid.Row="1"
+              Background="{DynamicResource MenuBarBrush}"
+              BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+            <MenuItem Header="系统(_S)">
+                <MenuItem Header="打开数据目录" Command="{Binding OpenDataDirCommand}"/>
+                <MenuItem Header="打开日志目录" Command="{Binding OpenLogDirCommand}"/>
+                <MenuItem Header="打开方案目录" Command="{Binding OpenTestConfigDirCommand}"/>
+                <Separator/>
+                <MenuItem Header="退出" Command="{Binding ExitCommand}" InputGestureText="Alt+F4"/>
+            </MenuItem>
+            <MenuItem Header="测试(_T)">
+                <MenuItem Header="开始测试" Command="{Binding StartSelectedRunCommand}" InputGestureText="F5"/>
+                <MenuItem Header="停止测试" Command="{Binding StopSelectedRunCommand}"/>
+                <Separator/>
+                <MenuItem Header="全自动测试" Command="{Binding ShowTestRunCommand}"/>
+                <MenuItem Header="长期稳定性" Command="{Binding ShowLongTermStabilityCommand}"/>
+                <MenuItem Header="手动调试" Command="{Binding ShowManualCommand}"/>
+                <MenuItem Header="快速测试" Command="{Binding ShowQuickTestCommand}"/>
+            </MenuItem>
+            <MenuItem Header="视图(_V)">
+                <MenuItem Header="测试方案配置" Command="{Binding ShowConfigPlanCommand}"/>
+                <MenuItem Header="工位配置" Command="{Binding ShowConfigSlotsCommand}"/>
+                <MenuItem Header="系统设置" Command="{Binding ShowSettingsCommand}"/>
+                <MenuItem Header="运行日志" Command="{Binding ShowLogCommand}"/>
+                <Separator/>
+                <MenuItem Header="深色主题" Command="{Binding ShowDarkThemeCommand}"/>
+                <MenuItem Header="浅色主题" Command="{Binding ShowLightThemeCommand}"/>
+                <Separator/>
+                <MenuItem Header="全屏切换" InputGestureText="F11" Click="ToggleFullscreen_Click"/>
+            </MenuItem>
+            <MenuItem Header="帮助(_H)">
+                <MenuItem Header="版本信息与更新" Command="{Binding ShowVersionInfoCommand}"/>
+                <MenuItem Header="关于 M30 Test Console" Click="About_Click"/>
+            </MenuItem>
+        </Menu>
+
+        <!-- ═══ Row2 工具栏：主操作 ═══ -->
+        <Border Grid.Row="2" Background="{DynamicResource ToolbarBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
+                Padding="10,0">
+            <DockPanel LastChildFill="False" VerticalAlignment="Center">
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="▶  开始测试"
+                            Style="{DynamicResource ToolbarStartButton}"
+                            Command="{Binding StartSelectedRunCommand}"
+                            FontSize="13" MinWidth="110"
+                            ToolTip="按当前选中的测试模式开始测试"/>
+                    <Button Content="■  停止"
+                            Style="{DynamicResource ToolbarStopButton}"
+                            Command="{Binding StopSelectedRunCommand}"
+                            FontSize="13" MinWidth="80" Margin="8,0,0,0"/>
+                    <Separator Style="{DynamicResource ToolbarSeparator}"/>
+                    <StackPanel Orientation="Vertical" VerticalAlignment="Center" Margin="4,0">
+                        <TextBlock Text="测试模式" FontSize="9.5" Foreground="{DynamicResource MutedBrush}"/>
+                        <TextBlock Text="{Binding CurrentRunModeTitle}" FontSize="12" FontWeight="Bold"
+                                   Foreground="{DynamicResource AccentBrush}"/>
+                    </StackPanel>
+                    <Separator Style="{DynamicResource ToolbarSeparator}"/>
+                    <StackPanel Orientation="Vertical" VerticalAlignment="Center" Margin="4,0" MaxWidth="430">
+                        <TextBlock Text="当前工步" FontSize="9.5" Foreground="{DynamicResource MutedBrush}"/>
+                        <TextBlock Text="{Binding CurrentRunStep}" FontSize="11.5"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding CurrentRunStep}"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding PlanTitle}" FontSize="11.5"
+                               Foreground="{DynamicResource MutedBrush}"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- ═══ Row3 主工作区：扁平导航 + 内容 ═══ -->
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="176"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="{DynamicResource SidebarBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,8,0,8">
+
+                        <TextBlock Text="测 试 执 行" Style="{StaticResource NavGroupTitle}" Margin="14,4,0,4"/>
+                        <RadioButton Style="{DynamicResource NavButton}" IsChecked="True" GroupName="MainNav"
+                                     Command="{Binding ShowTestRunCommand}"
+                                     Content="{DynamicResource Nav.TestRun}"/>
+                        <RadioButton Style="{DynamicResource NavButton}" GroupName="MainNav"
+                                     Command="{Binding ShowLongTermStabilityCommand}"
+                                     Content="{DynamicResource Nav.LongTermStability}"/>
+                        <RadioButton Style="{DynamicResource NavButton}" GroupName="MainNav"
+                                     Command="{Binding ShowManualCommand}"
+                                     Content="{DynamicResource Nav.Manual}"/>
+                        <RadioButton Style="{DynamicResource NavButton}" GroupName="MainNav"
+                                     Command="{Binding ShowQuickTestCommand}"
+                                     Content="{DynamicResource Nav.QuickTest}"/>
+
+                        <Rectangle Height="1" Fill="{DynamicResource BorderBrush}" Margin="12,10"/>
+
+                        <TextBlock Text="数 据 与 配 置" Style="{StaticResource NavGroupTitle}" Margin="14,2,0,4"/>
+                        <RadioButton Style="{DynamicResource NavButton}" GroupName="MainNav"
+                                     Command="{Binding ShowConfigPlanCommand}"
+                                     Content="{DynamicResource Nav.Plan}"/>
+                        <RadioButton Style="{DynamicResource NavButton}" GroupName="MainNav"
+                                     Command="{Binding ShowConfigSlotsCommand}"
+                                     Content="{DynamicResource Nav.Slots}"/>
+                        <RadioButton Style="{DynamicResource NavButton}" GroupName="MainNav"
+                                     Command="{Binding ShowConfigCommand}"
+                                     Content="{DynamicResource Nav.Config}"/>
+                        <RadioButton Style="{DynamicResource NavButton}" GroupName="MainNav"
+                                     Command="{Binding ShowLogCommand}"
+                                     Content="{DynamicResource Nav.Log}"/>
+                        <RadioButton Style="{DynamicResource NavButton}" GroupName="MainNav"
+                                     Command="{Binding ShowSettingsCommand}"
+                                     Content="{DynamicResource Nav.Settings}"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <Border Grid.Column="1" Padding="10" Background="{DynamicResource BgBrush}">
+                <ContentControl Content="{Binding CurrentView}"/>
+            </Border>
+        </Grid>
+
+        <!-- ═══ Row4 状态栏：设备 LED 组 | 就绪 | 版本 ═══ -->
+        <Border Grid.Row="4" Background="{DynamicResource StatusBarBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0"
+                Padding="12,0">
+            <DockPanel LastChildFill="False">
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ItemsControl ItemsSource="{Binding Devices}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <StackPanel Orientation="Horizontal"/>
@@ -163,204 +204,33 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Margin="5,0,0,0"
-                                        Padding="6,2"
-                                        Background="{DynamicResource DeviceStripBrush}"
-                                        BorderBrush="{DynamicResource BorderBrush}"
-                                        BorderThickness="1">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Ellipse Width="7" Height="7"
-                                                 Fill="{Binding DotBrush}"
-                                                 VerticalAlignment="Center"
-                                                 Margin="0,0,5,0"/>
-                                        <TextBlock Text="{Binding Title}"
-                                                   FontSize="11"
-                                                   Foreground="{DynamicResource TextBrush}"/>
-                                        <TextBlock Text="{Binding StateText}"
-                                                   FontSize="11"
-                                                   Foreground="{Binding DotBrush}"
-                                                   Margin="4,0,0,0"/>
-                                    </StackPanel>
-                                </Border>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,14,0" VerticalAlignment="Center">
+                                    <Ellipse Width="9" Height="9" Fill="{Binding DotBrush}"
+                                             Stroke="#FFAAB4C0" StrokeThickness="0.8"
+                                             VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                    <TextBlock Text="{Binding Title}" FontSize="11"
+                                               Foreground="{DynamicResource TextBrush}"/>
+                                    <TextBlock Text="{Binding StateText}" FontSize="10.5"
+                                               Foreground="{Binding DotBrush}" Margin="4,0,0,0"/>
+                                </StackPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+
+                    <Rectangle Width="1" Height="14" Fill="{DynamicResource BorderBrush}"
+                               VerticalAlignment="Center" Margin="2,0,12,0"/>
+                    <Ellipse Width="6" Height="6" Fill="{DynamicResource SuccessBrush}"
+                             VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBlock Text="系统就绪   ·   F11 全屏" FontSize="10.5"
+                               Foreground="{DynamicResource MutedBrush}"/>
                 </StackPanel>
-            </Grid>
-        </Border>
 
-        <!-- 主工作区 -->
-        <Grid Grid.Row="2">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="190"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-
-            <!-- 左侧功能导航 -->
-            <Border Grid.Column="0"
-                    Background="{DynamicResource SidebarBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="0,0,1,0">
-                <DockPanel>
-                    <Border DockPanel.Dock="Top"
-                            Background="{DynamicResource SidebarHeaderBrush}"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="0,0,0,1"
-                            Padding="14,11">
-                        <StackPanel>
-                            <TextBlock Text="功能导航"
-                                       FontSize="12"
-                                       FontWeight="Bold"
-                                       Foreground="{DynamicResource TextBrush}"/>
-                            <TextBlock Text="测试 / 调试 / 配置"
-                                       FontSize="10"
-                                       Foreground="{DynamicResource MutedBrush}"
-                                       Margin="0,2,0,0"/>
-                        </StackPanel>
-                    </Border>
-
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel Margin="8,12">
-                            <TextBlock Text="测试功能"
-                                       Style="{DynamicResource NavGroupTitle}"
-                                       Margin="8,0,0,5"/>
-                            <RadioButton Style="{DynamicResource NavButton}"
-                                         IsChecked="True"
-                                         GroupName="MainNav"
-                                         Content="{DynamicResource Nav.TestRun}"
-                                         Command="{Binding ShowTestRunCommand}"/>
-                            <RadioButton Style="{DynamicResource NavButton}"
-                                         GroupName="MainNav"
-                                         Content="{DynamicResource Nav.LongTermStability}"
-                                         Command="{Binding ShowLongTermStabilityCommand}"/>
-                            <RadioButton Style="{DynamicResource NavButton}"
-                                         GroupName="MainNav"
-                                         Content="{DynamicResource Nav.Manual}"
-                                         Command="{Binding ShowManualCommand}"/>
-                            <RadioButton Style="{DynamicResource NavButton}"
-                                         GroupName="MainNav"
-                                         Content="{DynamicResource Nav.QuickTest}"
-                                         Command="{Binding ShowQuickTestCommand}"/>
-
-                            <Border Height="1"
-                                    Background="{DynamicResource BorderBrush}"
-                                    Margin="8,13"/>
-
-                            <TextBlock Text="配置与记录"
-                                       Style="{DynamicResource NavGroupTitle}"
-                                       Margin="8,0,0,5"/>
-                            <RadioButton Style="{DynamicResource NavButton}"
-                                         GroupName="MainNav"
-                                         Content="{DynamicResource Nav.Config}"
-                                         Command="{Binding ShowConfigCommand}"/>
-                            <RadioButton Style="{DynamicResource NavButton}"
-                                         GroupName="MainNav"
-                                         Content="{DynamicResource Nav.Plan}"
-                                         Command="{Binding ShowConfigPlanCommand}"/>
-                            <RadioButton Style="{DynamicResource NavButton}"
-                                         GroupName="MainNav"
-                                         Content="{DynamicResource Nav.Slots}"
-                                         Command="{Binding ShowConfigSlotsCommand}"/>
-                            <RadioButton Style="{DynamicResource NavButton}"
-                                         GroupName="MainNav"
-                                         Content="{DynamicResource Nav.Log}"
-                                         Command="{Binding ShowLogCommand}"/>
-                            <RadioButton Style="{DynamicResource NavButton}"
-                                         GroupName="MainNav"
-                                         Content="{DynamicResource Nav.Settings}"
-                                         Command="{Binding ShowSettingsCommand}"/>
-                        </StackPanel>
-                    </ScrollViewer>
-                </DockPanel>
-            </Border>
-
-            <!-- 页面标题与内容区 -->
-            <Grid Grid.Column="1" Background="{DynamicResource BgBrush}">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="60"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-
-                <Border Grid.Row="0"
-                        Background="{DynamicResource PageHeaderBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="0,0,0,1"
-                        Padding="18,0">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="测试工作区"
-                                       FontSize="17"
-                                       FontWeight="Bold"
-                                       Foreground="{DynamicResource TextBrush}"/>
-                            <TextBlock Text="{Binding PlanTitle}"
-                                       FontSize="11"
-                                       Foreground="{DynamicResource MutedBrush}"
-                                       Margin="0,3,0,0"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="1"
-                                    VerticalAlignment="Center"
-                                    HorizontalAlignment="Right">
-                            <TextBlock Text="{Binding CurrentRunStep}"
-                                       FontSize="11"
-                                       Foreground="{DynamicResource MutedBrush}"
-                                       HorizontalAlignment="Right"
-                                       TextTrimming="CharacterEllipsis"/>
-                            <TextBlock Text="当前工步"
-                                       FontSize="10"
-                                       Foreground="{DynamicResource MutedBrush}"
-                                       HorizontalAlignment="Right"
-                                       Margin="0,2,0,0"/>
-                        </StackPanel>
-                    </Grid>
-                </Border>
-
-                <Border Grid.Row="1"
-                        Padding="12"
-                        Background="{DynamicResource BgBrush}">
-                    <ContentControl Content="{Binding CurrentView}"/>
-                </Border>
-            </Grid>
-        </Grid>
-
-        <!-- 底部状态栏：保留一条信息带，不再重复显示大块状态 -->
-        <Border Grid.Row="3"
-                Background="{DynamicResource StatusBarBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="0,1,0,0"
-                Padding="10,0">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Ellipse Width="7" Height="7"
-                             Fill="{DynamicResource SuccessBrush}"
-                             VerticalAlignment="Center"
-                             Margin="0,0,5,0"/>
-                    <TextBlock Text="系统就绪"
-                               FontSize="11"
-                               Foreground="{DynamicResource TextBrush}"/>
-                </StackPanel>
-                <TextBlock Grid.Column="1"
-                           Text="{Binding PlanTitle}"
-                           FontSize="11"
+                <TextBlock DockPanel.Dock="Right"
+                           Text="{Binding VersionText, StringFormat=M30 Test Console {0}}"
+                           FontSize="10.5" Margin="0,0,2,0"
                            Foreground="{DynamicResource MutedBrush}"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="Center"/>
-                <TextBlock Grid.Column="2"
-                           Text="{Binding CurrentRunStep}"
-                           FontSize="11"
-                           Foreground="{DynamicResource MutedBrush}"
-                           VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis"
-                           MaxWidth="360"/>
-            </Grid>
+                           VerticalAlignment="Center"/>
+            </DockPanel>
         </Border>
     </Grid>
 </Window>

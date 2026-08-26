@@ -149,6 +149,17 @@
                             </Button>
                         </StackPanel>
 
+                        <!-- 回退到上一版本（升级时自动备份后才显示） -->
+                        <Button Style="{StaticResource GhostButton}" Padding="12,6"
+                                HorizontalAlignment="Center" Margin="0,0,0,18"
+                                Command="{Binding RollbackCommand}"
+                                ToolTip="将程序替换为上次升级前的版本；设置与测试数据不受影响"
+                                Visibility="{Binding RollbackVersionText, Converter={x:Static local:NonEmptyToVisibleConverter.Instance}}">
+                            <TextBlock FontSize="12" Foreground="{DynamicResource WarnBrush}">
+                                <Run Text="⏪ 回退到上一版本 "/><Run Text="{Binding RollbackVersionText, Mode=OneWay}" FontWeight="Bold"/>
+                            </TextBlock>
+                        </Button>
+
                         <!-- Update status -->
                         <Border Background="{DynamicResource HeaderBgBrush}" CornerRadius="8"
                                 Padding="14,10" Margin="0,0,0,24"

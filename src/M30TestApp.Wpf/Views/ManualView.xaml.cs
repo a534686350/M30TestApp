@@ -1,4 +1,4 @@
-using System.Collections.Specialized;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using M30TestApp.Wpf.ViewModels;
@@ -13,30 +13,28 @@ public partial class ManualView : UserControl
         DataContextChanged += OnDataContextChanged;
     }
 
-    private void OnDataContextChanged(object sender, System.Windows.DependencyPropertyChangedEventArgs e)
+    private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (e.OldValue is ManualViewModel oldVm)
         {
-            ((INotifyCollectionChanged)oldVm.DataIo).CollectionChanged  -= OnDataIoChanged;
-            ((INotifyCollectionChanged)oldVm.History).CollectionChanged -= OnHistoryChanged;
+            oldVm.DataIo.Flushed  -= OnIoFlushed;
+            oldVm.History.Flushed -= OnHistoryFlushed;
         }
         if (e.NewValue is ManualViewModel newVm)
         {
-            ((INotifyCollectionChanged)newVm.DataIo).CollectionChanged  += OnDataIoChanged;
-            ((INotifyCollectionChanged)newVm.History).CollectionChanged += OnHistoryChanged;
+            newVm.DataIo.Flushed  += OnIoFlushed;
+            newVm.History.Flushed += OnHistoryFlushed;
         }
     }
 
-    private void OnDataIoChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    private void OnIoFlushed(object? sender, EventArgs e)
     {
-        if (e.Action != NotifyCollectionChangedAction.Add) return;
         if (DataContext is not ManualViewModel vm || !vm.IoAutoScroll) return;
         ScrollToEnd(DataIoTextBox);
     }
 
-    private void OnHistoryChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    private void OnHistoryFlushed(object? sender, EventArgs e)
     {
-        if (e.Action != NotifyCollectionChangedAction.Add) return;
         ScrollToEnd(HistoryTextBox);
     }
 

@@ -52,15 +52,9 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
     private const int MaxDataIoLines = 2000;
     private const int MaxHistoryLines = 500;
     private const int MaxFrequencyRows = 2000;
-    private readonly object _dataIoGate = new();
-    private readonly object _historyGate = new();
     private readonly object _frequencyGate = new();
-    private readonly Queue<string> _pendingDataIoLines = new();
-    private readonly Queue<string> _pendingHistoryLines = new();
     private readonly Queue<FrequencySampleResult> _pendingFrequencyRows = new();
     private readonly List<FrequencySampleResult> _frequencyAllResults = new();
-    private bool _dataIoFlushPending;
-    private bool _historyFlushPending;
     private bool _frequencyFlushPending;
     private long _lastFrequencyFlushMs;
     private static readonly object SettingCacheLock = new();
@@ -288,20 +282,14 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
     public int CollectionInterval { get => _collectionInterval; set => SetField(ref _collectionInterval, value); }
 
     // ─── 两个底栏数据 ───────────────────────────────────────────────────────
-    /// <summary>"数据I/O" 面板：原始 TX/RX 报文。</summary>
-    public ObservableCollection<string> DataIo { get; } = new();
-    /// <summary>"历史记录" 面板：操作动作日志。</summary>
-    public ObservableCollection<string> History { get; } = new();
+    /// <summary>"数据I/O" 面板：原始 TX/RX 报文。绑定其 <see cref="UiLogBuffer.Text"/>。</summary>
+    public UiLogBuffer DataIo { get; } = new(MaxDataIoLines);
+    /// <summary>"历史记录" 面板：操作动作日志。绑定其 <see cref="UiLogBuffer.Text"/>。</summary>
+    public UiLogBuffer History { get; } = new(MaxHistoryLines, trimChunk: 100);
     /// <summary>批量采集结果表格。</summary>
     public ObservableCollection<BatchSampleResult> BatchResults { get; } = new();
     /// <summary>1KHz 频率测试结果表格。UI 只保留最近 MaxFrequencyRows 条，完整数据在内存中用于导出。</summary>
     public ObservableCollection<FrequencySampleResult> FrequencyResults { get; } = new();
-
-    private string _dataIoText = "";
-    public string DataIoText { get => _dataIoText; private set => SetField(ref _dataIoText, value); }
-
-    private string _historyText = "";
-    public string HistoryText { get => _historyText; private set => SetField(ref _historyText, value); }
 
     private bool _ioShowTx = true, _ioShowRx = true, _ioShowInfo = false, _ioAutoScroll = true;
     public bool IoShowTx     { get => _ioShowTx;     set => SetField(ref _ioShowTx,     value); }
@@ -590,18 +578,8 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         StopFrequencySampleCommand = new RelayCommand(_ => StopFrequencySample(), _ => IsFrequencySampling);
         ExportFrequencyResultsCommand = new RelayCommand(_ => ExportFrequencyResults());
 
-        ClearDataIoCommand  = new RelayCommand(_ =>
-        {
-            lock (_dataIoGate) _pendingDataIoLines.Clear();
-            DataIo.Clear();
-            DataIoText = "";
-        });
-        ClearHistoryCommand = new RelayCommand(_ =>
-        {
-            lock (_historyGate) _pendingHistoryLines.Clear();
-            History.Clear();
-            HistoryText = "";
-        });
+        ClearDataIoCommand  = new RelayCommand(_ => DataIo.Clear());
+        ClearHistoryCommand = new RelayCommand(_ => History.Clear());
     }
 
     /// <summary>
@@ -922,7 +900,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
 
         if (!string.IsNullOrWhiteSpace(pressure.Model))
             PressureModel = pressure.Model;
-        ParseGpibAddress(pressure.Address, out var port, out var address);
+        var (port, address) = GpibResource.Parse(pressure.Address);
         if (!string.IsNullOrWhiteSpace(port))
             PressurePort = port;
         if (!string.IsNullOrWhiteSpace(address))
@@ -941,46 +919,14 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
 
     private void ApplyManualPressureProfileToSession()
     {
-        var existing = _session.Station.Get(DeviceKind.Pressure);
-        var model = string.IsNullOrWhiteSpace(PressureModel) ? existing?.Model ?? "FLUKE-7250" : PressureModel.Trim();
-        var port = string.IsNullOrWhiteSpace(PressurePort) ? "0" : PressurePort.Trim();
-        var address = string.IsNullOrWhiteSpace(PressureAddr) ? "0" : PressureAddr.Trim();
-        var resource = BuildGpibAddress(port, address);
-        var key = $"{model}|{resource}|{existing?.Backend}|{existing?.Baud}|{existing?.Parity}|{existing?.DataBits}|{existing?.StopBits}";
-
-        if (string.Equals(_appliedPressureKey, key, StringComparison.Ordinal))
-            return;
-
-        _session.Station.Devices[DeviceKind.Pressure] = new DeviceProfile
-        {
-            Kind = DeviceKind.Pressure,
-            Model = model,
-            Backend = existing?.Backend ?? DeviceBackend.Hw,
-            Address = resource,
-            Baud = existing?.Baud ?? 9600,
-            Parity = existing?.Parity ?? "N",
-            DataBits = existing?.DataBits ?? 8,
-            StopBits = existing?.StopBits ?? "1"
-        };
-        _session.RebuildDevices(_session.DebugMode);
-        _appliedPressureKey = key;
-        Hist($"压力控制器配置已应用：{model} @ {resource}");
+        var result = PressureProfileApplier.Apply(
+            _session, _appliedPressureKey, PressureModel, PressurePort, PressureAddr);
+        _appliedPressureKey = result.Key;
+        if (!result.Applied) return;
+        Hist($"压力控制器配置已应用：{result.Model} @ {result.Resource}");
     }
 
-    private static void ParseGpibAddress(string resource, out string port, out string address)
-    {
-        port = "0";
-        address = "0";
-        if (string.IsNullOrWhiteSpace(resource)) return;
-        if (!resource.StartsWith("GPIB", StringComparison.OrdinalIgnoreCase)) return;
-
-        var parts = resource.Split("::", StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length < 2) return;
-        port = parts[0].Length > 4 ? parts[0][4..] : "0";
-        address = parts[1];
-    }
-
-    private static string BuildGpibAddress(string port, string address) => $"GPIB{port}::{address}::INSTR";
+    private static string BuildGpibAddress(string port, string address) => GpibResource.Build(port, address);
 
     private async Task EnsurePressureModeAsync()
     {
@@ -996,13 +942,6 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         "Absolute" or "ABS" or "abs" or "绝压" => PressureType.Absolute,
         "Differential" or "DIFF" or "diff" or "差压" => PressureType.Differential,
         _ => PressureType.Gauge,
-    };
-
-    private static string PressureTypeDisplay(PressureType pressureType) => pressureType switch
-    {
-        PressureType.Absolute => "绝压",
-        PressureType.Differential => "差压",
-        _ => "表压",
     };
 
     private async Task ReadDacValueAsync(byte function, string name, Action<float> assign, string unit)
@@ -1027,19 +966,6 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         Hist($"{name}值：{value}");
     }
 
-    private static byte[] BuildCrcFrame(byte card, byte function, byte channel) =>
-        AppendCrc(new[] { card, function, channel });
-
-    private static byte[] AppendCrc(byte[] data)
-    {
-        var crc = ModbusCrc(data);
-        var frame = new byte[data.Length + 2];
-        Array.Copy(data, frame, data.Length);
-        frame[^2] = (byte)(crc & 0xFF);
-        frame[^1] = (byte)(crc >> 8);
-        return frame;
-    }
-
     private static ushort ModbusCrc(byte[] data)
     {
         ushort crc = 0xFFFF;
@@ -1051,8 +977,6 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         }
         return crc;
     }
-
-    private static string ToHex(byte[] data) => string.Join(" ", data.Select(b => b.ToString("X2"))) + " ";
 
     private static string Csv(string value)
     {
@@ -1517,14 +1441,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
 
         // Render as a single line matching the look of ASLab's "数据I/O" panel.
         var line = $"{e.Time:HH:mm:ss.fff}  {e.Arrow}  {e.Device,-14}  {e.Payload}";
-        lock (_dataIoGate)
-        {
-            _pendingDataIoLines.Enqueue(line);
-            if (_dataIoFlushPending) return;
-            _dataIoFlushPending = true;
-        }
-
-        Application.Current.Dispatcher.BeginInvoke(new Action(FlushDataIoLines));
+        DataIo.Post(line);
     }
 
     private void Hist(string s)
@@ -1532,48 +1449,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         StatusText = s;
         AppLog.Info("Manual", s);
         var line = $"{DateTime.Now:HH:mm:ss}  {s}";
-        lock (_historyGate)
-        {
-            _pendingHistoryLines.Enqueue(line);
-            if (_historyFlushPending) return;
-            _historyFlushPending = true;
-        }
-
-        Application.Current.Dispatcher.BeginInvoke(new Action(FlushHistoryLines));
-    }
-
-    private void FlushDataIoLines()
-    {
-        List<string> lines;
-        lock (_dataIoGate)
-        {
-            lines = _pendingDataIoLines.ToList();
-            _pendingDataIoLines.Clear();
-            _dataIoFlushPending = false;
-        }
-
-        foreach (var line in lines)
-            DataIo.Add(line);
-        while (DataIo.Count > MaxDataIoLines)
-            DataIo.RemoveAt(0);
-        DataIoText = string.Join(Environment.NewLine, DataIo);
-    }
-
-    private void FlushHistoryLines()
-    {
-        List<string> lines;
-        lock (_historyGate)
-        {
-            lines = _pendingHistoryLines.ToList();
-            _pendingHistoryLines.Clear();
-            _historyFlushPending = false;
-        }
-
-        foreach (var line in lines)
-            History.Add(line);
-        while (History.Count > MaxHistoryLines)
-            History.RemoveAt(0);
-        HistoryText = string.Join(Environment.NewLine, History);
+        History.Post(line);
     }
 
     public void Dispose()

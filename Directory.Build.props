@@ -1,0 +1,20 @@
+<Project>
+  <!--
+    解决方案级公共属性（单一来源）。
+    版本号只在此处维护；Wpf csproj 不再重复声明。
+  -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AnalysisLevel>latest</AnalysisLevel>
+
+    <Version>1.2.37</Version>
+    <AssemblyVersion>1.2.37.0</AssemblyVersion>
+    <FileVersion>1.2.37.0</FileVersion>
+
+    <!-- 产线部署：发布为自包含单文件，见 README 的 dotnet publish 命令 -->
+    <PublishSingleFile Condition="'$(RuntimeIdentifier)' != ''">true</PublishSingleFile>
+    <SelfContained Condition="'$(RuntimeIdentifier)' != ''">true</SelfContained>
+  </PropertyGroup>
+</Project>
