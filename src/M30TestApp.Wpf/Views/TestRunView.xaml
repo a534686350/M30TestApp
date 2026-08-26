@@ -40,8 +40,8 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition x:Name="LiveLogRow" Height="140"/>
+            <RowDefinition Height="2*"/>
+            <RowDefinition x:Name="LiveLogRow" Height="*"/>
         </Grid.RowDefinitions>
 
         <!-- ────────── Row 0: KPI strip ────────── -->
