@@ -130,13 +130,10 @@ public partial class ConfigView : UserControl
         _updatingScanSelection = true;
         try
         {
-            // 等容器生成完毕再一次性定位：选中 → 当前单元格 → 单次最小滚动。
-            // 此前多处滚动相互覆盖（自动滚动 + 贴底计算），导致视口来回跳动。
+            // 只做最小滚动定位；不设置 SelectedItem/CurrentCell——
+            // 选中行的主题选中视觉会盖掉行底色，导致「待录入」琥珀高亮不可见。
             SlotGrid.UpdateLayout();
             var item = SlotGrid.Items[index];
-            SlotGrid.SelectedItem = item;
-            if (SlotGrid.Columns.Count > 0)
-                SlotGrid.CurrentCell = new DataGridCellInfo(item, SlotGrid.Columns[0]);
             SlotGrid.ScrollIntoView(item);
         }
         finally
