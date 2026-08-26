@@ -21,7 +21,6 @@
               EnableColumnVirtualization="False"
               VirtualizingPanel.VirtualizationMode="Recycling"
               VirtualizingPanel.IsVirtualizing="True"
-              HorizontalAlignment="Left"
               ScrollViewer.CanContentScroll="False"
               ScrollViewer.PanningMode="Both"
               ScrollViewer.HorizontalScrollBarVisibility="Visible"
