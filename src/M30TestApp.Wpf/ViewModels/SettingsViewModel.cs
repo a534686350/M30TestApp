@@ -360,6 +360,12 @@ public sealed class SettingsViewModel : ViewModelBase
         var tag = doc.RootElement.GetProperty("tag_name").GetString() ?? "";
         var assets = doc.RootElement.GetProperty("assets");
 
+        // Gitee 会把源码归档(archive/refs/tags/*.zip)混进 assets；
+        // 按名称打分优先选 self-contained 安装包，并显式排除源码归档。
+        string? chosenUrl = null;
+        string chosenName = "";
+        var bestScore = -1;
+
         foreach (var asset in assets.EnumerateArray())
         {
             var name = asset.GetProperty("name").GetString() ?? "";
@@ -369,16 +375,27 @@ public sealed class SettingsViewModel : ViewModelBase
                 ? browserUrl.GetString() ?? ""
                 : asset.TryGetProperty("url", out var urlProp) ? urlProp.GetString() ?? "" : "";
 
-            if (!string.IsNullOrWhiteSpace(downloadUrl))
+            if (string.IsNullOrWhiteSpace(downloadUrl)) continue;
+            if (downloadUrl.Contains("/archive/", StringComparison.OrdinalIgnoreCase)) continue;
+
+            var score = name.Contains("self-contained", StringComparison.OrdinalIgnoreCase) ? 2
+                      : name.Contains("win-x64", StringComparison.OrdinalIgnoreCase) ? 1
+                      : 0;
+            if (score > bestScore)
             {
-                var version = Version.TryParse(tag.TrimStart('v', 'V'), out var parsed)
-                    ? parsed
-                    : new Version(0, 0);
-                return new UpdateCandidate(host, tag, downloadUrl, name, version);
+                bestScore = score;
+                chosenUrl = downloadUrl;
+                chosenName = name;
             }
         }
 
-        throw new InvalidOperationException("No .zip asset found in the latest release");
+        if (chosenUrl is null)
+            throw new InvalidOperationException("No .zip asset found in the latest release");
+
+        var version = Version.TryParse(tag.TrimStart('v', 'V'), out var parsed)
+            ? parsed
+            : new Version(0, 0);
+        return new UpdateCandidate(host, tag, chosenUrl, chosenName, version);
     }
 
     private void ApplyLanguage(string lang)

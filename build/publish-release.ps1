@@ -8,9 +8,14 @@ $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
 $project = Join-Path $root "src\M30TestApp.Wpf\M30TestApp.Wpf.csproj"
-$projectXml = [xml](Get-Content -LiteralPath $project)
+
+# 版本单一来源是根目录 Directory.Build.props（csproj 不再直接携带 Version）
 if ([string]::IsNullOrWhiteSpace($Version)) {
-    $Version = $projectXml.Project.PropertyGroup.Version
+    $propsXml = [xml](Get-Content -LiteralPath (Join-Path $root "Directory.Build.props"))
+    $Version = $propsXml.Project.PropertyGroup.Version
+}
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    throw "Cannot resolve version from Directory.Build.props"
 }
 
 $releaseRoot = Join-Path $root "artifacts\release"
@@ -36,17 +41,14 @@ if ([string]::IsNullOrWhiteSpace($ghToken)) {
 }
 
 $releaseNotes = @"
-v1.2.32 update:
+v1.2.37 更新:
 
-- Fixed the update dialog progress fill so the colored bar matches the percentage.
-- Displayed leak rate and leak threshold consistently in Pa/s.
-- Long-term stability oven selection can be unchecked when needed.
-- Removed the Settings page administrator password prompt.
-- Restored normal gauge 0kPa pressure-control/hold behavior.
-- Quick test P0=0 skips only the hold period.
-- Filled long-term oven temperature cells for every station.
-- Kept untested automatic-test cells blank while retaining headers.
-- Added and fixed the DMM automatic-test flow used by NL/linearity checks.
+- 数据正确性(P0)：设备缺失不再静默写入假 0 值；探漏失败组强制人工确认；指标别名兜底（NL/PH/TCT）。
+- 编码统一：读取自动识别 BOM/UTF-8/GBK，写出统一 UTF-8 BOM。
+- 全新工控风格界面：深色(电光青)/亮色(钢蓝)双主题，五段式主窗口框架（标题横幅/菜单/工具栏/扁平导航/LED 状态栏）。
+- 工位页扫码录入重做：大输入框、进度统计、重复序列号拦截、清空重扫；表格行号列头+首列冻结+已扫高亮。
+- 新增版本回退：升级前自动备份主程序，「设置 → 关于」可一键回退到上一版本。
+- 日志与矩阵渲染合批优化；引入 CommunityToolkit.Mvvm。
 
 Self-contained win-x64 build. .NET 8.0 runtime is included.
 "@

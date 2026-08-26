@@ -6,8 +6,10 @@ $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
 $project = Join-Path $root "src\M30TestApp.Wpf\M30TestApp.Wpf.csproj"
-$projectXml = [xml](Get-Content -LiteralPath $project)
-$version = $projectXml.Project.PropertyGroup.Version
+
+# 版本单一来源是根目录 Directory.Build.props（csproj 不再直接携带 Version）
+$propsXml = [xml](Get-Content -LiteralPath (Join-Path $root "Directory.Build.props"))
+$version = $propsXml.Project.PropertyGroup.Version
 if ([string]::IsNullOrWhiteSpace($version)) {
     $version = "0.0.0"
 }
