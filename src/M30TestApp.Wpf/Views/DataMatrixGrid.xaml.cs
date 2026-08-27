@@ -99,8 +99,8 @@ public partial class DataMatrixGrid : UserControl
         var col = new DataGridTextColumn
         {
             Header = header,
-            // 固定列宽：内容多时表格横向溢出，滚动条/拖拽平移可用
-            Width = new DataGridLength(110),
+            Width = new DataGridLength(1, DataGridLengthUnitType.Auto),
+            MinWidth = 88,
             Binding = new Binding($"Cells[{columnKey}].Value")
             {
                 Mode = BindingMode.OneWay,

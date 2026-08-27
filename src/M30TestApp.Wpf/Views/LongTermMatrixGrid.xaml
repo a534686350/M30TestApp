@@ -70,7 +70,7 @@
                   VirtualizingPanel.IsVirtualizing="True"
                   ScrollViewer.CanContentScroll="False"
                   ScrollViewer.PanningMode="Both"
-                  ScrollViewer.HorizontalScrollBarVisibility="Visible"
+                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
                   ScrollViewer.VerticalScrollBarVisibility="Auto"
                   ColumnHeaderStyle="{StaticResource LongTermColumnHeaderStyle}"
                   LayoutUpdated="OnGridLayoutUpdated">
