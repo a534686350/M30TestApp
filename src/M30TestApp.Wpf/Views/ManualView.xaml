@@ -18,7 +18,7 @@
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Margin" Value="0,0,0,8"/>
         </Style>
-        <Style x:Key="OutBox" TargetType="TextBox">
+        <Style x:Key="OutBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="IsReadOnly" Value="True"/>
             <Setter Property="Background"  Value="{StaticResource SurfaceBrush}"/>
             <Setter Property="FontFamily"  Value="Consolas"/>

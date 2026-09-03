@@ -17,6 +17,14 @@
             <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
             <Setter Property="Margin"     Value="0,0,0,12"/>
         </Style>
+        <Style x:Key="ConfigInputBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="MinHeight" Value="30"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+        </Style>
+
         <Style x:Key="GroupTitle" TargetType="TextBlock">
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize"   Value="13"/>
@@ -46,7 +54,7 @@
             <Setter Property="Margin" Value="0,0,0,3"/>
             <Setter Property="HorizontalAlignment" Value="Left"/>
         </Style>
-        <Style x:Key="SlotNumBox" TargetType="TextBox">
+        <Style x:Key="SlotNumBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="Width" Value="72"/>
             <Setter Property="Height" Value="28"/>
             <Setter Property="Padding" Value="6,3"/>
@@ -822,7 +830,7 @@
                                         <DataGridTextColumn Header="工位"        Binding="{Binding Slot}"          Width="76" IsReadOnly="True"/>
                                         <DataGridTextColumn Header="序列号"      Binding="{Binding SerialNo}"      Width="220">
                                             <DataGridTextColumn.EditingElementStyle>
-                                                <Style TargetType="TextBox">
+                                                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
                                                     <Setter Property="FontSize" Value="13"/>
                                                     <Setter Property="FontWeight" Value="SemiBold"/>
                                                 </Style>
@@ -884,9 +892,7 @@
                                         <StackPanel>
                                             <TextBlock Text="工位数量（修改后按参数重新生成）"
                                                        Foreground="{StaticResource MutedBrush}" FontSize="10.5"/>
-                                            <TextBox Height="30" Margin="0,5,0,0"
-                                                     HorizontalContentAlignment="Center"
-                                                     Text="{Binding SlotCount, UpdateSourceTrigger=PropertyChanged}"/>
+                                            <TextBox Style="{StaticResource ConfigInputBox}" MinHeight="30" Margin="0,5,0,0" HorizontalContentAlignment="Center" Text="{Binding SlotCount, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>
                                         <TextBlock Grid.Column="1" VerticalAlignment="Bottom"
                                                    Foreground="{StaticResource MutedBrush}" FontSize="10.5"
@@ -1019,7 +1025,7 @@
                                 <StackPanel>
                                     <TextBlock Text="批次编号" Style="{StaticResource SectionTitle}"/>
                                     <TextBlock Text="批次号" Style="{StaticResource SlotFieldLabel}" Margin="0,10,0,0"/>
-                                    <TextBox Text="{Binding BatchNo, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBox Style="{StaticResource ConfigInputBox}" Text="{Binding BatchNo, UpdateSourceTrigger=PropertyChanged}"/>
                                     <Grid Margin="0,8,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
@@ -1027,8 +1033,7 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="起始 ID" Style="{StaticResource SlotFieldLabel}"
                                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                        <TextBox Grid.Column="1"
-                                                 Text="{Binding StartSerial, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBox Grid.Column="1" Style="{StaticResource ConfigInputBox}" Text="{Binding StartSerial, UpdateSourceTrigger=PropertyChanged}"/>
                                     </Grid>
                                     <CheckBox Content="自动编号" IsChecked="{Binding AutoNumber}"
                                               Margin="0,10,0,0"/>

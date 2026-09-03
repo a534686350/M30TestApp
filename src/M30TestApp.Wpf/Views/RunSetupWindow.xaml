@@ -22,11 +22,23 @@
             <Setter Property="Margin" Value="0,0,0,2"/>
             <Setter Property="HorizontalAlignment" Value="Center"/>
         </Style>
-        <Style x:Key="NumBox" TargetType="TextBox">
+        <Style x:Key="NumBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="Width" Value="60"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
         </Style>
-    </Window.Resources>
+                <Style x:Key="NumBoxReadonly" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                <Setter Property="IsReadOnly" Value="True"/>
+                <Setter Property="IsTabStop" Value="False"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            </Style>
+            <Style x:Key="InputField" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="CaretBrush" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}"/>
+            </Style>
+</Window.Resources>
 
     <DockPanel>
         <!-- ─── Top action bar ─── -->
@@ -201,8 +213,7 @@
                                         Visibility="{Binding ShowLongTermSlotLayout, Converter={StaticResource BoolToVis}}">
                                 <StackPanel Margin="8,0">
                                     <TextBlock Text="起始工位" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Style="{StaticResource NumBox}"
-                                             Text="{Binding StartIndex, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBox Style="{StaticResource InputField}" Text="{Binding StartIndex, UpdateSourceTrigger=PropertyChanged}"/>
                                 </StackPanel>
                                 <StackPanel Margin="8,0">
                                     <TextBlock Text="结束工位" Style="{StaticResource FieldLabel}"/>
@@ -211,13 +222,11 @@
                                 </StackPanel>
                                 <StackPanel Margin="8,0">
                                     <TextBlock Text="工位数量" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Style="{StaticResource NumBox}" IsReadOnly="True" IsTabStop="False"
-                                             Text="{Binding SlotCount, Mode=OneWay}"/>
+                                    <TextBox Style="{StaticResource NumBoxReadonly}" Text="{Binding SlotCount, Mode=OneWay}"/>
                                 </StackPanel>
                                 <StackPanel Margin="8,0" VerticalAlignment="Bottom">
                                     <TextBlock Text="DAQ通道(自动)" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Style="{StaticResource NumBox}" IsReadOnly="True" IsTabStop="False"
-                                             Text="{Binding StartChannel, Mode=OneWay}" Width="72"/>
+                                    <TextBox Style="{StaticResource NumBoxReadonly}" Text="{Binding StartChannel, Mode=OneWay}" Width="72"/>
                                 </StackPanel>
                             </StackPanel>
                             <TextBlock Text="{Binding LongTermSlotRangeHint}"
@@ -251,8 +260,7 @@
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Margin="0,0,4,0">
                                                 <TextBlock Text="所需工位" Style="{StaticResource FieldLabel}"/>
-                                                <TextBox Style="{StaticResource NumBox}"
-                                                         Text="{Binding SlotCount, UpdateSourceTrigger=PropertyChanged}"/>
+                                                <TextBox Style="{StaticResource InputField}" Text="{Binding SlotCount, UpdateSourceTrigger=PropertyChanged}"/>
                                             </StackPanel>
                                             <StackPanel Grid.Column="1" Margin="4,0,0,0">
                                                 <TextBlock Text="起始编号" Style="{StaticResource FieldLabel}"/>
@@ -417,11 +425,9 @@
                         <DockPanel>
                             <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                                 <TextBlock Text="批次号" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
-                                <TextBox Text="{Binding BatchNo, UpdateSourceTrigger=PropertyChanged}"
-                                         Width="180" Margin="6,0,16,0"/>
+                                <TextBox Style="{StaticResource InputField}" Text="{Binding BatchNo, UpdateSourceTrigger=PropertyChanged}" Width="180" Margin="6,0,16,0"/>
                                 <TextBlock Text="起始ID" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
-                                <TextBox Text="{Binding StartSerial, UpdateSourceTrigger=PropertyChanged}"
-                                         Width="80" Margin="6,0,16,0"/>
+                                <TextBox Style="{StaticResource InputField}" Text="{Binding StartSerial, UpdateSourceTrigger=PropertyChanged}" Width="80" Margin="6,0,16,0"/>
                                 <CheckBox Content="自动编号" IsChecked="{Binding AutoNumber}" VerticalAlignment="Center"/>
                             </StackPanel>
                             <Button DockPanel.Dock="Right" Content="🔄 刷新" Style="{StaticResource PrimaryButton}"
