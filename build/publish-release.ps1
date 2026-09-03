@@ -41,7 +41,7 @@ if ([string]::IsNullOrWhiteSpace($ghToken)) {
 }
 
 $releaseNotes = @"
-v1.2.37 更新:
+v1.2.38 更新:
 
 - 数据正确性(P0)：设备缺失不再静默写入假 0 值；探漏失败组强制人工确认；指标别名兜底（NL/PH/TCT）。
 - 编码统一：读取自动识别 BOM/UTF-8/GBK，写出统一 UTF-8 BOM。
@@ -49,6 +49,7 @@ v1.2.37 更新:
 - 工位页扫码录入重做：大输入框、进度统计、重复序列号拦截、清空重扫；表格行号列头+首列冻结+已扫高亮。
 - 新增版本回退：升级前自动备份主程序，「设置 → 关于」可一键回退到上一版本。
 - 日志与矩阵渲染合批优化；引入 CommunityToolkit.Mvvm。
+- 修复测试页矩阵只显示一行的问题：恢复 DataGrid 像素级滚动(CanContentScroll=False)，行数按内容完整展开。
 
 Self-contained win-x64 build. .NET 8.0 runtime is included.
 "@

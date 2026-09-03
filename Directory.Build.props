@@ -9,9 +9,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AnalysisLevel>latest</AnalysisLevel>
 
-    <Version>1.2.37</Version>
-    <AssemblyVersion>1.2.37.0</AssemblyVersion>
-    <FileVersion>1.2.37.0</FileVersion>
+    <Version>1.2.38</Version>
+    <AssemblyVersion>1.2.38.0</AssemblyVersion>
+    <FileVersion>1.2.38.0</FileVersion>
 
     <!-- 产线部署：发布为自包含单文件，见 README 的 dotnet publish 命令 -->
     <PublishSingleFile Condition="'$(RuntimeIdentifier)' != ''">true</PublishSingleFile>
