@@ -545,10 +545,20 @@
         </Setter>
     </Style>
 
-    <!-- ────────── ScrollBar thin modern ────────── -->
+    <!-- ────────── ScrollBar thin modern ──────────
+         注意：必须按 Orientation 分别设置。横向滚动条的"长度"就是它的 Width，
+         若对横向条也设 Width/MinWidth=8，整条会塌成 8px 的小疙瘩、无法点击。 -->
     <Style TargetType="ScrollBar">
-        <Setter Property="Width" Value="8"/>
-        <Setter Property="MinWidth" Value="8"/>
+        <Style.Triggers>
+            <Trigger Property="Orientation" Value="Vertical">
+                <Setter Property="Width" Value="10"/>
+                <Setter Property="MinWidth" Value="10"/>
+            </Trigger>
+            <Trigger Property="Orientation" Value="Horizontal">
+                <Setter Property="Height" Value="10"/>
+                <Setter Property="MinHeight" Value="10"/>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
 </ResourceDictionary>

@@ -153,6 +153,11 @@ Address  = "GPIB0::10::INSTR"   ; GPIB 地址可由 Config 页拆解为 板卡+�
 - 发 `Item[{key}]` 这类带键名字会被 WPF **完全忽略**：除"列刚创建、绑定首次求值"那一行外，其余单元格永久停留在空白（v1.2.37 移除 `Item[]` 后曾引入此回归，v1.2.39 修复）。**不要**为"按列定向刷新"而改回带键名字。
 - 代价是通知无法定向，一发即整行重估。因此更新走 `SetDeferred`（静默写入）+ `NotifyChanged`，在 `TestRunViewModel.FlushCellUpdates` 里整批写入后按行去重、每行每批发一次通知。
 
+主题里的全局 `ScrollBar` 样式（`Light.xaml` / `Dark.xaml`）**必须按 `Orientation` 分别设置尺寸**：
+
+- 横向滚动条的"长度"就是它的 `Width`。若对所有方向统一设 `Width`/`MinWidth`，横向条会塌成几像素的小疙瘩，无法点击拖动（v1.2.39 修复前的实际症状）。
+- 正确写法：`Horizontal` 触发器设 `Height`/`MinHeight`（控制轨道粗细），`Vertical` 触发器设 `Width`/`MinWidth`。
+
 ## 10. 已知技术债 / 待办
 
 - [ ] ConfigViewModel 已做物理拆分（partial：主文件 + Slots + Plan + ConfigSupportViewModels）；按子模块拆成独立 Section 子 VM（需同步改写 ConfigView.xaml 绑定路径）仍待做
