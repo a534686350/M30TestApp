@@ -231,20 +231,26 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         if (batch.Count == 0) return;
 
         EnsureRowMap();
-        MatrixRowVm? lastRow = null;
+        var touched = new List<MatrixRowVm>();
+        var seen = new HashSet<MatrixRowVm>();
         foreach (var update in batch)
         {
             if (!_rowBySlot!.TryGetValue(update.Slot, out var row)) continue;
-            row.Cells[update.Cell.Key] = update.Cell;
+            // 先静默写入，全部格子落盘后再统一发通知：
+            // WPF 只认 "Item[]"，一发就是整行重估，故每行每批只发一次，避免逐格刷新的 churn。
+            row.Cells.SetDeferred(update.Cell.Key, update.Cell);
             EnsureMatrixColumn(update.Cell.Key);
 
-            // 同一行连续更新只做一次状态重算
-            if (!ReferenceEquals(row, lastRow))
+            // 同一行只做一次状态重算
+            if (seen.Add(row))
             {
                 ApplyRowStatus(row);
-                lastRow = row;
+                touched.Add(row);
             }
         }
+
+        foreach (var row in touched)
+            row.Cells.NotifyChanged();
     }
 
     private System.Collections.Generic.Dictionary<string, MatrixRowVm>? _rowBySlot;

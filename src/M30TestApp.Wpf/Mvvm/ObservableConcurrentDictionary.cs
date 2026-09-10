@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Data;
 
 namespace M30TestApp.Wpf.Mvvm;
 
@@ -22,25 +23,41 @@ public sealed class ObservableConcurrentDictionary<TKey, TValue>
         set
         {
             _inner[key] = value!;
-            RaiseItem(key);
+            RaiseIndexerChanged();
         }
     }
 
     public bool TryGetValue(TKey key, out TValue value) => _inner.TryGetValue(key, out value!);
 
+    /// <summary>
+    /// Store a value WITHOUT raising a change notification. Call <see cref="NotifyChanged"/>
+    /// afterwards (once per row per batch) to refresh the UI.
+    /// </summary>
+    public void SetDeferred(TKey key, TValue value) => _inner[key] = value!;
+
+    /// <summary>Raise the indexer change notification so bound cells re-evaluate.</summary>
+    public void NotifyChanged() => RaiseIndexerChanged();
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private void RaiseItem(TKey key)
+    /// <summary>
+    /// Raise PropertyChanged with <see cref="Binding.IndexerName"/> (the literal "Item[]").
+    ///
+    /// 必须用 "Item[]"：WPF 解析绑定路径里的索引器步骤时，会把该步的属性名写成常量
+    /// "Item[]"（见 <c>PropertyPath.ResolvePathParts</c>），其变更监听器只对这一个名字生效。
+    /// 发 "Item[key]" 这类带键名字 WPF 完全无视——矩阵单元格会停留在首次求值的旧值，
+    /// 表现为「只有第一行有数据、其余行永远空白」（v1.2.37 移除 Item[] 后退化）。
+    /// 代价是无法按 key 定向刷新，只能整行重估，因此由调用方合批后每行只发一次。
+    /// </summary>
+    private void RaiseIndexerChanged()
     {
-        if (PropertyChanged is null) return;
-        // 只发 Item[key]：绑定路径 Cells[key].Value 只需重估目标列。
-        // 历史实现同时发 Binding.IndexerName("Item[]")，会导致该行所有列绑定全部重估。
-        var indexer = $"Item[{key}]";
+        var handler = PropertyChanged;
+        if (handler is null) return;
         if (Application.Current?.Dispatcher.CheckAccess() == false)
-            Application.Current.Dispatcher.BeginInvoke(new System.Action(() =>
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(indexer))));
+            Application.Current.Dispatcher.BeginInvoke(new System.Action(
+                () => handler.Invoke(this, new PropertyChangedEventArgs(Binding.IndexerName))));
         else
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(indexer));
+            handler.Invoke(this, new PropertyChangedEventArgs(Binding.IndexerName));
     }
 
     public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() => _inner.GetEnumerator();

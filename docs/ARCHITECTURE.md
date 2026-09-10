@@ -137,7 +137,23 @@ Address  = "GPIB0::10::INSTR"   ; GPIB 地址可由 Config 页拆解为 板卡+�
 
 256（`App.OnStartup` 中 `SlotMax`）。`[Slots] Count` 或 `工位对应表.csv` 行数 > 256 自动截断并 warn。
 
-## 9. 已知技术债 / 待办
+## 9. 矩阵表格（DataGrid）渲染约定
+
+`DataMatrixGrid` / `LongTermMatrixGrid` 的滚动与虚拟化设置**必须自洽**，改动前先读这段：
+
+- 取值组合固定为 `EnableRowVirtualization="False"` + `VirtualizingPanel.IsVirtualizing="False"` + `VirtualizingPanel.VirtualizationMode="Standard"` + `ScrollViewer.CanContentScroll="False"`。
+- 原因：`CanContentScroll="False"`（像素级平滑滚动）会**整体关闭虚拟化**，此时若再声明 `IsVirtualizing="True"` / `VirtualizationMode="Recycling"`，WPF 处于未定义行为——256 工位实测表现为矩阵塌缩、只渲染首行。两者只能取其一。
+- 选"关虚拟化 + 像素滚动"而非"开虚拟化 + ScrollUnit=Pixel"，是为了保住已调好的横向拖动滚动（`DataGridScrollHelper` 用像素偏移计算）；256 行全实例化在产线上可接受。
+- 列宽仍用 `Auto`；动态加列由 `MatrixColumns.CollectionChanged` → `AddDynamicColumn` 触发，不要在行更新循环里改列集合结构。
+- 相关取值散落在 XAML 属性，**没有** Style 兜底，两份 XAML 需同步修改。
+
+单元格取值路径固定为 `Cells[{key}].Value`（`MatrixRowVm.Cells`，类型 `ObservableConcurrentDictionary`）。变更通知**必须**用 `Binding.IndexerName`（字面量 `"Item[]"`）：
+
+- WPF 解析绑定路径的索引器步骤时，把该步的属性名硬编码为常量 `"Item[]"`（`PropertyPath.ResolvePathParts`），其变更监听器只对这一个名字生效。
+- 发 `Item[{key}]` 这类带键名字会被 WPF **完全忽略**：除"列刚创建、绑定首次求值"那一行外，其余单元格永久停留在空白（v1.2.37 移除 `Item[]` 后曾引入此回归，v1.2.39 修复）。**不要**为"按列定向刷新"而改回带键名字。
+- 代价是通知无法定向，一发即整行重估。因此更新走 `SetDeferred`（静默写入）+ `NotifyChanged`，在 `TestRunViewModel.FlushCellUpdates` 里整批写入后按行去重、每行每批发一次通知。
+
+## 10. 已知技术债 / 待办
 
 - [ ] ConfigViewModel 已做物理拆分（partial：主文件 + Slots + Plan + ConfigSupportViewModels）；按子模块拆成独立 Section 子 VM（需同步改写 ConfigView.xaml 绑定路径）仍待做
 - [x] ~~SlotLayout Config↔RunSetup 成对重复~~ → 已抽 `Core.Config.SlotLayoutSnapshot`（板卡公式/ToOptions/ini 读写单一实现）

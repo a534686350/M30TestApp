@@ -41,15 +41,14 @@ if ([string]::IsNullOrWhiteSpace($ghToken)) {
 }
 
 $releaseNotes = @"
-v1.2.38 更新:
+v1.2.39 更新:
 
-- 数据正确性(P0)：设备缺失不再静默写入假 0 值；探漏失败组强制人工确认；指标别名兜底（NL/PH/TCT）。
-- 编码统一：读取自动识别 BOM/UTF-8/GBK，写出统一 UTF-8 BOM。
-- 全新工控风格界面：深色(电光青)/亮色(钢蓝)双主题，五段式主窗口框架（标题横幅/菜单/工具栏/扁平导航/LED 状态栏）。
-- 工位页扫码录入重做：大输入框、进度统计、重复序列号拦截、清空重扫；表格行号列头+首列冻结+已扫高亮。
-- 新增版本回退：升级前自动备份主程序，「设置 → 关于」可一键回退到上一版本。
-- 日志与矩阵渲染合批优化；引入 CommunityToolkit.Mvvm。
-- 修复测试页矩阵只显示一行的问题：恢复 DataGrid 像素级滚动(CanContentScroll=False)，行数按内容完整展开。
+- 修复自动测试/长期稳定性测试矩阵的动态数据列只有第一行显示数据的问题：
+  恢复 ObservableConcurrentDictionary 的索引器变更通知为 WPF 真正监听的 "Item[]"
+  (Binding.IndexerName)，此前发送 "Item[key]" 被 WPF 忽略，导致除首行外的单元格永久空白。
+- 矩阵合批刷新优化：整批格子写入后按行去重，每行每批只触发一次刷新通知，避免逐格整行重估。
+- 矩阵表格虚拟化配置统一：关闭行/列虚拟化并保持像素级滚动(CanContentScroll=False)，
+  消除 256 工位时表格塌缩只渲染首行的问题。
 
 Self-contained win-x64 build. .NET 8.0 runtime is included.
 "@
