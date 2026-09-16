@@ -158,7 +158,77 @@ Address  = "GPIB0::10::INSTR"   ; GPIB 地址可由 Config 页拆解为 板卡+�
 - 横向滚动条的"长度"就是它的 `Width`。若对所有方向统一设 `Width`/`MinWidth`，横向条会塌成几像素的小疙瘩，无法点击拖动（v1.2.39 修复前的实际症状）。
 - 正确写法：`Horizontal` 触发器设 `Height`/`MinHeight`（控制轨道粗细），`Vertical` 触发器设 `Width`/`MinWidth`。
 
-## 10. 已知技术债 / 待办
+## 10. 界面外壳与主题约定（浅色工控 v2）
+
+主窗口为**五段式工控外壳**，自 `MainWindow.xaml` 单文件承载，改动前先读这段：
+
+| 段 | 高度 | 内容 |
+| --- | --- | --- |
+| Row0 顶部横幅 | 42 | 品牌条 + 版本/工位胶囊 + 运行状态 LED + 报警计数 + 时钟（`x:Name="ClockText"`） |
+| Row1 模块页签条 | 38 | **6 个模块页签**（`MainTab` 样式）+ 右上「系统 ▾」下拉（原菜单栏全部项收在这里） |
+| Row2 命令条 | 54 | 开始测试 / 停止 + 当前测试模式 + 当前工步 + 右侧方案名 |
+| Row3 工作区 | * | `ContentControl Content="{Binding CurrentView}"`，**不加内边距**，把宽度全留给数据矩阵 |
+| Row4 状态栏 | 30 | 5 个设备 LED（`Devices`）+ 系统就绪 + 版本号 |
+
+主页签只有 6 个：自动测试 / 长期稳定性 / 手动调试 / 快速测试 ｜ 日志 / 设置。
+**所有配置类页面统一收在「设置」下面**（不要再往主页签加"方案""工位""配置"这类入口，否则又会出现"主页签 vs 子页签"重复）：
+
+- 「设置」页签 → `ShowConfigCommand` → `ConfigView`，其内部是**左侧竖排子导航**（`SideTabControl` + `SideTabItem` 样式）：
+  方案 / 接口设置 / 温度采集 / 气路与参数 / 压力指令 / 设备 / 指令 / 工位 / 测试流程 / 版本信息 / 系统设置。
+- 子页签用 `SelectedValuePath="Header"` + `SelectedSection` 双向绑定；**重命名/增删页签不影响绑定**，但 `MainViewModel` 里写死的节名要同步。
+- 原「参数控制」一页塞了 5 块内容又长又挤，已拆成 `接口设置` / `温度采集` / `气路与参数` / `压力指令` 四个子页。
+- 偏好设置（语言 / 更新检查，独立的 `SettingsView`）从「系统 ▾」菜单进入，不再占主页签。
+- 子页签条目多时用左侧竖排（`SideTabControl`）；条目少的页面仍用顶部横排（隐式 `TabControl`/`TabItem` 样式）。
+- `指标限值`、`计算` 两个子页 `Visibility="Collapsed"`，保留待用。
+
+页签选中态的实现方式（不要改成别的方式）：
+
+- 页签是 `RadioButton` + `GroupName="MainNav"`，样式键 `MainTab`。
+- `IsChecked` 绑定 `SelectedNavKey`，经 `Converters/NavKeyIsConverter`（`ConverterParameter` 传键名，`Mode=TwoWay`）。
+  该转换器的 `ConvertBack` 在「取消选中」时返回 `Binding.DoNothing`——否则点另一个页签会把选中态写空。
+- 页签文案一律走 `{DynamicResource Nav.*}`（`Strings/zh-CN.xaml` / `en-US.xaml`），**不要硬编码**，否则语言切换会失效。
+
+主题文件（`Themes/Light.xaml` / `Dark.xaml`）的硬性规则：
+
+- **键名只增不改不删**。视图里大量 `StaticResource`/`DynamicResource` 引用主题键，删键或改名会在运行时抛解析异常。
+  新增观感只能改「取值」，或新增键（新增后两套主题必须同步补齐，键集合要一致——Dark 仅额外持有 `BgGradientStart/End`）。
+- 主题切换由 `ThemeHelper.Apply` 替换合并字典实现，**不会重建视图**。因此样式内部的 Setter 一律用 `DynamicResource`
+  引画刷（这样即使 Style 对象是旧的，颜色仍随主题刷新）；写死颜色字面量会导致切主题不生效。
+- 外壳/页面共用样式键：`MainTab`、`PanelCard`、`PanelTitleBar`、`PanelTitleText`、`PageHeaderBar`、`PageHeaderCrumb`、`PageHeaderTitle`。
+- 页面内部的每个数据面板统一用 `PanelCard` 外框 + `PanelTitleBar`(标题栏) + `PanelTitleText` + 左侧 3px `AccentBrush` 色条。
+
+配色（v2 浅色工控）：浅钢灰底 `#EDF1F5` + 白面板 + 钢蓝强调 `#185FA5`，语义色 绿 `#16A34A` / 琥珀 `#D97706` / 红 `#DC2626`。
+深色为同一套语言的 counterpart（钢灰底 `#11161C` + 钢蓝 `#3E9BE0`）。两套均为全扁平直角、高密度。
+
+## 11. 报表模板与导出约定
+
+测试开始时在「选择运行方案」窗口（`RunSetupWindow` / `RunSetupViewModel`）决定两件事，二者都写进 `setting/Setting.ini` 的 `[Report]`：
+
+| 项 | ini 键 | 说明 |
+| --- | --- | --- |
+| 测试设备 | `DeviceName` | 报表 AO 列。UI 是可编辑 `ComboBox`（`ReportDeviceOptions`），候选来自「往期报表 AO 列」；没有的型号直接输入即可，本轮即时生效。留空回落到 `[Device.Pressure] Model`。 |
+| 生成模板 | `Template` | `Auto` / `Wafer`，对应下拉 `ReportTemplateOptions`。 |
+
+模板模式语义（`TemplatePerformanceExporter.ReportTemplateMode`）：
+
+- `Auto`（自动测试模板）：模板取 `保存数据格式/全性能.xlsx`，导出行为与旧版一致 —— data 目录出 xlsx + 兼容 CSV，**桌面仍写旧版 `时间_型号.csv`**。
+- `Wafer`（晶圆测试模板）：模板取 `保存数据格式/生成的数据格式/` 下最新的现场样例（如 `20260910 142426-08 HPT-LP-K11.1-K10-D05(性能测试).xlsx`），
+  报表落 data 目录，**并在桌面另存一份同名 xlsx**，不再写旧版 CSV。
+
+两条硬性约束：
+
+- `ResolveTemplatePath(mode)` 首选模板缺失时会**回退到另一路**，保证现场任何情况下都拿得到模板；`ReportTemplateHint` 会把实际用到的模板文件名显示在窗口里，便于核对模板是否换成功。
+- 模板文件通过 `M30TestApp.Wpf.csproj` 的 `Content` 项随包部署（`保存数据格式/全性能.xlsx` 与 `保存数据格式/生成的数据格式/*.xlsx`），改模板只换文件、不改代码。
+
+**测试设备候选来源**（`Core.Data.ReportDeviceCatalog`）：内置默认（2025-07~12 现场 180 份报表 AO 列实测去重值）+ 只读扫描 `D:\数据整理\202507-202512`（可用 `[Report] DeviceScanDirs` 覆盖，`;` 分隔）。
+扫描范围是**数据区第 4 行起**的 AO 列（第 3 行 AO 是表头「测试设备」，不能当型号收进来），结果缓存到 `setting/ReportDeviceModels.txt`。
+扫描在后台线程跑，**目标目录严格只读**，不创建/修改/删除其中任何文件。
+
+调试模式（`Setting.ini` 的 `DebugMode=1`，全部走 `Devices/Sim`）的模拟量按现场样例分布生成，见 `SimDevices.SimDac`：
+桥阻 `R ≈ 6160 Ω @25℃`、`+5.2 Ω/℃`（`Isource = Usource / R`，报表 R(Ω) 列才不会空）；`Usig` 零点 `±3 mV`、灵敏度 `6.4~8.2 mV/压力单位`、幅值随温度 `-0.19%/℃`；
+工位个体差异由 `SlotHash(板卡, 通道)` 决定，同一工位每次仿真给同样的值。
+
+## 12. 已知技术债 / 待办
 
 - [ ] ConfigViewModel 已做物理拆分（partial：主文件 + Slots + Plan + ConfigSupportViewModels）；按子模块拆成独立 Section 子 VM（需同步改写 ConfigView.xaml 绑定路径）仍待做
 - [x] ~~SlotLayout Config↔RunSetup 成对重复~~ → 已抽 `Core.Config.SlotLayoutSnapshot`（板卡公式/ToOptions/ini 读写单一实现）

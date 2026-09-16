@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -44,25 +45,30 @@ public partial class RunSetupWindow : Window
     private void ResetScanSlot()
     {
         _scanSlotIndex = 0;
-        if (RunSlotGrid.Items.Count == 0)
-        {
-            UpdateScanSlotLabel();
-            return;
-        }
-
         SyncGridSelectionToScanIndex();
         UpdateScanSlotLabel();
     }
 
+    /// <summary>
+    /// 更新「当前工位」徽标 + 行三态底色（待录入琥珀 / 已录入绿 / 未录入透明）。
+    /// 与 ConfigView 的工位页保持同一套扫码语义：高亮看行底色，不看选中态。
+    /// </summary>
     private void UpdateScanSlotLabel()
     {
-        if (RunSlotGrid.Items.Count == 0)
+        var total = RunSlotGrid.Items.Count;
+
+        var nextIndex = total == 0 ? -1 : Math.Min(_scanSlotIndex, total - 1);
+        for (var i = 0; i < total; i++)
+            if (RunSlotGrid.Items[i] is SlotEntry row)
+                row.IsNext = i == nextIndex;
+
+        if (total == 0)
         {
             RunScanSlotLabel.Text = "-";
             return;
         }
 
-        if (_scanSlotIndex >= RunSlotGrid.Items.Count)
+        if (_scanSlotIndex >= total)
         {
             RunScanSlotLabel.Text = "已完成";
             return;
@@ -72,7 +78,13 @@ public partial class RunSetupWindow : Window
             RunScanSlotLabel.Text = slot.Slot;
     }
 
-    private void SyncGridSelectionToScanIndex(int? scrollToIndex = null, bool alignBottom = false)
+    /// <summary>
+    /// 只做**最小滚动**定位，不设置 SelectedItem / CurrentCell：
+    /// 一是选中色的主题视觉会盖掉行底色（待录入琥珀就看不见了），
+    /// 二是设选中项/当前单元格会触发 DataGrid 自身的 ScrollIntoView，与本方法的滚动互相打架，
+    /// 扫码时视野会上下乱跳（录一个跳底、录下一个又回顶）。
+    /// </summary>
+    private void SyncGridSelectionToScanIndex(int? scrollToIndex = null)
     {
         var index = scrollToIndex ?? _scanSlotIndex;
         if (RunSlotGrid.Items.Count == 0 || index < 0 || index >= RunSlotGrid.Items.Count)
@@ -81,22 +93,13 @@ public partial class RunSetupWindow : Window
         _updatingScanSelection = true;
         try
         {
-            var item = RunSlotGrid.Items[index];
-            RunSlotGrid.SelectedItem = item;
-            if (RunSlotGrid.Columns.Count > 0)
-                RunSlotGrid.CurrentCell = new DataGridCellInfo(item, RunSlotGrid.Columns[0]);
-            DataGridScrollHelper.ScrollToRow(RunSlotGrid, index, alignBottom);
+            RunSlotGrid.UpdateLayout();
+            DataGridScrollHelper.ScrollToRow(RunSlotGrid, index);
         }
         finally
         {
             _updatingScanSelection = false;
         }
-    }
-
-    private int CurrentVisibleScanIndex()
-    {
-        if (RunSlotGrid.Items.Count == 0) return -1;
-        return Math.Clamp(_scanSlotIndex, 0, RunSlotGrid.Items.Count - 1);
     }
 
     private void OnRunSlotGridSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -132,6 +135,19 @@ public partial class RunSetupWindow : Window
 
     private void OnRunBarcodeConfirm(object sender, RoutedEventArgs e) => ApplyRunBarcode();
 
+    /// <summary>把输入框里的型号加进下拉候选（只影响本次运行的候选列表，不改任何配置文件）。</summary>
+    private void OnAddReportDevice(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not RunSetupViewModel vm) return;
+
+        var name = (vm.ReportDevice ?? "").Trim();
+        if (name.Length == 0) return;
+        if (vm.ReportDeviceOptions.Any(m => string.Equals(m, name, StringComparison.OrdinalIgnoreCase))) return;
+
+        vm.ReportDeviceOptions.Add(name);
+        vm.ReportDevice = name;
+    }
+
     private void ApplyRunBarcode()
     {
         var now = DateTime.UtcNow;
@@ -147,17 +163,19 @@ public partial class RunSetupWindow : Window
             vm.EnsureSlotCount(_scanSlotIndex + 1);
 
         _scanSlotIndex = Math.Clamp(_scanSlotIndex, 0, Math.Max(0, RunSlotGrid.Items.Count - 1));
-        if (RunSlotGrid.Items.Count == 0 || RunSlotGrid.Items[_scanSlotIndex] is not SlotEntry slot) return;
+        if (RunSlotGrid.Items[_scanSlotIndex] is not SlotEntry slot) return;
 
+        var filledIndex = _scanSlotIndex;   // 刚录入的那一行
         slot.SerialNo = barcode;
         RunScanStatusText.Text = $"{slot.Slot} -> {barcode}";
 
-        _scanSlotIndex++;
+        _scanSlotIndex++;                   // 扫码指针前移到下一工位
         UpdateScanSlotLabel();
 
+        // 定位到刚录入的那一行：它就在原处，视野基本不动；只有快扫到视口底部时才滚一行。
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
         {
-            SyncGridSelectionToScanIndex(CurrentVisibleScanIndex(), alignBottom: true);
+            SyncGridSelectionToScanIndex(filledIndex);
             UpdateScanSlotLabel();
         });
 

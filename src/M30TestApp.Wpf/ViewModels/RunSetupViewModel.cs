@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using System.Windows;
 using M30TestApp.Core;
 using M30TestApp.Core.Common;
@@ -22,6 +23,7 @@ public sealed class RunSetupViewModel : ViewModelBase
 {
     private readonly TestSession _session;
     private Dictionary<string, string> _configSerials = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, (string X, string Y)> _configPositions = new(StringComparer.OrdinalIgnoreCase);
     private TestCheckpoint? _checkpoint;
     private readonly bool _isLongTermStabilityMode;
 
@@ -44,6 +46,7 @@ public sealed class RunSetupViewModel : ViewModelBase
                 OnPropertyChanged(nameof(PlanTempCount));
                 OnPropertyChanged(nameof(PlanDefaultPressureType));
                 OnPropertyChanged(nameof(PlanTaskPreview));
+                OnPropertyChanged(nameof(ReportModelHint));
                 UpdateCheckpointState();
             }
         }
@@ -60,6 +63,114 @@ public sealed class RunSetupViewModel : ViewModelBase
         Core.Config.PressureType.Differential => "差压",
         _                                     => "表压",
     };
+
+    private string _reportDevice = "";
+
+    /// <summary>
+    /// 报表「测试设备」栏（性能测试报表的 AO 列）。开测前在本窗口选择或直接录入，
+    /// 留空回落到 [Device.Pressure] Model；录入后写入 Setting.ini 的 [Report] DeviceName。
+    /// </summary>
+    public string ReportDevice
+    {
+        get => _reportDevice;
+        set => SetField(ref _reportDevice, value);
+    }
+
+    /// <summary>
+    /// 测试设备候选：内置默认 + 缓存的往期报表 AO 列扫描结果。
+    /// 候选里没有的型号可直接在下拉框里输入，本轮测试即时生效。
+    /// </summary>
+    public ObservableCollection<string> ReportDeviceOptions { get; } = new();
+
+    // ─── 报表模板选择 ──────────────────────────────────────────────────────
+
+    public const string AutoTemplateLabel = "自动测试模板（全性能）";
+    public const string WaferTemplateLabel = "晶圆测试模板（现场样例）";
+
+    /// <summary>生成模板候选。</summary>
+    public ObservableCollection<string> ReportTemplateOptions { get; } = new()
+    {
+        AutoTemplateLabel,
+        WaferTemplateLabel,
+    };
+
+    private string _selectedReportTemplate = AutoTemplateLabel;
+
+    /// <summary>
+    /// 本次测试的报表生成模板：
+    ///   自动测试模板 = 沿用全性能.xlsx，桌面仍写旧版兼容 CSV（行为不变）；
+    ///   晶圆测试模板 = 用「生成的数据格式」下的现场样例生成，桌面另存一份同名 xlsx。
+    /// </summary>
+    public string SelectedReportTemplate
+    {
+        get => _selectedReportTemplate;
+        set
+        {
+            if (!SetField(ref _selectedReportTemplate, value)) return;
+            OnPropertyChanged(nameof(SelectedTemplateMode));
+            OnPropertyChanged(nameof(ReportTemplateHint));
+        }
+    }
+
+    public ReportTemplateMode SelectedTemplateMode =>
+        string.Equals(_selectedReportTemplate, WaferTemplateLabel, StringComparison.Ordinal)
+            ? ReportTemplateMode.Wafer
+            : ReportTemplateMode.Auto;
+
+    /// <summary>提示实际会用到的模板文件，方便现场核对模板是否换成功。</summary>
+    public string ReportTemplateHint
+    {
+        get
+        {
+            var path = TemplatePerformanceExporter.ResolveTemplatePath(SelectedTemplateMode);
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                return "⚠ 未找到模板文件";
+            return "模板：" + Path.GetFileName(path);
+        }
+    }
+
+    private string _reportWaferNo = "";
+
+    /// <summary>
+    /// 报表「晶圆编号」（性能测试.xlsx 的 C 列第一行）。留空 = 自动取序列号去掉末段工位序号。
+    /// 录入后写入 Setting.ini 的 [Report] WaferNo。
+    /// </summary>
+    public string ReportWaferNo
+    {
+        get => _reportWaferNo;
+        set => SetField(ref _reportWaferNo, value);
+    }
+
+    private string _reportModel = "";
+
+    /// <summary>
+    /// 报表「型号」（C 列第二行 + 导出文件名）。留空 = 自动取方案传感器型号去掉 M30- 前缀。
+    /// 录入后写入 Setting.ini 的 [Report] Model。
+    /// </summary>
+    public string ReportModel
+    {
+        get => _reportModel;
+        set => SetField(ref _reportModel, value);
+    }
+
+    /// <summary>留空时实际会写入报表的编号 / 型号，给界面做占位提示。</summary>
+    public string ReportWaferNoHint => string.IsNullOrWhiteSpace(_reportWaferNo)
+        ? "自动：" + AutoWaferNo()
+        : "已指定";
+
+    public string ReportModelHint => string.IsNullOrWhiteSpace(_reportModel)
+        ? "自动：" + AutoModel()
+        : "已指定";
+
+    private string AutoModel() => TemplatePerformanceExporter.ModelName(_selectedPlan?.SensorType ?? "");
+
+    private string AutoWaferNo()
+    {
+        var serial = PreviewSlots.FirstOrDefault()?.SerialNo ?? "";
+        var idx = serial.LastIndexOf('-');
+        return idx > 0 && serial[(idx + 1)..].All(char.IsDigit) ? serial[..idx] : serial;
+    }
+
     public string PlanTaskPreview
     {
         get
@@ -481,6 +592,7 @@ public sealed class RunSetupViewModel : ViewModelBase
 
         LoadPlanFolders(session.Plan);
         SeedFromCurrentSlots(session.Slots);
+        LoadReportDeviceOptions();
         if (_isLongTermStabilityMode)
         {
             _useOven = true;
@@ -666,6 +778,52 @@ public sealed class RunSetupViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// 载入测试设备候选：先用内置默认 + 上次缓存的扫描结果把下拉框填上，
+    /// 再在后台只读扫描往期报表 AO 列，扫完合并进候选（只读，不动目标目录里的任何文件）。
+    /// </summary>
+    private void LoadReportDeviceOptions()
+    {
+        foreach (var model in ReportDeviceCatalog.LoadCached(_session.Context.Settings, _reportDevice))
+            ReportDeviceOptions.Add(model);
+
+        var settings = _session.Context.Settings;
+        Task.Run(() => ReportDeviceCatalog.ScanHistoricalDevices(settings))
+            .ContinueWith(task =>
+            {
+                if (task.IsFaulted || task.Result.Count == 0) return;
+                var dispatcher = Application.Current?.Dispatcher;
+                if (dispatcher is null || dispatcher.HasShutdownStarted) return;
+                try
+                {
+                    dispatcher.Invoke(() => MergeReportDeviceOptions(task.Result));
+                }
+                catch (Exception ex)
+                {
+                    AppLog.Warn("RunSetup", $"合并设备型号候选失败: {ex.Message}");
+                }
+            }, TaskScheduler.Default);
+    }
+
+    /// <summary>
+    /// 只追加缺失的候选（不做 Clear + 重填）：可编辑 ComboBox 在 Items 被清空时
+    /// 会连带把编辑框里的输入清掉，用户刚敲的型号会被抹掉。
+    /// </summary>
+    private void MergeReportDeviceOptions(IEnumerable<string> models)
+    {
+        var added = false;
+        foreach (var model in models)
+        {
+            var text = (model ?? "").Trim();
+            if (text.Length == 0) continue;
+            if (ReportDeviceOptions.Any(m => string.Equals(m, text, StringComparison.OrdinalIgnoreCase))) continue;
+            ReportDeviceOptions.Add(text);
+            added = true;
+        }
+
+        if (added) OnPropertyChanged(nameof(ReportDevice));
+    }
+
     private void SeedFromCurrentSlots(SlotTable slots)
     {
         var ini = _session.Context.Settings;
@@ -704,7 +862,20 @@ public sealed class RunSetupViewModel : ViewModelBase
         if (bool.TryParse(ini.Get("Slots", "CollectUsg", ""), out var cusg)) _collectUsg = cusg;
         if (bool.TryParse(ini.Get("Slots", "CollectOvenTemp", ""), out var cot)) _collectOvenTemp = cot;
 
+        _reportDevice = ini.Get("Report", "DeviceName", ini.Get("Device.Pressure", "Model", ""));
+        _reportWaferNo = ini.Get("Report", "WaferNo", "");
+        _reportModel = ini.Get("Report", "Model", "");
+        _selectedReportTemplate = TemplatePerformanceExporter.ResolveTemplateMode(ini) == ReportTemplateMode.Wafer
+            ? WaferTemplateLabel
+            : AutoTemplateLabel;
+        OnPropertyChanged(nameof(ReportDevice));
+        OnPropertyChanged(nameof(ReportWaferNo));
+        OnPropertyChanged(nameof(ReportModel));
+        OnPropertyChanged(nameof(SelectedReportTemplate));
+        OnPropertyChanged(nameof(ReportTemplateHint));
+
         _configSerials = SlotLayoutHelper.CollectSerialMap(slots.Entries);
+        _configPositions = SlotLayoutHelper.CollectPositions(slots.Entries);
         var filledCount = SlotLayoutHelper.CountFilledSlots(slots.Entries);
         if (filledCount > 0)
         {
@@ -759,8 +930,14 @@ public sealed class RunSetupViewModel : ViewModelBase
         var preserved = preserveSerials
             ? SlotLayoutHelper.CollectSerialMap(PreviewSlots)
             : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var preservedPositions = preserveSerials
+            ? SlotLayoutHelper.CollectPositions(PreviewSlots)
+            : new Dictionary<string, (string X, string Y)>(StringComparer.OrdinalIgnoreCase);
         if (preserveSerials && (!UsesFixedDmmSlotMap || !AutoNumber))
+        {
             SlotLayoutHelper.MergeSerialMaps(preserved, _configSerials);
+            SlotLayoutHelper.MergePositions(preservedPositions, _configPositions);
+        }
 
         NormalizeFixedDmmLayout();
 
@@ -770,7 +947,10 @@ public sealed class RunSetupViewModel : ViewModelBase
         else if (UseDmmAutoTest)
             generated = ApplyDmmAutoTestChannels(generated, _startIndex);
         if (preserveSerials)
+        {
             SlotLayoutHelper.ApplyPreservedSerials(generated, preserved);
+            SlotLayoutHelper.ApplyPreservedPositions(generated, preservedPositions);
+        }
         else
         {
             foreach (var slot in generated)
@@ -781,6 +961,7 @@ public sealed class RunSetupViewModel : ViewModelBase
         foreach (var s in generated) PreviewSlots.Add(s);
 
         OnPropertyChanged(nameof(PreviewCount));
+        OnPropertyChanged(nameof(ReportWaferNoHint));
     }
 
     private static List<SlotEntry> ApplyLongTermStabilityChannels(List<SlotEntry> slots, int startSlotNo)
@@ -858,6 +1039,10 @@ public sealed class RunSetupViewModel : ViewModelBase
             ini.Set("Slots", "CollectUsg", CollectUsg.ToString());
             ini.Set("Slots", "CollectOvenTemp", CollectOvenTemp.ToString());
             ini.Set("Slots", "AutoTestMode", UseDmmAutoTest ? "Dmm" : "Board");
+            ini.Set("Report", "DeviceName", (ReportDevice ?? "").Trim());
+            ini.Set("Report", "WaferNo", (ReportWaferNo ?? "").Trim());
+            ini.Set("Report", "Model", (ReportModel ?? "").Trim());
+            ini.Set("Report", "Template", TemplatePerformanceExporter.TemplateModeKey(SelectedTemplateMode));
             if (_isLongTermStabilityMode)
                 ini.Set("Slots", "LongTermMeasureMode", LongTermMeasureMode.ToString());
             AppPreferences.Set(ini, "LastPlan", SelectedPlan.Name);

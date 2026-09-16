@@ -45,6 +45,17 @@ public sealed class IniFile
         s[key] = value;
     }
 
+    /// <summary>删除整个节（连同节内所有键）。节不存在返回 false。</summary>
+    public bool RemoveSection(string section) => _sections.Remove(section);
+
+    /// <summary>删除节内的单个键。节或键不存在返回 false。</summary>
+    public bool RemoveKey(string section, string key) =>
+        _sections.TryGetValue(section, out var s) && s.Remove(key);
+
+    /// <summary>节内所有键名（用于枚举某型号下实际存在的指令）。</summary>
+    public IReadOnlyCollection<string> Keys(string section) =>
+        _sections.TryGetValue(section, out var s) ? s.Keys.ToArray() : Array.Empty<string>();
+
     public static IniFile Load(string path)
     {
         var ini = new IniFile();

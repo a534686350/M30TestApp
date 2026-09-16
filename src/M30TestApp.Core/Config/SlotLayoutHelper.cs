@@ -46,6 +46,39 @@ public static class SlotLayoutHelper
             target[slot] = serial;
     }
 
+    /// <summary>收集已手动录入的芯片坐标（两项都空的行不收集）。</summary>
+    public static Dictionary<string, (string X, string Y)> CollectPositions(IEnumerable<SlotEntry> entries)
+    {
+        var map = new Dictionary<string, (string X, string Y)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in entries)
+        {
+            if (string.IsNullOrWhiteSpace(s.PositionX) && string.IsNullOrWhiteSpace(s.PositionY)) continue;
+            map[s.Slot] = (s.PositionX ?? "", s.PositionY ?? "");
+        }
+        return map;
+    }
+
+    public static void MergePositions(
+        Dictionary<string, (string X, string Y)> target,
+        IReadOnlyDictionary<string, (string X, string Y)> source)
+    {
+        foreach (var (slot, position) in source)
+            target[slot] = position;
+    }
+
+    /// <summary>重新生成工位表后把之前录入的坐标按工位名回填。</summary>
+    public static void ApplyPreservedPositions(
+        IList<SlotEntry> slots,
+        IReadOnlyDictionary<string, (string X, string Y)> preserved)
+    {
+        foreach (var slot in slots)
+        {
+            if (!preserved.TryGetValue(slot.Slot, out var position)) continue;
+            if (!string.IsNullOrWhiteSpace(position.X)) slot.PositionX = position.X;
+            if (!string.IsNullOrWhiteSpace(position.Y)) slot.PositionY = position.Y;
+        }
+    }
+
     public static List<SlotEntry> Generate(SlotLayoutOptions opt)
     {
         var count = Math.Clamp(opt.SlotCount, 1, SlotMax);

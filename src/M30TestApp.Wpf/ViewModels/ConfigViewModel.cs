@@ -14,6 +14,7 @@ using M30TestApp.Core.Config;
 using M30TestApp.Core.Data;
 using M30TestApp.Wpf.Mvvm;
 using M30TestApp.Wpf.Themes;
+using M30TestApp.Wpf.Views;
 
 namespace M30TestApp.Wpf.ViewModels;
 
@@ -181,13 +182,22 @@ public sealed partial class ConfigViewModel : ViewModelBase
     public bool FallbackSimOnDisconnect { get => _fallbackSimOnDisconnect; set => SetField(ref _fallbackSimOnDisconnect, value); }
 
     // ── Sub-nav ──────────────────────────────────────────────────────────
+    // 节名清单（当前未被 XAML 绑定；实际页签由 ConfigView.xaml 的 TabItem 声明，
+    // MainViewModel 通过 SelectedSection 指定进入哪一节）。
     public ObservableCollection<string> Sections { get; } = new()
     {
-        "方案", "参数控制", "设备", "指令", "工位", "测试流程", "版本信息", "系统设置",
+        "方案", "接口设置", "温度采集", "气路与参数", "压力指令",
+        "设备", "指令", "工位", "测试流程", "版本信息", "系统设置",
     };
 
     private string _selectedSection = "方案";
     public string SelectedSection { get => _selectedSection; set => SetField(ref _selectedSection, value); }
+
+    /// <summary>
+    /// 版本/更新相关命令所在的 VM（由 MainViewModel 注入）。
+    /// 「版本信息」子页的检查更新 / 回退按钮绑定到这里，避免把更新逻辑复制一份到 ConfigViewModel。
+    /// </summary>
+    public SettingsViewModel? Settings { get; set; }
 
     // ������ Commands ��������������������������������������������������������������������������������������������������������������������
     public RelayCommand SaveCommand { get; }
@@ -204,6 +214,12 @@ public sealed partial class ConfigViewModel : ViewModelBase
     public RelayCommand DeleteTempPointCommand { get; }
     public RelayCommand UsePerformanceFlowCommand { get; }
     public RelayCommand DeletePlanCommand { get; }
+
+    // 型号增删（写入 setting/Command.ini）
+    public RelayCommand AddCommandModelCommand { get; }
+    public RelayCommand DeleteCommandModelCommand { get; }
+    public RelayCommand AddPressureModelCommand { get; }
+    public RelayCommand DeletePressureModelCommand { get; }
 
     public ConfigViewModel(TestSession session)
     {
@@ -262,6 +278,11 @@ public sealed partial class ConfigViewModel : ViewModelBase
         });
         UsePerformanceFlowCommand = new RelayCommand(_ => UsePerformanceFlow());
         DeletePlanCommand = new RelayCommand(_ => DeletePlan());
+
+        AddCommandModelCommand = new RelayCommand(_ => AddCommandModel());
+        DeleteCommandModelCommand = new RelayCommand(_ => DeleteCommandModel(), _ => SelectedModelCommand is not null);
+        AddPressureModelCommand = new RelayCommand(_ => AddPressureModel());
+        DeletePressureModelCommand = new RelayCommand(_ => DeletePressureModel(), _ => !string.IsNullOrWhiteSpace(PressureModelName));
     }
 
     private void NewPlan()
@@ -622,10 +643,9 @@ public sealed partial class ConfigViewModel : ViewModelBase
         };
         if (dlg.ShowDialog() != true) return;
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("工位,序列号,阀位,板卡位,板卡工位号,层数,夹具位,夹具工位号,压力控制器,数字万用表,通道,阀门");
+        sb.AppendLine(SlotTable.CsvHeader);
         foreach (var s in SlotLayoutHelper.TrimTrailingPlaceholders(Slots.ToList()))
-            sb.AppendLine(string.Join(',', s.Slot, s.SerialNo, s.Valve, s.Board, s.BoardSlotNo,
-                s.Layer, s.Fixture, s.FixtureSlotNo, s.PressureController, s.Dmm, s.Channel, s.ValveAddr));
+            sb.AppendLine(SlotTable.FormatRow(s));
         File.WriteAllText(dlg.FileName, sb.ToString(), System.Text.Encoding.UTF8);
         AppLog.Info("Config", $"已导出 {Slots.Count} 行工位到 {dlg.FileName}");
     }
@@ -665,8 +685,10 @@ public sealed partial class ConfigViewModel : ViewModelBase
     public void RegenerateSlots()
     {
         var preserved = SlotLayoutHelper.CollectSerialMap(Slots);
+        var preservedPositions = SlotLayoutHelper.CollectPositions(Slots);
         var generated = SlotLayoutHelper.Generate(BuildSlotLayoutOptions());
         SlotLayoutHelper.ApplyPreservedSerials(generated, preserved);
+        SlotLayoutHelper.ApplyPreservedPositions(generated, preservedPositions);
 
         Slots.Clear();
         foreach (var s in generated) Slots.Add(s);
@@ -830,6 +852,15 @@ public sealed partial class ConfigViewModel : ViewModelBase
     {
         SaveDeviceProfiles();
         SaveAppSettings();
+
+        // 指令页 / 压力指令页编辑的模板写回 setting/Command.ini
+        foreach (var m in ModelCommands)
+            foreach (var t in m.Templates)
+                _session.Commands.SetCommand(m.Model, t.Action, t.Template ?? "");
+        if (!string.IsNullOrWhiteSpace(PressureModelName))
+            foreach (var s in PressureCommandSettings)
+                _session.Commands.SetCommand(PressureModelName, s.Name, s.Command);
+        SaveCommandIni();
         SavePairs(SwitchUnitCards);
         SavePairs(ValveSettings);
         SavePairs(TempSensorSettings);
@@ -952,6 +983,39 @@ public sealed partial class ConfigViewModel : ViewModelBase
 
     private static string BuildGpibAddress(string port, string address) => GpibResource.Build(port, address);
 
+    /// <summary>
+    /// 每种设备类型的标准指令动作集（决定编辑器列出哪些行）。
+    /// 型号列表本身以 Command.ini 为准，这里只提供「某个类型该有哪些指令」。
+    /// </summary>
+    private static readonly (string Kind, string[] Actions)[] KindActionMap =
+    {
+        ("压力控制器", new[] { "Open", "MachineType", "UpperLimit", "SetPressure", "Vent", "SetAbs",
+                              "ZeroCheck", "ReadPressure", "SetMeasure", "SelfTest", "ReadStatus", "SetGaug", "SetDiff" }),
+        ("烘箱",       new[] { "Open", "Set", "Read", "Stop", "SelfTest" }),
+        ("数字万用表", new[] { "Open", "Close", "SetVol", "SetRes", "ReadValue", "SelfTest" }),
+        ("采集卡",     new[] { "Open", "Usig", "Usource", "Isource", "UT", "SelfTest" }),
+        ("通道/板卡",  new[] { "Open", "Close", "SelfTest" }),
+    };
+
+    /// <summary>老 Command.ini 没有 __Kind 键时的型号 → 设备类型推断表。</summary>
+    private static readonly Dictionary<string, string> KnownModelKinds = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["FLUKE-7250"] = "压力控制器", ["FLUKE-6270"] = "压力控制器", ["FLUKE-6270A"] = "压力控制器",
+        ["WIKA-CPC8000"] = "压力控制器", ["WIKA-CPC6050"] = "压力控制器", ["ConST-820"] = "压力控制器",
+        ["DRUCK-PACE5000"] = "压力控制器", ["DRUCK-PACE6000"] = "压力控制器", ["SIDAUMC1000"] = "压力控制器",
+        ["GWSEBWT1670"] = "烘箱", ["GWNMC2000"] = "烘箱",
+        ["Keysight-34970A"] = "数字万用表", ["Keysight 34970A"] = "数字万用表",
+        ["Keysight-DAQ970A"] = "数字万用表", ["Keysight-DAQ973A"] = "数字万用表",
+        ["Keysight DAQ973A"] = "数字万用表", ["Keysight-34461"] = "数字万用表",
+        ["M30-DAC"] = "采集卡", ["采集卡"] = "采集卡",
+        ["Board"] = "通道/板卡", ["ADCMT-6146"] = "通道/板卡",
+    };
+
+    /// <summary>
+    /// 型号列表**以 Command.ini 为唯一数据源**：一个节 = 一个型号，
+    /// 类型取 节内 __Kind 键 → 内置推断表 → 是否含压力指令，都判不出则跳过。
+    /// 这样「新增 / 删除型号」才能真实生效（此前的固定脚手架写法删了会自己回来）。
+    /// </summary>
     private void BuildModelCommands(CommandDictionary commands)
     {
         ModelCommands.Clear();
@@ -959,43 +1023,13 @@ public sealed partial class ConfigViewModel : ViewModelBase
         CommandModels.Clear();
         SelectedModelCommand = null;
 
-        // Surface a representative slice of Command.ini per device kind.
-        var pressureModels = commands.Models
-            .Where(m => commands.Has(m, "SetPressure") || commands.Has(m, "ReadPressure"))
-            .OrderBy(m => m)
-            .ToArray();
-        var slice = new (string Kind, string[] Models, string[] Actions)[]
+        foreach (var model in commands.Models.OrderBy(m => m, StringComparer.OrdinalIgnoreCase))
         {
-            ("压力控制器", new[] { "FLUKE-7250", "FLUKE-6270", "WIKA-CPC8000" },
-                new[] { "Open", "MachineType", "UpperLimit", "SetPressure", "Vent", "SetAbs",
-                        "ZeroCheck", "ReadPressure", "SetMeasure", "SelfTest", "ReadStatus", "SetGaug", "SetDiff" }),
-            ("烘箱",      new[] { "GWSEBWT1670", "GWNMC2000" },
-                new[] { "Open", "Set", "Read", "Stop", "SelfTest" }),
-            ("数字万用表", new[] { "Keysight-34970A", "Keysight-DAQ970A", "Keysight-DAQ973A" },
-                new[] { "Open", "Close", "SetVol", "SetRes", "ReadValue", "SelfTest" }),
-            ("采集卡",    new[] { "M30-DAC" },
-                new[] { "Open", "Usig", "Usource", "Isource", "UT", "SelfTest" }),
-            ("通道/板卡",  new[] { "Board" },
-                new[] { "Open", "Close", "SelfTest" }),
-        };
+            var kind = ResolveModelKind(commands, model);
+            if (kind.Length == 0) continue;
 
-        foreach (var grp in slice)
-        foreach (var model in grp.Models)
-        {
-            var vm = new ModelCommandsVm { Kind = grp.Kind, Model = model };
-            foreach (var action in grp.Actions)
-            {
-                var tpl = commands.Render(model, action) is { Length: > 0 } t ? t : "";
-                vm.Templates.Add(new CommandTemplateVm { Action = action, Template = tpl });
-            }
-            ModelCommands.Add(vm);
-        }
-
-        foreach (var model in pressureModels.Where(m => !ModelCommands.Any(x => x.Model.Equals(m, StringComparison.OrdinalIgnoreCase))))
-        {
-            var vm = new ModelCommandsVm { Kind = "压力控制器", Model = model };
-            foreach (var action in new[] { "Open", "MachineType", "UpperLimit", "SetPressure", "Vent", "SetAbs",
-                         "ZeroCheck", "ReadPressure", "SetMeasure", "SelfTest", "ReadStatus", "SetGaug", "SetDiff" })
+            var vm = new ModelCommandsVm { Kind = kind, Model = model };
+            foreach (var action in ActionsForKind(kind))
             {
                 var tpl = commands.Render(model, action) is { Length: > 0 } t ? t : "";
                 vm.Templates.Add(new CommandTemplateVm { Action = action, Template = tpl });
@@ -1007,6 +1041,137 @@ public sealed partial class ConfigViewModel : ViewModelBase
             CommandDeviceKinds.Add(kind);
 
         SelectedCommandDeviceKind = CommandDeviceKinds.FirstOrDefault() ?? "";
+    }
+
+    private static string ResolveModelKind(CommandDictionary commands, string model)
+    {
+        var declared = commands.KindOf(model);
+        if (!string.IsNullOrWhiteSpace(declared)) return declared.Trim();
+        if (KnownModelKinds.TryGetValue(model, out var known)) return known;
+        if (commands.Has(model, "SetPressure") || commands.Has(model, "ReadPressure")) return "压力控制器";
+        return "";
+    }
+
+    private static string[] ActionsForKind(string kind)
+    {
+        foreach (var (k, actions) in KindActionMap)
+            if (string.Equals(k, kind, StringComparison.OrdinalIgnoreCase)) return actions;
+        return new[] { "Open", "Close", "SelfTest" };
+    }
+
+    // ─── 型号增删：直接维护 setting/Command.ini ────────────────────────────
+
+    private void SaveCommandIni()
+    {
+        try
+        {
+            _session.Commands.Save(AppPaths.CommandIni);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("写入 Command.ini 失败：" + ex.Message, "保存",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void AddCommandModel()
+    {
+        var kind = SelectedCommandDeviceKind;
+        if (string.IsNullOrWhiteSpace(kind))
+        {
+            MessageBox.Show("请先选择设备类型。", "新增设备型号", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var name = TextInputDialog.Prompt("新增设备型号", $"为「{kind}」新增一个型号，名称：",
+            "", "以当前选中型号的指令为模板复制一份，新增后可直接编辑。");
+        if (name is null) return;
+
+        if (_session.Commands.HasModel(name))
+        {
+            MessageBox.Show($"型号「{name}」已存在。", "新增设备型号", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var template = new List<KeyValuePair<string, string>>();
+        if (SelectedModelCommand is { } src && src.Templates.Count > 0)
+            template.AddRange(src.Templates.Select(t => new KeyValuePair<string, string>(t.Action, t.Template ?? "")));
+        else
+            template.AddRange(ActionsForKind(kind).Select(a => new KeyValuePair<string, string>(a, "")));
+
+        _session.Commands.AddModel(name, kind, template);
+        SaveCommandIni();
+
+        BuildModelCommands(_session.Commands);
+        SelectedCommandDeviceKind = kind;
+        SelectedModelCommand = CommandModels.FirstOrDefault(x => x.Model.Equals(name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void DeleteCommandModel()
+    {
+        if (SelectedModelCommand is not { } cur)
+        {
+            MessageBox.Show("请先选择要删除的型号。", "删除设备型号", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (MessageBox.Show(
+                $"确定从 Command.ini 删除型号「{cur.Model}」？\n该型号下的全部指令模板会一并删除，且不可撤销。",
+                "删除设备型号", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK)
+            return;
+
+        var kind = SelectedCommandDeviceKind;
+        _session.Commands.RemoveModel(cur.Model);
+        SaveCommandIni();
+
+        BuildModelCommands(_session.Commands);
+        SelectedCommandDeviceKind = kind;
+    }
+
+    private void AddPressureModel()
+    {
+        var name = TextInputDialog.Prompt("新增压力控制器型号", "型号名称：", "",
+            "以当前型号的指令为模板复制一份，新增后可直接编辑。");
+        if (name is null) return;
+
+        if (_session.Commands.HasModel(name))
+        {
+            MessageBox.Show($"型号「{name}」已存在。", "新增压力控制器型号", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var template = PressureCommandSettings
+            .Select(s => new KeyValuePair<string, string>(s.Name, s.Command))
+            .ToList();
+        if (template.Count == 0)
+            template.AddRange(ActionsForKind("压力控制器").Select(a => new KeyValuePair<string, string>(a, "")));
+
+        _session.Commands.AddModel(name, "压力控制器", template);
+        SaveCommandIni();
+
+        LoadPressureModels(_session.Commands);
+        PressureModelName = name;
+        LoadPressureCommandSettings();
+        BuildModelCommands(_session.Commands);
+    }
+
+    private void DeletePressureModel()
+    {
+        var name = PressureModelName;
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        if (MessageBox.Show(
+                $"确定从 Command.ini 删除压力控制器型号「{name}」？\n该型号下的全部指令会一并删除，且不可撤销。",
+                "删除压力控制器型号", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK)
+            return;
+
+        _session.Commands.RemoveModel(name);
+        SaveCommandIni();
+
+        LoadPressureModels(_session.Commands);
+        PressureModelName = PressureModels.FirstOrDefault() ?? "";
+        LoadPressureCommandSettings();
+        BuildModelCommands(_session.Commands);
     }
 
     private void RefreshCommandModels()

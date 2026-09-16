@@ -12,7 +12,15 @@ internal static class DataGridScrollHelper
 {
     private const double DragThreshold = 4;
 
-    /// <summary>Scroll to a row; optionally align it near the bottom of the viewport (for barcode scan follow).</summary>
+    /// <summary>
+    /// 把某一行滚动到可见位置，只做**最小滚动**：行已经在视口里就一行都不动，
+    /// 避免扫码时视野上下乱跳。alignBottom 为 true 时再多让出一行余量。
+    ///
+    /// 关键：DataGrid 默认 <c>CanContentScroll=True</c>（按「项」滚动），此时
+    /// <c>VerticalOffset</c> / <c>ViewportHeight</c> / <c>ScrollableHeight</c> 的单位都是**项**，
+    /// 不是像素。把 <c>TransformToAncestor</c> 得到的像素坐标和它们混着算位移，
+    /// 会滚到完全不相干的位置（现场症状：扫码后表格跳到中间某一段）。
+    /// </summary>
     public static void ScrollToRow(DataGrid grid, int index, bool alignBottom = false)
     {
         if (index < 0 || index >= grid.Items.Count) return;
@@ -20,25 +28,78 @@ internal static class DataGridScrollHelper
         void DoScroll()
         {
             grid.UpdateLayout();
-            var item = grid.Items[index];
-            grid.ScrollIntoView(item);
 
-            if (!alignBottom) return;
+            var scrollViewer = GetGridScrollViewer(grid);
+            if (scrollViewer is null)
+            {
+                grid.ScrollIntoView(grid.Items[index]);
+                return;
+            }
 
+            // ① 逻辑（按项）滚动：全部用「项」做单位，不碰像素。
+            if (scrollViewer.CanContentScroll)
+            {
+                var first = (int)Math.Round(scrollViewer.VerticalOffset);
+                var visible = Math.Max(1, (int)Math.Round(scrollViewer.ViewportHeight));
+                var last = first + visible - 1;
+
+                double target;
+                if (index < first)
+                    target = index;                                     // 在视口上方 → 贴到顶
+                else if (index > last)
+                    target = index - visible + 1 + (alignBottom ? 1 : 0); // 在视口下方 → 贴到底（可留一行）
+                else
+                    return;                                             // 已在视口内 → 不动
+
+                scrollViewer.ScrollToVerticalOffset(Math.Clamp(target, 0, scrollViewer.ScrollableHeight));
+                return;
+            }
+
+            // ② 像素滚动：这里 VerticalOffset / ViewportHeight 才是像素，可放心用坐标差。
             var row = grid.ItemContainerGenerator.ContainerFromIndex(index) as DataGridRow;
-            var scrollViewer = FindScrollViewer(grid);
-            if (row is null || scrollViewer is null) return;
+            if (row is null || scrollViewer.ViewportHeight <= 0)
+            {
+                grid.ScrollIntoView(grid.Items[index]);
+                return;
+            }
 
-            var rowPos = row.TransformToAncestor(scrollViewer).Transform(new Point(0, 0));
-            var target = rowPos.Y + row.ActualHeight - scrollViewer.ViewportHeight + 8;
-            if (target > scrollViewer.VerticalOffset)
-                scrollViewer.ScrollToVerticalOffset(Math.Min(target, scrollViewer.ScrollableHeight));
+            double delta;
+            try
+            {
+                var position = row.TransformToAncestor(scrollViewer).Transform(new Point(0, 0));
+                var rowTop = position.Y;
+                var rowBottom = rowTop + row.ActualHeight;
+                var viewport = scrollViewer.ViewportHeight;
+
+                if (rowBottom > viewport)
+                    delta = rowBottom - viewport + (alignBottom ? row.ActualHeight : 0);
+                else if (rowTop < 0)
+                    delta = rowTop - (alignBottom ? row.ActualHeight : 0);
+                else
+                    return;
+            }
+            catch (InvalidOperationException)
+            {
+                grid.ScrollIntoView(grid.Items[index]);
+                return;
+            }
+
+            scrollViewer.ScrollToVerticalOffset(
+                Math.Clamp(scrollViewer.VerticalOffset + delta, 0, scrollViewer.ScrollableHeight));
         }
 
-        if (grid.ItemContainerGenerator.ContainerFromIndex(index) is DataGridRow)
-            DoScroll();
-        else
-            grid.Dispatcher.BeginInvoke(DoScroll, DispatcherPriority.Loaded);
+        // 一律延迟到布局完成后再滚：扫码瞬间行容器/视口尺寸还可能没稳定下来。
+        grid.Dispatcher.BeginInvoke(DoScroll, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>取 DataGrid 模板里的滚动器（直接视觉子级），避免误取单元格内的嵌套滚动器。</summary>
+    private static ScrollViewer? GetGridScrollViewer(DataGrid grid)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(grid); i++)
+            if (VisualTreeHelper.GetChild(grid, i) is ScrollViewer viewer)
+                return viewer;
+
+        return FindScrollViewer(grid);
     }
 
     /// <summary>Enable Shift+wheel horizontal scroll and left-button drag pan on the grid's ScrollViewer.</summary>

@@ -14,7 +14,13 @@ public enum CellStatus { Empty, Pending, Ok, Warn, Error }
 public sealed class Cell
 {
     public string Key { get; init; } = "";    // e.g. "T1P1_Usign"
+    /// <summary>显示值（G6 有效位）。界面绑定与 CSV/XLSX 导出使用。</summary>
     public string Value { get; set; } = "";
+    /// <summary>
+    /// 原始采集值，全精度。Value 只保留 6 位有效数字，报表模板需要完整精度时读这个字段。
+    /// 无有效数值时为 NaN。
+    /// </summary>
+    public double RawValue { get; set; } = double.NaN;
     public CellStatus Status { get; set; } = CellStatus.Empty;
     public DateTime UpdatedAt { get; set; }
 }
@@ -66,8 +72,8 @@ public sealed class DataMatrix
             value *= 1000.0;
         var row = _rows.GetOrAdd(slot, _ => new ConcurrentDictionary<string, Cell>());
         var cell = row.AddOrUpdate(key,
-            _ => new Cell { Key = key, Value = value.ToString("G6", CultureInfo.InvariantCulture), Status = status, UpdatedAt = DateTime.Now },
-            (_, c) => { c.Value = value.ToString("G6", CultureInfo.InvariantCulture); c.Status = status; c.UpdatedAt = DateTime.Now; return c; });
+            _ => new Cell { Key = key, Value = value.ToString("G6", CultureInfo.InvariantCulture), RawValue = value, Status = status, UpdatedAt = DateTime.Now },
+            (_, c) => { c.Value = value.ToString("G6", CultureInfo.InvariantCulture); c.RawValue = value; c.Status = status; c.UpdatedAt = DateTime.Now; return c; });
         CellUpdated?.Invoke(this, new CellUpdate(slot, cell));
         return cell;
     }

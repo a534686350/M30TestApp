@@ -248,6 +248,14 @@ public sealed class SimDac : DeviceBase, IDac
     private readonly CommandDictionary _cmds;
     private readonly Random _rng = new(42);
 
+    // ── 现场样例分布（20260910 142426-08 HPT-LP-K11.1-K10-D05(性能测试).xlsx） ──
+    // 桥阻 R ≈ 6160 Ω @25℃，随温度 +5.2 Ω/℃；Usig 零点 ≈ 0 mV（±3）、灵敏度 ≈ 6.4~8.2 mV/kPa，
+    // 幅值随温度 -0.19%/℃。调试模式按这套量级出数，避免出现报表里一眼假的数值。
+    private const double UsourceVolts = 2.5;
+    private const double BridgeBaseOhm = 6160.0;
+    private const double BridgeTcoOhmPerC = 5.2;
+    private const double UsigTempCoeffPerC = 0.00189;
+
     public SimDac(string model, string address, CommandDictionary cmds)
         : base(DeviceKind.Dac, model, address) { _cmds = cmds; }
 
@@ -257,37 +265,59 @@ public sealed class SimDac : DeviceBase, IDac
         return Task.FromResult(true);
     }
 
-    private async Task<float> SimRead(string action, string a1, string a2, float baseline, float swing, CancellationToken ct)
+    private async Task<float> SimRead(string action, string a1, string a2, double value, CancellationToken ct)
     {
         DeviceBus.Tx(Model, $"[{action}] addr1={a1} addr2={a2}");
         await Task.Delay(3, ct);
-        var v = baseline + (float)(_rng.NextDouble() * swing);
+        var v = (float)value;
         DeviceBus.Rx(Model, SimTrace.F(v));
         return v;
     }
 
-    public Task<float> ReadUsourceAsync(float p, float t, int v, string a1, string a2, CancellationToken ct = default)
-        => SimRead("Usource", a1, a2, 2.5f, 0.01f, ct);
-
-    public Task<float> ReadIsourceAsync(float p, float t, int v, string a1, string a2, CancellationToken ct = default)
-        => SimRead("Isource", a1, a2, 0.001f, 1e-6f, ct);
-
-    public async Task<float> ReadUsigAsync(float p, float t, int v, string a1, string a2, CancellationToken ct = default)
+    /// <summary>工位指纹（0~1）：同一个工位每次仿真都得到同样的个体差异，不随运行漂移。</summary>
+    private static double SlotHash(string a1, string a2)
     {
-        DeviceBus.Tx(Model, $"[Usig] p={SimTrace.F(p)} T={SimTrace.F(t)} addr1={a1} addr2={a2}");
-        await Task.Delay(3, ct);
-        var val = (float)(0.5 + (p / 100.0) * 4.5 + _rng.NextDouble() * 0.001);
-        DeviceBus.Rx(Model, SimTrace.F(val));
-        return val;
+        unchecked
+        {
+            var h = 17;
+            foreach (var ch in a1 ?? "") h = h * 31 + ch;
+            h = h * 31 + '|';
+            foreach (var ch in a2 ?? "") h = h * 31 + ch;
+            return (h & 0x7FFFFFFF) % 10000 / 10000.0;
+        }
     }
 
-    public async Task<float> ReadUtAsync(float p, float t, int v, string a1, string a2, CancellationToken ct = default)
+    /// <summary>桥阻（Ω）：工位个体差异 ±55 Ω，温度系数 +5.2 Ω/℃，叠加 ±1 Ω 采集抖动。</summary>
+    private double BridgeResistance(string a1, string a2, double tempC)
     {
-        DeviceBus.Tx(Model, $"[UT] T={SimTrace.F(t)} addr1={a1} addr2={a2}");
-        await Task.Delay(3, ct);
-        var val = (float)(1.0 + (t / 100.0) + _rng.NextDouble() * 0.001);
-        DeviceBus.Rx(Model, SimTrace.F(val));
-        return val;
+        var perSlot = (SlotHash(a1, a2) - 0.5) * 110.0;
+        var temperature = BridgeTcoOhmPerC * (tempC - 25.0);
+        var noise = (_rng.NextDouble() - 0.5) * 2.0;
+        return BridgeBaseOhm + perSlot + temperature + noise;
+    }
+
+    public Task<float> ReadUsourceAsync(float p, float t, int v, string a1, string a2, CancellationToken ct = default)
+        => SimRead("Usource", a1, a2, UsourceVolts + (_rng.NextDouble() - 0.5) * 0.002, ct);
+
+    /// <summary>Isource = Usource / R，保证报表 R(Ω) 列落在现场量级。</summary>
+    public Task<float> ReadIsourceAsync(float p, float t, int v, string a1, string a2, CancellationToken ct = default)
+        => SimRead("Isource", a1, a2, UsourceVolts / BridgeResistance(a1, a2, t), ct);
+
+    public Task<float> ReadUsigAsync(float p, float t, int v, string a1, string a2, CancellationToken ct = default)
+    {
+        var h = SlotHash(a1, a2);
+        var zero = (h - 0.45) * 6.0;              // 零点：-2.7 ~ +3.3 mV（现场样例实测 -0.4 ~ 3.7）
+        var sensitivity = 6.4 + h * 1.8;          // 灵敏度：6.4 ~ 8.2 mV/压力单位
+        var temperature = 1.0 - UsigTempCoeffPerC * (t - 25.0);
+        var noise = (_rng.NextDouble() - 0.5) * 0.004;
+        return SimRead("Usig", a1, a2, (zero + sensitivity * p) * temperature + noise, ct);
+    }
+
+    public Task<float> ReadUtAsync(float p, float t, int v, string a1, string a2, CancellationToken ct = default)
+    {
+        var offset = (SlotHash(a1, a2) - 0.5) * 0.02;   // 工位个体差异 ±10 mV
+        var noise = (_rng.NextDouble() - 0.5) * 0.0004;
+        return SimRead("UT", a1, a2, 1.0 + t / 100.0 + offset + noise, ct);
     }
 }
 

@@ -1,4 +1,4 @@
-<UserControl x:Class="M30TestApp.Wpf.Views.ManualView"
+﻿<UserControl x:Class="M30TestApp.Wpf.Views.ManualView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:M30TestApp.Wpf.ViewModels"
@@ -67,7 +67,11 @@
             <!-- 采集卡串口 -->
             <Border Style="{StaticResource Card}" Grid.Column="0" Margin="0,0,8,8">
                 <StackPanel>
-                    <TextBlock Text="数据采集卡串口设置" Style="{StaticResource GroupTitle}"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="数据采集卡串口设置" Style="{StaticResource GroupTitle}"/>
+                    </StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -118,7 +122,11 @@
             <!-- 烘箱串口 -->
             <Border Style="{StaticResource Card}" Grid.Column="1" Margin="0,0,8,8">
                 <StackPanel>
-                    <TextBlock Text="烘箱串口设置" Style="{StaticResource GroupTitle}"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="烘箱串口设置" Style="{StaticResource GroupTitle}"/>
+                    </StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -169,7 +177,11 @@
             <!-- 读取数据 -->
             <Border Style="{StaticResource Card}" Grid.Column="2" Margin="0,0,0,8">
                 <StackPanel>
-                    <TextBlock Text="通道选择" Style="{StaticResource GroupTitle}"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="通道选择" Style="{StaticResource GroupTitle}"/>
+                    </StackPanel>
                     <Grid Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -198,7 +210,11 @@
                         </StackPanel>
                     </Grid>
                     <Separator Margin="0,0,0,6"/>
-                    <TextBlock Text="读取数据" Style="{StaticResource GroupTitle}"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="读取数据" Style="{StaticResource GroupTitle}"/>
+                    </StackPanel>
                     <Grid HorizontalAlignment="Left">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
@@ -262,7 +278,11 @@
             <!-- 压力控制 (左) -->
             <Border Style="{StaticResource Card}" Grid.Column="0" Margin="0,0,8,0">
                 <StackPanel>
-                    <TextBlock Text="压力控制" Style="{StaticResource GroupTitle}"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="压力控制" Style="{StaticResource GroupTitle}"/>
+                    </StackPanel>
                     <Grid Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -432,7 +452,11 @@
 
                     <Separator Margin="0,10"/>
 
-                    <TextBlock Text="烘箱温度控制" Style="{StaticResource GroupTitle}"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="烘箱温度控制" Style="{StaticResource GroupTitle}"/>
+                    </StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -464,7 +488,11 @@
             <!-- 多点采集 (右) -->
             <Border Style="{StaticResource Card}" Grid.Column="2" Grid.ColumnSpan="2" Margin="0">
                 <StackPanel>
-                    <TextBlock Text="批量采集" Style="{StaticResource GroupTitle}"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="批量采集" Style="{StaticResource GroupTitle}"/>
+                    </StackPanel>
                     <Grid Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>

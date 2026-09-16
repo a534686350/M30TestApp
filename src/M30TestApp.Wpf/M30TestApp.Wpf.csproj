@@ -29,5 +29,10 @@
     <Content Include="..\..\保存数据格式\全性能.xlsx" Link="保存数据格式\全性能.xlsx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- 晶圆测试模板：现场样例报表，运行设置窗口选「晶圆测试」时用它当模板。 -->
+    <Content Include="..\..\保存数据格式\生成的数据格式\*.xlsx"
+             Link="保存数据格式\生成的数据格式\%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 </Project>

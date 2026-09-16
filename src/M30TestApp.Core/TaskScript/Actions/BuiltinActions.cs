@@ -1444,21 +1444,37 @@ public sealed class RunPerformanceTestAction : IAction
         Directory.CreateDirectory(batchDir);
 
         var serialMap = ctx.Slots.Entries.ToDictionary(s => s.Slot, s => s.SerialNo);
+
+        // 报表模板由运行设置窗口「生成模板」决定：
+        //   Auto  = 自动测试模板，沿用现场既有的全性能.xlsx，桌面仍写旧版兼容 CSV（行为不变）；
+        //   Wafer = 晶圆测试模板，用「生成的数据格式」下的样例产出报表，并在桌面另存一份同名 xlsx。
+        var templateMode = TemplatePerformanceExporter.ResolveTemplateMode(ctx.Settings);
+        var waferMode = templateMode == ReportTemplateMode.Wafer;
+
         if (LegacyCsvExporter.IsLegacyProfile(ctx.Plan))
         {
-            var templateXlsxName = $"{dateStr} {timeStr}-{seq:D2} {safeSensor}(全性能).xlsx";
+            // 现场报表命名与样例一致：日期 时间-序号 型号(性能测试).xlsx，
+            // 型号优先取运行设置窗口录入的报表型号，留空回落方案型号（去掉 M30- 前缀）。
+            var templateXlsxName = $"{dateStr} {timeStr}-{seq:D2} {TemplatePerformanceExporter.ResolveModelName(ctx)}(性能测试).xlsx";
             var templateXlsx = Path.Combine(batchDir, templateXlsxName);
             try
             {
-                TemplatePerformanceExporter.Export(ctx, templateXlsx);
-                AppLog.Info("Save", $"全性能模板数据保存到 {templateXlsx}");
+                TemplatePerformanceExporter.Export(ctx, templateXlsx,
+                    TemplatePerformanceExporter.ResolveTemplatePath(templateMode));
+                AppLog.Info("Save", $"性能测试报表保存到 {templateXlsx}");
             }
             catch (Exception ex)
             {
                 // 保留旧导出作为兜底，避免现场没有随程序部署模板时丢失数据。
-                AppLog.Warn("Save", $"全性能模板导出失败，改用通用 XLSX：{ex.Message}");
+                AppLog.Warn("Save", $"性能测试报表导出失败，改用通用 XLSX：{ex.Message}");
                 ctx.Matrix.ExportXlsx(templateXlsx, ctx.Columns, serialMap);
                 AppLog.Info("Save", $"通用 XLSX 数据保存到 {templateXlsx}");
+            }
+
+            if (waferMode)
+            {
+                CopyReportToDesktop(templateXlsx, templateXlsxName);
+                return;
             }
 
             try
@@ -1480,6 +1496,27 @@ public sealed class RunPerformanceTestAction : IAction
         var xlsx = Path.Combine(batchDir, xlsxName);
         ctx.Matrix.ExportXlsx(xlsx, ctx.Columns, serialMap);
         AppLog.Info("Save", $"数据保存到 {xlsx}");
+
+        if (waferMode)
+            CopyReportToDesktop(xlsx, xlsxName);
+    }
+
+    /// <summary>晶圆测试模式：把生成的报表在桌面另存一份（同名覆盖），方便现场直接取用。</summary>
+    private static void CopyReportToDesktop(string source, string fileName)
+    {
+        try
+        {
+            var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            if (string.IsNullOrWhiteSpace(desktop) || !Directory.Exists(desktop)) return;
+
+            var target = Path.Combine(desktop, fileName);
+            File.Copy(source, target, overwrite: true);
+            AppLog.Info("Save", $"报表已在桌面另存一份：{target}");
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("Save", $"桌面另存报表失败: {ex.Message}");
+        }
     }
 
     private static string SafePath(string text)

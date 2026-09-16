@@ -24,10 +24,9 @@ public partial class TestRunView : UserControl
     {
         if (!IsLoaded) return;
 
-        // 普通窗口优先保证采集矩阵可见；全屏/大窗口再展开实时日志。
+        // 采集矩阵优先：窄窗口收窄右侧栏（测试统计 + 实时日志），把宽度让给矩阵。
         var compact = ActualHeight < 760 || ActualWidth < 1120;
-        LiveLogPanel.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-        LiveLogRow.Height = compact ? new GridLength(0) : new GridLength(140);
+        RightRailColumn.Width = new GridLength(compact ? 260 : 330);
     }
 
     /// <summary>

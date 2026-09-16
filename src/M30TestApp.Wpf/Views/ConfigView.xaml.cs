@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -183,11 +184,47 @@ public partial class ConfigView : UserControl
 
     private void OnBarcodeConfirm(object sender, RoutedEventArgs e) => ApplyBarcode();
 
+    /// <summary>
+    /// 「清空重扫」：清除全部已录入的序列号并回到第 1 行。
+    /// 原先只把游标归零、不动数据，用户点了没反应；现在真清，且清空前二次确认。
+    /// </summary>
     private void OnScanResetClick(object sender, RoutedEventArgs e)
     {
+        if (DataContext is not ConfigViewModel vm) return;
+
+        var total = vm.Slots.Count;
+        var scanned = vm.Slots.Count(s => !string.IsNullOrEmpty(s.SerialNo));
+
+        // 没有已录入内容：只需回到第 1 行，不必打扰用户。
+        if (scanned == 0)
+        {
+            ResetScanSlot();
+            ScanStatusText.Text = total == 0 ? "没有工位" : "没有已录入的序列号，已回到第 1 行";
+            ScanStatusText.Foreground = StatusOkBrush;
+            BarcodeInput.Clear();
+            BarcodeInput.Focus();
+            return;
+        }
+
+        var result = MessageBox.Show(
+            $"将清除已录入的 {scanned} 个序列号（共 {total} 个工位），并回到第 1 行。\n\n" +
+            "此操作不可撤销，确定清空吗？",
+            "清空重扫",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (result != MessageBoxResult.Yes)
+        {
+            BarcodeInput.Focus();
+            return;
+        }
+
+        foreach (var slot in vm.Slots)
+            slot.SerialNo = "";
+
         ResetScanSlot();
-        ScanStatusText.Text = "已回到第 1 行";
+        ScanStatusText.Text = $"已清空 {scanned} 个序列号，回到第 1 行";
         ScanStatusText.Foreground = StatusOkBrush;
+        BarcodeInput.Clear();
         BarcodeInput.Focus();
     }
 

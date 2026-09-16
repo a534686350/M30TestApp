@@ -142,7 +142,12 @@ public sealed class TestPlan
             "TCT" => "CT",
             _ => null,
         };
-        return alias is not null && EnabledMetrics.TryGetValue(alias, out var onAlias) && onAlias;
+        if (alias is not null && EnabledMetrics.TryGetValue(alias, out var onAlias))
+            return onAlias;
+
+        // 兜底：方案 ini 的 [Metrics] 只写了部分键时，未列出的指标按启用处理。
+        // 否则缺键会让指标被静默当成禁用（AJ 恒为 pass、报表也不标色）。
+        return true;
     }
 
     /// <summary>灏嗗瓧绗︿覆锛堣嫳鏂囨垨涓枃锛夎В鏋愪负 <see cref="PressureType"/>锛屾棤娉曡瘑鍒椂杩斿洖 Gauge銆?/summary>

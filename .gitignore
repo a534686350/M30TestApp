@@ -39,3 +39,10 @@ publish/
 publish-self/
 artifacts/
 f40/releases/*.zip
+
+# AI 工作区 / 临时目录（不进仓库）
+.workbuddy/
+.workbuddy-ai/
+.agents/
+M30TempFix/
+保存数据格式/截图/

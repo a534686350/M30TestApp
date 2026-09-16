@@ -8,15 +8,17 @@
              mc:Ignorable="d">
 
     <Grid Margin="12">
-        <Border Style="{StaticResource Card}" Padding="0">
+        <Border Style="{StaticResource PanelCard}">
             <DockPanel>
-                <Border DockPanel.Dock="Top" Background="{StaticResource HeaderBgBrush}"
-                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
-                        Padding="12,8">
-                    <DockPanel>
-                        <TextBlock Text="运行日志" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <Border DockPanel.Dock="Top" Style="{StaticResource PanelTitleBar}">
+                    <DockPanel LastChildFill="False">
+                        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                            <Rectangle Width="3" Height="12" Fill="{StaticResource AccentBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="运行日志" Style="{StaticResource PanelTitleText}"/>
+                        </StackPanel>
                         <Button DockPanel.Dock="Right" Content="清空" Style="{StaticResource GhostButton}"
-                                Command="{Binding ClearCommand}" HorizontalAlignment="Right"/>
+                                Padding="10,1" Command="{Binding ClearCommand}"/>
                     </DockPanel>
                 </Border>
                 <TextBox x:Name="LogTextBox" Text="{Binding Buffer.Text, Mode=OneWay}" BorderThickness="0"
