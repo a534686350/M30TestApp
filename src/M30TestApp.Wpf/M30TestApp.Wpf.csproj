@@ -28,11 +28,33 @@
     <!-- Keep the field-provided full-performance workbook beside the executable. -->
     <Content Include="..\..\保存数据格式\全性能.xlsx" Link="保存数据格式\全性能.xlsx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
     <!-- 晶圆测试模板：现场样例报表，运行设置窗口选「晶圆测试」时用它当模板。 -->
     <Content Include="..\..\保存数据格式\生成的数据格式\*.xlsx"
              Link="保存数据格式\生成的数据格式\%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
   </ItemGroup>
+
+  <!--
+    实测：上面这两个 Content 项（含中文路径的 .xlsx）在 dotnet publish 时**不会**进 PublishDir，
+    即使显式写了 CopyToPublishDirectory（v1.2.40 出包时验证：publish 目录里始终没有 保存数据格式/）。
+    因此 publish 后再显式拷一次，保证现场包里带着报表模板，否则「晶圆测试模板」在现场会找不到模板。
+  -->
+  <Target Name="CopyReportTemplatesToPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <ReportTemplateRoot Include="$(MSBuildProjectDirectory)\..\..\保存数据格式\全性能.xlsx" />
+      <ReportTemplateWafer Include="$(MSBuildProjectDirectory)\..\..\保存数据格式\生成的数据格式\*.xlsx" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ReportTemplateRoot)"
+          DestinationFolder="$(PublishDir)保存数据格式"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(ReportTemplateWafer)"
+          DestinationFolder="$(PublishDir)保存数据格式\生成的数据格式"
+          SkipUnchangedFiles="true" />
+    <Message Importance="high"
+             Text="报表模板已随包部署：@(ReportTemplateRoot->'%(Filename)%(Extension)', ', ') @(ReportTemplateWafer->'%(Filename)%(Extension)', ', ')" />
+  </Target>
 </Project>
