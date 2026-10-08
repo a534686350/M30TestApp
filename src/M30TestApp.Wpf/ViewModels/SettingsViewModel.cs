@@ -1,5 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;
+using System.Linq;
 using System.Net.Http;
 using System.Reflection;
 using System.Text.Json;
@@ -8,6 +12,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using M30TestApp.Core;
 using M30TestApp.Core.Common;
+using M30TestApp.Core.Config;
 using M30TestApp.Wpf.Mvvm;
 using M30TestApp.Wpf.Services;
 using M30TestApp.Wpf.Themes;
@@ -116,6 +121,17 @@ public sealed class SettingsViewModel : ViewModelBase
     public RelayCommand OpenRepoCommand { get; }
     public AsyncRelayCommand CheckUpdateCommand { get; }
     public RelayCommand RollbackCommand { get; }
+    public RelayCommand SaveDevicesCommand { get; }
+    public RelayCommand ReloadDevicesCommand { get; }
+
+    // ─── 设备配置（设置页「设备」页） ────────────────────────────────────────
+
+    /// <summary>
+    /// 设备配置编辑器。与配置页「设备」页**共用同一个实例**（由 <c>MainViewModel</c> 注入），
+    /// 两页看到同一份数据、保存走同一条生效链路（<see cref="DeviceConfigSet.SaveAndApply"/>）。
+    /// 支持同类多台（DAQ973A 可配 1-3 台）与万用表通道分配。
+    /// </summary>
+    public DeviceConfigSet DeviceConfig { get; }
 
     /// <summary>是否存在可回退的上一版本备份（升级时自动生成）。</summary>
     public bool HasRollbackBackup => SelfUpdater.HasRollbackBackup;
@@ -132,9 +148,10 @@ public sealed class SettingsViewModel : ViewModelBase
 
     private readonly TestSession _session;
 
-    public SettingsViewModel(TestSession session)
+    public SettingsViewModel(TestSession session, DeviceConfigSet deviceConfig)
     {
         _session = session;
+        DeviceConfig = deviceConfig;
         _language = LanguageHelper.Normalize(AppPreferences.Language(session.Context.Settings));
         _theme = ThemeHelper.Normalize(AppPreferences.Theme(session.Context.Settings));
         _debugMode = AppPreferences.DebugMode(session.Context.Settings);
@@ -148,6 +165,37 @@ public sealed class SettingsViewModel : ViewModelBase
         CheckUpdateCommand = new AsyncRelayCommand(CheckForUpdateAsync);
 
         RollbackCommand = new RelayCommand(_ => RollbackToPreviousVersion());
+
+        SaveDevicesCommand = new RelayCommand(_ => SaveDeviceConfigs());
+        ReloadDevicesCommand = new RelayCommand(_ => ReloadDeviceConfigs());
+        DeviceConfig.Load(_session.Context.Settings);
+    }
+
+    // ─── 设备配置读写 ───────────────────────────────────────────────────────
+
+    private void ReloadDeviceConfigs()
+    {
+        DeviceConfig.Load(_session.Context.Settings);
+        UpdateStatus = "已重新读取 Setting.ini 中的设备配置。";
+    }
+
+    /// <summary>
+    /// 把「设备」页的编辑写回 Setting.ini 并立即生效：落盘 → 同步 Station 的两套字典 → 重建设备。
+    /// 必须走 <see cref="DeviceConfigSet.SaveAndApply"/>，以前这里只 Save + RebuildDevices，
+    /// 没同步 Station，导致改完地址本次会话不生效、必须再去配置页保存一次。
+    /// </summary>
+    private void SaveDeviceConfigs()
+    {
+        try
+        {
+            UpdateStatus = DeviceConfig.SaveAndApply(_session, _session.Context.Settings, _debugMode);
+            AppLog.Info("Settings", UpdateStatus);
+        }
+        catch (Exception ex)
+        {
+            UpdateStatus = "保存设备配置失败：" + ex.Message;
+            AppLog.Error("Settings", UpdateStatus);
+        }
     }
 
     private void RollbackToPreviousVersion()
@@ -421,7 +469,9 @@ public sealed class SettingsViewModel : ViewModelBase
 
         try
         {
-            _session.RebuildDevices(enabled);
+            // 走 ReloadStation（而不是裸 RebuildDevices）：设备后端开关来自 Station 里的
+            // profile.Backend，与「设备」页的「启用」是同一份，统一走一条路径不会漏同步。
+            _session.ReloadStation(_session.Context.Settings);
             UpdateStatus = enabled
                 ? "调试模式已开启：不连接真实硬件，使用模拟设备。"
                 : "调试模式已关闭：后续连接按设备配置执行。";

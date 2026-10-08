@@ -5,6 +5,12 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              mc:Ignorable="d">
 
+    <DockPanel>
+    <!-- 顶部同步横向滚动条：矩阵列多时，不必先滚到底部才能拖动横向滚动 -->
+    <ScrollBar x:Name="TopScrollBar" DockPanel.Dock="Top" Orientation="Horizontal"
+               Height="14" Margin="0,0,0,2" Visibility="Collapsed"
+               SmallChange="24" LargeChange="120"
+               Scroll="OnTopScrollBarScroll"/>
     <DataGrid x:Name="Grid"
               AutoGenerateColumns="False"
               FrozenColumnCount="2"
@@ -17,11 +23,12 @@
               CanUserResizeColumns="True"
               CanUserSortColumns="False"
               CanUserReorderColumns="False"
-              EnableRowVirtualization="False"
-              EnableColumnVirtualization="False"
-              VirtualizingPanel.VirtualizationMode="Standard"
-              VirtualizingPanel.IsVirtualizing="False"
-              ScrollViewer.CanContentScroll="False"
+              EnableRowVirtualization="True"
+              EnableColumnVirtualization="True"
+              VirtualizingPanel.VirtualizationMode="Recycling"
+              VirtualizingPanel.IsVirtualizing="True"
+              VirtualizingPanel.ScrollUnit="Pixel"
+              ScrollViewer.CanContentScroll="True"
               ScrollViewer.PanningMode="Both"
               ScrollViewer.HorizontalScrollBarVisibility="Auto"
               ScrollViewer.VerticalScrollBarVisibility="Auto">
@@ -34,4 +41,5 @@
             </ContextMenu>
         </DataGrid.ContextMenu>
     </DataGrid>
+    </DockPanel>
 </UserControl>

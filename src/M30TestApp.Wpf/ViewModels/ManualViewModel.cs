@@ -657,16 +657,18 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
 
     public async Task ToggleValveAsync(int index, bool on)
     {
-        var channel = GetValveChannel(index);
+        // 每个阀的接线极性可以不同（有的 OPEN 是开、有的 CLOSE 是开），
+        // 一律交给 ValveRelay 按 [ValveSettings] {Key}Invert 决定实际指令。
+        var relay = ValveRelay.ForIndex(LoadSettingIni(), index);
 
         if (_session.Dmm.State != ConnectionState.Connected)
             await _session.Dmm.OpenAsync();
         if (on)
-            await _session.Dmm.OpenRelayAsync(channel);     // ROUT:OPEN  = 阀门开
+            await relay.OpenAsync(_session.Dmm);
         else
-            await _session.Dmm.CloseRelayAsync(channel);    // ROUT:CLOSE = 阀门关
+            await relay.CloseAsync(_session.Dmm);
         await Task.Delay(GetDelaySettingMs("ValveSwitchMs", 500));
-        Hist($"{GetValveLabel(index)}({channel}) → {(on ? "开" : "关")}");
+        Hist($"{GetValveLabel(index)}({relay.Address}) → {(on ? "开" : "关")} [{relay.CommandFor(on)}]");
     }
 
     private async Task SafeResetAsync()
@@ -697,8 +699,9 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         {
             if (_session.Dmm.State != ConnectionState.Connected)
                 await _session.Dmm.OpenAsync();
+            var ini = LoadSettingIni();
             foreach (var valve in Valves)
-                await _session.Dmm.CloseRelayAsync(GetValveChannel(valve.Index));
+                await ValveRelay.ForIndex(ini, valve.Index).CloseAsync(_session.Dmm);
             foreach (var valve in Valves)
                 valve.SetState(false);
             Hist("安全复位：阀门已关闭");
@@ -712,8 +715,10 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
     /// <summary>从DMM读取所有阀门通道(101-109)的实际继电器状态，更新 UI。</summary>
     public async Task RefreshValveStatesAsync()
     {
+        var ini = LoadSettingIni();
         var targets = Valves
-            .Select(v => (v.Index, Channel: GetValveChannel(v.Index)))
+            .Select(v => (v.Index, Relay: ValveRelay.ForIndex(ini, v.Index)))
+            .Where(t => t.Relay.IsValid)
             .ToList();
 
         try
@@ -724,8 +729,9 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
                 var result = new List<(int Index, bool IsOn)>();
                 foreach (var target in targets)
                 {
-                    var isClosed = await _session.Dmm.QueryRelayStateAsync(target.Channel).ConfigureAwait(false);
-                    result.Add((target.Index, isClosed)); // closed = 闭合 = 阀开
+                    var relayState = await _session.Dmm.QueryRelayStateAsync(target.Relay.Address).ConfigureAwait(false);
+                    // 按该阀的接线极性换算成逻辑阀状态（反相阀的读数要取反）
+                    result.Add((target.Index, target.Relay.ToValveOpen(relayState)));
                 }
                 return result;
             }).ConfigureAwait(true);
@@ -744,25 +750,8 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
 
     private static string GetValveLabel(int index) => index == 0 ? "总阀" : $"阀{index}";
 
-    private static string GetValveChannel(int index)
-    {
-        var ini = LoadSettingIni();
-        var key = index == 0 ? "MasterValve" : $"Valve{index}";
-        var fallback = index switch
-        {
-            0 => "101",
-            1 => "103",
-            2 => "102",
-            3 => "104",
-            4 => "105",
-            5 => "106",
-            6 => "107",
-            7 => "108",
-            8 => "109",
-            _ => throw new InvalidOperationException("未知阀门编号")
-        };
-        return ini.Get("ValveSettings", key, fallback);
-    }
+    /// <summary>阀门通道地址（0 = 总阀，1-8 = 阀门1-8）；地址与极性统一由 ValveRelay 解释。</summary>
+    private static string GetValveChannel(int index) => ValveRelay.ForIndex(LoadSettingIni(), index).Address;
 
     private static int GetDelaySettingMs(string key, int fallback)
     {
@@ -861,7 +850,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         return new SlotEntry(
             Slot: $"Slot{slotNum}",
             SerialNo: "-",
-            Valve: ((slotNum - 1) / 32 + 1).ToString(CultureInfo.InvariantCulture),
+            Valve: SlotLayoutHelper.ValveForSlot(slotNum).ToString(CultureInfo.InvariantCulture),
             Board: board.ToString(CultureInfo.InvariantCulture),
             BoardSlotNo: boardSlot.ToString(CultureInfo.InvariantCulture),
             Layer: "1",

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 
 namespace M30TestApp.Core.Config;
@@ -21,6 +22,27 @@ public sealed record SlotLayoutOptions(
 public static class SlotLayoutHelper
 {
     public const int SlotMax = 256;
+
+    /// <summary>每个阀门继电器负责的工位数（现场：每 32 个工位共用 1 个阀门）。</summary>
+    public const int SlotsPerValve = 32;
+
+    /// <summary>
+    /// 工位号 → 阀门号（对应 Setting.ini [ValveSettings] 的 Valve{n}）。
+    /// 每 32 个工位一个阀：1-32 → 阀1，33-64 → 阀2 …… 129-192 → 阀5/阀6，
+    /// 即通道 106/107（现场按通道尾号口头称「6、7 号阀」）。
+    /// 预览列表、配置页批量生成、运行时探漏与加压阀门切换必须共用本函数，
+    /// 否则「按工位选的阀门」和「实际打开的阀门」会不一致。
+    /// </summary>
+    public static int ValveForSlot(int slotNo) =>
+        (Math.Max(1, slotNo) - 1) / SlotsPerValve + 1;
+
+    /// <summary>起始工位所在阀组的第一组工位号（用于展示「阀门 n - m」）。</summary>
+    public static string ValveRangeText(int startSlotNo, int count)
+    {
+        var first = ValveForSlot(startSlotNo);
+        var last = ValveForSlot(startSlotNo + Math.Max(0, count - 1));
+        return first == last ? $"阀门 {first}" : $"阀门 {first} - {last}";
+    }
 
     public static bool IsPlaceholderSerial(string? serialNo) =>
         string.IsNullOrWhiteSpace(serialNo)
@@ -81,12 +103,14 @@ public static class SlotLayoutHelper
 
     public static List<SlotEntry> Generate(SlotLayoutOptions opt)
     {
-        var count = Math.Clamp(opt.SlotCount, 1, SlotMax);
+        // 工位号 = 起始工位 + 序号，必须整体落在 1..SlotMax 内：
+        // 起始工位 129 时最多只能生成 128 个工位（129-256）。
+        var firstSlotNo = Math.Clamp(opt.StartIndex, 1, SlotMax);
+        var count = Math.Clamp(opt.SlotCount, 1, SlotMax - firstSlotNo + 1);
         var list = new List<SlotEntry>(count);
 
         int board = opt.StartBoard;
         int boardSlot = opt.StartBoardSlot;
-        int valve = opt.StartValve;
         int fixtureSlot = 1;
         int fixture = 1;
         int layer = 1;
@@ -95,15 +119,18 @@ public static class SlotLayoutHelper
 
         for (int i = 0; i < count; i++)
         {
-            string slotName = $"Slot{i + 1}";
+            var slotNo = firstSlotNo + i;
+            string slotName = $"Slot{slotNo}";
             string serialNo = opt.AutoNumber
                 ? $"{opt.BatchNo}#{serial}"
-                : $"{opt.BatchNo}#{i + opt.StartIndex}";
+                : $"{opt.BatchNo}#{slotNo}";
 
             list.Add(new SlotEntry(
                 Slot: slotName,
                 SerialNo: serialNo,
-                Valve: valve.ToString(),
+                // 阀门严格按测试工位推导，不跟随「起始阀位」递增：
+                // 起始工位 129 必须落在 5 号阀组，而不是从 1 号阀重新数。
+                Valve: ValveForSlot(slotNo).ToString(CultureInfo.InvariantCulture),
                 Board: board.ToString(),
                 BoardSlotNo: boardSlot.ToString(),
                 Layer: layer.ToString(),
@@ -121,7 +148,6 @@ public static class SlotLayoutHelper
             if (fixtureSlot > opt.FixtureSlotCapacity) { fixtureSlot = 1; fixture++; }
             if (fixture > opt.FixtureCount) { fixture = 1; layer++; }
             channel++;
-            if ((i + 1) % 32 == 0) valve++;
         }
 
         return list;

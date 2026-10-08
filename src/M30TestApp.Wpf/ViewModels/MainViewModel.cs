@@ -53,6 +53,9 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         {
             if (!SetField(ref _testMode, value)) return;
             OnPropertyChanged(nameof(TestModeView));
+            OnPropertyChanged(nameof(SelectedTabKey));
+            NotifyTabFlags();
+            OnPropertyChanged(nameof(PageTitle));
             OnPropertyChanged(nameof(CurrentRunModeTitle));
             OnPropertyChanged(nameof(CurrentRunStatus));
             OnPropertyChanged(nameof(CurrentRunStep));
@@ -100,6 +103,13 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public RelayCommand ExitCommand         { get; }
     public RelayCommand ShowDarkThemeCommand { get; }
     public RelayCommand ShowLightThemeCommand { get; }
+
+    /// <summary>顶栏一键切主题（深色 ⇄ 浅色）。</summary>
+    public RelayCommand ToggleThemeCommand { get; }
+
+    /// <summary>主题按钮上的文字 = 点一下会切到哪个主题。</summary>
+    public string ToggleThemeText =>
+        ThemeHelper.Normalize(AppPreferences.Theme(Session.Context.Settings)) == ThemeHelper.Dark ? "浅色" : "深色";
     public RelayCommand ShowVersionInfoCommand { get; }
 
     /// <summary>标题栏/状态栏显示的程序版本号。</summary>
@@ -126,8 +136,12 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         set
         {
             if (!SetField(ref _selectedNavKey, value)) return;
+            OnPropertyChanged(nameof(SelectedTabKey));
+            NotifyTabFlags();
             OnPropertyChanged(nameof(PageTitle));
+            OnPropertyChanged(nameof(PageSubtitle));
             OnPropertyChanged(nameof(PageGroupTitle));
+            OnPropertyChanged(nameof(IsTestFamily));
             OnPropertyChanged(nameof(CurrentRunStatus));
             OnPropertyChanged(nameof(CurrentRunStep));
             StartSelectedRunCommand?.RaiseCanExecuteChanged();
@@ -135,17 +149,59 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    /// <summary>页面头显示的当前页名。</summary>
+    /// <summary>
+    /// 顶部页签的高亮键。测试族三页各占一个（Auto / LongTerm / Quick），其余模块沿用
+    /// <see cref="SelectedNavKey"/>。
+    /// 必须单独一个属性：三种测试都是 <see cref="SelectedNavKey"/> == "Test"，
+    /// 光看它分不出当前是哪一个测试页。
+    /// </summary>
+    public string SelectedTabKey => SelectedNavKey == "Test"
+        ? TestMode switch { "LongTerm" => "LongTerm", "Quick" => "Quick", _ => "Auto" }
+        : SelectedNavKey;
+
+    // 页签选中态用 6 个显式 bool，而不是「SelectedTabKey + ConverterParameter」转换器。
+    // 转换器 + RadioButton.IsChecked 这套组合出过一次「点了长期稳定性、高亮却停在手动调试」，
+    // 改成显式属性后每次状态变化都明确通知，不再依赖转换器与 GroupName 的交互。
+    public bool IsTabAuto => SelectedTabKey == "Auto";
+    public bool IsTabLongTerm => SelectedTabKey == "LongTerm";
+    public bool IsTabQuick => SelectedTabKey == "Quick";
+    public bool IsTabManual => SelectedNavKey == "Manual";
+    public bool IsTabLog => SelectedNavKey == "Log";
+    public bool IsTabSettings => SelectedNavKey == "Settings";
+
+    /// <summary>页签选中态的 6 个 bool 一次性通知（每次导航 / 模式变化都要刷）。</summary>
+    private void NotifyTabFlags()
+    {
+        OnPropertyChanged(nameof(IsTabAuto));
+        OnPropertyChanged(nameof(IsTabLongTerm));
+        OnPropertyChanged(nameof(IsTabQuick));
+        OnPropertyChanged(nameof(IsTabManual));
+        OnPropertyChanged(nameof(IsTabLog));
+        OnPropertyChanged(nameof(IsTabSettings));
+    }
+
+    /// <summary>是否停在测试族三页之一（决定命令条显示「开始/停止」还是页面标题）。</summary>
+    public bool IsTestFamily => SelectedNavKey == "Test";
+
+    /// <summary>页面头显示的当前页名（测试族显示具体模式名，不再笼统叫「测试」）。</summary>
     public string PageTitle => SelectedNavKey switch
     {
-        "Test" => "测试",
+        "Test" => CurrentRunModeTitle,
         "Manual" => "手动调试",
+        "Log" => "运行日志",
+        "Settings" => "配置中心",
         "Plan" => "测试方案配置",
         "Slots" => "工位配置",
-        "Config" => "系统配置",
-        "Log" => "运行日志",
-        "Settings" => "系统设置",
         _ => "自动测试",
+    };
+
+    /// <summary>页面头副标题：非测试族页签说明这一页是干什么的；测试族为空（命令条显示工步）。</summary>
+    public string PageSubtitle => SelectedNavKey switch
+    {
+        "Manual" => "设备点动 · 单次读数 · 状态刷新",
+        "Log" => "全量运行日志 · 关键字过滤",
+        "Settings" => "方案 / 工位 / 设备 / 指令",
+        _ => "",
     };
 
     /// <summary>页面头显示的分组名（面包屑上一级）。</summary>
@@ -170,9 +226,12 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         LongTermStability = new TestRunViewModel(session, isLongTermStabilityMode: true);
         Manual = new ManualViewModel(session, ovenStatus, dacStatus);
         QuickTest = new QuickTestViewModel(session);
-        Config = new ConfigViewModel(session);
+        // 设备配置编辑器只创建一份，配置页与偏好设置页共用 —— 两页各 new 一个的话，
+        // 在设置页改了地址，配置页的表格还是旧值。
+        var deviceConfig = new DeviceConfigSet();
+        Config = new ConfigViewModel(session, deviceConfig);
         Log = new LogViewModel();
-        Settings = new SettingsViewModel(session);
+        Settings = new SettingsViewModel(session, deviceConfig);
 
         // 「设置 → 版本信息」子页要用检查更新 / 回退命令（都住在 SettingsViewModel 里）
         Config.Settings = Settings;
@@ -209,6 +268,17 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         ExitCommand        = new RelayCommand(_ => System.Windows.Application.Current.MainWindow?.Close());
         ShowDarkThemeCommand  = new RelayCommand(_ => Config.SelectedTheme = ThemeHelper.ToDisplayName(ThemeHelper.Dark));
         ShowLightThemeCommand = new RelayCommand(_ => Config.SelectedTheme = ThemeHelper.ToDisplayName(ThemeHelper.Light));
+        ToggleThemeCommand = new RelayCommand(_ =>
+        {
+            // 顶栏一键切主题：原来藏在「系统」菜单第三层，现场要点三次才换得到。
+            var cur = ThemeHelper.Normalize(AppPreferences.Theme(Session.Context.Settings));
+            var next = cur == ThemeHelper.Dark ? ThemeHelper.Light : ThemeHelper.Dark;
+            AppPreferences.Set(Session.Context.Settings, "Theme", next);
+            try { Session.Context.Settings.Save(AppPaths.SettingIni); } catch { }
+            Config.SelectedTheme = ThemeHelper.ToDisplayName(next);   // 同步配置页下拉，避免两处显示不一致
+            OnPropertyChanged(nameof(ToggleThemeText));
+            AppLog.Info("Ui", $"主题切换为 {next}");
+        });
         ShowVersionInfoCommand = new RelayCommand(_ =>
         {
             Config.SelectedSection = "版本信息";

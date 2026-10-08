@@ -14,24 +14,26 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <conv:InverseBooleanToVisibilityConverter x:Key="BoolToVisInv"/>
-        <Style x:Key="KpiCard" TargetType="Border">
+        <Style x:Key="KpiChip" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="14,10"/>
-            <Setter Property="Margin" Value="0,0,10,0"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="11,6"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Effect" Value="{StaticResource CardShadow}"/>
         </Style>
         <Style x:Key="KpiLabel" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
-            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontSize" Value="10.5"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
         <Style x:Key="KpiValue" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Margin" Value="0,2,0,0"/>
-            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
         </Style>
     </UserControl.Resources>
@@ -43,56 +45,65 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- ────────── Row 0: KPI strip ────────── -->
-        <Grid x:Name="KpiRow" Grid.Row="0" Margin="0,0,0,10">
+<!-- ────────── Row 0: KPI strip ────────── -->
+        <!-- 紧凑横条：色条 + 标签 + 数值，按内容宽度排列。
+             原先是 6 张 * 平分的大卡片，1440 宽下每张 ~230px、内容只占 ~90px，右侧全是留白。 -->
+        <Grid x:Name="KpiRow" Grid.Row="0" Margin="0,0,0,8">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <Border Style="{StaticResource KpiCard}" Grid.Column="0">
-                <StackPanel>
+<Border Style="{StaticResource KpiChip}" Grid.Column="0">
+                <StackPanel Orientation="Horizontal">
+                    <Rectangle Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
+                               Fill="{StaticResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
                     <TextBlock Text="工位总数" Style="{StaticResource KpiLabel}"/>
                     <TextBlock Text="{Binding TotalSlots}" Style="{StaticResource KpiValue}"/>
                 </StackPanel>
             </Border>
-            <Border Style="{StaticResource KpiCard}" Grid.Column="1">
-                <StackPanel>
+<Border Style="{StaticResource KpiChip}" Grid.Column="1">
+                <StackPanel Orientation="Horizontal">
+                    <Rectangle Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
+                               Fill="{StaticResource SuccessBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
                     <TextBlock Text="合格" Style="{StaticResource KpiLabel}"/>
-                    <TextBlock Text="{Binding OkCount}" Style="{StaticResource KpiValue}"
-                               Foreground="{StaticResource SuccessBrush}"/>
+                    <TextBlock Text="{Binding OkCount}" Style="{StaticResource KpiValue}" Foreground="{StaticResource SuccessBrush}"/>
                 </StackPanel>
             </Border>
-            <Border Style="{StaticResource KpiCard}" Grid.Column="2">
-                <StackPanel>
+<Border Style="{StaticResource KpiChip}" Grid.Column="2">
+                <StackPanel Orientation="Horizontal">
+                    <Rectangle Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
+                               Fill="{StaticResource WarnBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
                     <TextBlock Text="警告" Style="{StaticResource KpiLabel}"/>
-                    <TextBlock Text="{Binding WarnCount}" Style="{StaticResource KpiValue}"
-                               Foreground="{StaticResource WarnBrush}"/>
+                    <TextBlock Text="{Binding WarnCount}" Style="{StaticResource KpiValue}" Foreground="{StaticResource WarnBrush}"/>
                 </StackPanel>
             </Border>
-            <Border Style="{StaticResource KpiCard}" Grid.Column="3">
-                <StackPanel>
+<Border Style="{StaticResource KpiChip}" Grid.Column="3">
+                <StackPanel Orientation="Horizontal">
+                    <Rectangle Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
+                               Fill="{StaticResource ErrorBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
                     <TextBlock Text="异常" Style="{StaticResource KpiLabel}"/>
-                    <TextBlock Text="{Binding ErrCount}" Style="{StaticResource KpiValue}"
-                               Foreground="{StaticResource ErrorBrush}"/>
+                    <TextBlock Text="{Binding ErrCount}" Style="{StaticResource KpiValue}" Foreground="{StaticResource ErrorBrush}"/>
                 </StackPanel>
             </Border>
-            <Border Style="{StaticResource KpiCard}" Grid.Column="4">
-                <StackPanel>
+<Border Style="{StaticResource KpiChip}" Grid.Column="4">
+                <StackPanel Orientation="Horizontal">
+                    <Rectangle Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
+                               Fill="{StaticResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
                     <TextBlock Text="温度点" Style="{StaticResource KpiLabel}"/>
-                    <TextBlock Text="{Binding CurrentT}" Style="{StaticResource KpiValue}"
-                               Foreground="{StaticResource AccentBrush}"/>
+                    <TextBlock Text="{Binding CurrentT}" Style="{StaticResource KpiValue}" Foreground="{StaticResource AccentBrush}"/>
                 </StackPanel>
             </Border>
-            <Border Style="{StaticResource KpiCard}" Grid.Column="5" Margin="0">
-                <StackPanel>
+<Border Style="{StaticResource KpiChip}" Grid.Column="5" Margin="0">
+                <StackPanel Orientation="Horizontal">
+                    <Rectangle Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
+                               Fill="{StaticResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
                     <TextBlock Text="压力点" Style="{StaticResource KpiLabel}"/>
-                    <TextBlock Text="{Binding CurrentP}" Style="{StaticResource KpiValue}"
-                               Foreground="{StaticResource AccentBrush}"/>
+                    <TextBlock Text="{Binding CurrentP}" Style="{StaticResource KpiValue}" Foreground="{StaticResource AccentBrush}"/>
                 </StackPanel>
             </Border>
         </Grid>
@@ -106,22 +117,17 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
+                <!-- 测试类型与当前工步已在顶部命令条显示，这里不再重复，只保留本页特有信息。 -->
                 <StackPanel Orientation="Vertical">
                     <WrapPanel>
-                        <TextBlock Text="测试类型：" Foreground="{StaticResource MutedBrush}"/>
-                        <TextBlock Text="{Binding RunModeTitle}" FontWeight="SemiBold" Margin="4,0,16,0"
-                                   Foreground="{StaticResource AccentBrush}"/>
                         <TextBlock Text="测试方案：" Foreground="{StaticResource MutedBrush}"/>
                         <TextBlock Text="{Binding PlanName}" FontWeight="SemiBold" Margin="4,0,16,0"/>
-                        <TextBlock Text="型号：" Foreground="{StaticResource MutedBrush}"/>
-                        <TextBlock Text="{Binding SensorType}" FontWeight="SemiBold" Margin="4,0,16,0"/>
                         <TextBlock Text="状态：" Foreground="{StaticResource MutedBrush}"/>
                         <TextBlock Text="{Binding Status}" FontWeight="SemiBold" Margin="4,0,16,0"/>
                         <TextBlock Text="耗时：" Foreground="{StaticResource MutedBrush}"/>
                         <TextBlock Text="{Binding Elapsed}" FontFamily="Consolas" FontWeight="SemiBold" Margin="4,0"/>
                     </WrapPanel>
-                    <TextBlock Text="{Binding CurrentStep}" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0"/>
-                    <TextBlock Text="{Binding LastError}" Foreground="{StaticResource ErrorBrush}" Margin="0,2,0,0"
+                    <TextBlock Text="{Binding LastError}" Foreground="{StaticResource ErrorBrush}" Margin="0,4,0,0"
                                TextWrapping="Wrap"/>
                 </StackPanel>
 
@@ -134,13 +140,11 @@
                     </TextBlock>
                 </StackPanel>
 
+                <!-- 主操作（开始 / 停止）统一放在顶部命令条，这里只留本页特有的过程控制，
+                     免得同一页出现两组「开始 / 停止」，操作员会犹豫点哪个。 -->
                 <StackPanel Orientation="Horizontal" Grid.Column="2" VerticalAlignment="Center">
-                    <Button Content="▶ 开始" Style="{StaticResource PrimaryButton}"
-                            Command="{Binding RunCommand}" Margin="0,0,8,0"/>
                     <Button Content="{Binding PauseButtonText}" Style="{StaticResource GhostButton}"
-                            Command="{Binding PauseCommand}" Margin="0,0,8,0"/>
-                    <Button Content="停止" Style="{StaticResource GhostButton}"
-                            Command="{Binding CancelCommand}"/>
+                            Command="{Binding PauseCommand}" MinWidth="76"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -149,7 +153,7 @@
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition x:Name="RightRailColumn" Width="330"/>
+                <ColumnDefinition x:Name="RightRailColumn" Width="480"/>
             </Grid.ColumnDefinitions>
 
             <Border Style="{StaticResource PanelCard}">

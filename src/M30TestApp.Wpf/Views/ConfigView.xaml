@@ -11,6 +11,7 @@
 
     <UserControl.Resources>
         <local:InverseBoolConverter x:Key="InverseBoolConverter"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <Style x:Key="SectionTitle" TargetType="TextBlock">
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize"   Value="12.5"/>
@@ -46,6 +47,24 @@
                 <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontSize="12"
                            FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}"/>
                 <ComboBox Grid.Column="1" ItemsSource="{Binding Options}" SelectedItem="{Binding Value}" FontSize="12"/>
+            </Grid>
+        </DataTemplate>
+
+        <!-- 阀门配置行：通道 + 接线极性。现场各阀接线不统一，逐阀单独设置。 -->
+        <DataTemplate x:Key="ValveSettingTemplate">
+            <Grid Margin="0,0,16,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="52"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontSize="12"
+                           FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}"/>
+                <ComboBox Grid.Column="1" ItemsSource="{Binding Options}" SelectedItem="{Binding Value}" FontSize="12"/>
+                <CheckBox Grid.Column="2" Margin="8,0,0,0" VerticalAlignment="Center"
+                          Content="反相" FontSize="11"
+                          IsChecked="{Binding Invert, UpdateSourceTrigger=PropertyChanged}"
+                          ToolTip="勾选 = 该阀接线反相：程序开阀时下发 ROUT:CLOSE、关阀时下发 ROUT:OPEN。未勾选 = ROUT:OPEN 开阀。"/>
             </Grid>
         </DataTemplate>
         <Style x:Key="SlotFieldLabel" TargetType="TextBlock">
@@ -89,7 +108,7 @@
             <!-- ════════════════════════════════════════════════════════ -->
             <!-- 0. 方案 (置首，默认选中) -->
             <!-- ════════════════════════════════════════════════════════ -->
-            <TabItem Header="方案">
+            <TabItem Header="方案" Tag="测试方案">
                 <Grid Margin="0,4,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="320"/>
@@ -303,8 +322,8 @@
                                 <ItemsControl ItemsSource="{Binding Metrics}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Background="{StaticResource HeaderBgBrush}" CornerRadius="4"
-                                                    Padding="10,8" Margin="0,0,0,8">
+                                            <Border Background="{StaticResource HeaderBgBrush}" CornerRadius="6"
+                                                    Padding="8,6" Margin="0,0,0,6">
                                                 <StackPanel>
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
@@ -314,14 +333,14 @@
                                                         </Grid.ColumnDefinitions>
                                                         <CheckBox IsChecked="{Binding Enabled}" VerticalAlignment="Center"/>
                                                         <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold"
-                                                                   Margin="6,0,8,0" TextTrimming="CharacterEllipsis"/>
+                                                                   FontSize="12" Margin="6,0,8,0" TextTrimming="CharacterEllipsis"/>
                                                         <Border Grid.Column="2" Background="{StaticResource SurfaceBrush}" CornerRadius="3"
                                                                 Padding="6,1">
                                                             <TextBlock Text="{Binding Code}" FontSize="11"
                                                                        Foreground="{StaticResource MutedBrush}"/>
                                                         </Border>
                                                     </Grid>
-                                                    <Grid Margin="0,8,0,0">
+                                                    <Grid Margin="0,6,0,0">
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="Auto"/>
                                                             <ColumnDefinition Width="*"/>
@@ -452,10 +471,17 @@
                 </Border>
             </TabItem>
 
-            <TabItem Header="接口设置">
+            <TabItem Header="接口设置" Tag="设备连接" Margin="0,14,0,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="0,4,0,0">
-                        <Border Style="{StaticResource Card}" Margin="0,0,0,8">
+                    <!-- 串口设备（宽）与压力控制器（窄）左右并排：原来上下排会在下方留一大片空白 -->
+                    <Grid Margin="0,4,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.6*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Style="{StaticResource Card}" Grid.Column="0" Margin="0,0,8,0"
+                                VerticalAlignment="Top">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal">
                                     <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
@@ -497,41 +523,29 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Style="{StaticResource Card}">
+                        <Border Style="{StaticResource Card}" Grid.Column="1" VerticalAlignment="Top">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal">
                                     <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
                                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBlock Text="压力控制器 Pressure Controller" Style="{StaticResource SectionTitle}"/>
                                 </StackPanel>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel>
-                                        <TextBlock Text="GPIB地址 Address" Style="{StaticResource FieldLabel}"/>
-                                        <ComboBox ItemsSource="{Binding GpibAddresses}" Text="{Binding PressureGpibAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Margin="8,0">
-                                        <TextBlock Text="GPIB端口号 Port Num" Style="{StaticResource FieldLabel}"/>
-                                        <ComboBox ItemsSource="{Binding Ports}" Text="{Binding PressureGpibPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock Text="压力控制器型号 Type" Style="{StaticResource FieldLabel}"/>
-                                        <ComboBox ItemsSource="{Binding PressureModels}" Text="{Binding PressureModelName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
-                                    </StackPanel>
-                                </Grid>
+                                <TextBlock Text="GPIB地址 Address" Style="{StaticResource FieldLabel}"/>
+                                <ComboBox ItemsSource="{Binding GpibAddresses}" Text="{Binding PressureGpibAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
+                                <TextBlock Text="GPIB端口号 Port Num" Style="{StaticResource FieldLabel}" Margin="0,8,0,4"/>
+                                <ComboBox ItemsSource="{Binding Ports}" Text="{Binding PressureGpibPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
+                                <TextBlock Text="压力控制器型号 Type" Style="{StaticResource FieldLabel}" Margin="0,8,0,4"/>
+                                <ComboBox ItemsSource="{Binding PressureModels}" Text="{Binding PressureModelName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
                             </StackPanel>
                         </Border>
-                    </StackPanel>
+                    </Grid>
                 </ScrollViewer>
             </TabItem>
 
             <TabItem Header="温度采集">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <Border Style="{StaticResource Card}">
+                    <!-- 内容不多，卡片按内容高度收住，不要拉满整页留一片白 -->
+                    <Border Style="{StaticResource Card}" VerticalAlignment="Top">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal">
                                 <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
@@ -573,22 +587,23 @@
                 </ScrollViewer>
             </TabItem>
 
-            <TabItem Header="气路与参数">
+            <TabItem Header="气路与参数" Tag="压力与气路" Margin="0,14,0,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <Grid Margin="0,4,0,0">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
+                            <!-- 左列只有 8 个阀门，窄一点；右列时间参数表较长，给宽 -->
+                            <ColumnDefinition Width="0.85*"/>
+                            <ColumnDefinition Width="1.15*"/>
                         </Grid.ColumnDefinitions>
 
-                        <Border Style="{StaticResource Card}" Margin="0,0,8,0">
+                        <Border Style="{StaticResource Card}" Margin="0,0,8,0" VerticalAlignment="Top">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal">
                                     <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
                                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBlock Text="气路设置 / 阀门配置" Style="{StaticResource SectionTitle}"/>
                                 </StackPanel>
-                                <ItemsControl ItemsSource="{Binding ValveSettings}" ItemTemplate="{StaticResource OptionSettingTemplate}">
+                                <ItemsControl ItemsSource="{Binding ValveSettings}" ItemTemplate="{StaticResource ValveSettingTemplate}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
@@ -677,71 +692,143 @@
 
             <!-- 1. 设备 -->
             <!-- ════════════════════════════════════════════════════════ -->
-            <TabItem Header="设备">
+            <TabItem Header="设备" Tag="设备与指令" Margin="0,14,0,0">
                 <Grid Margin="0,4,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="360"/>
-                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-                    <Border Style="{StaticResource Card}" Padding="0">
-                        <DockPanel>
-                            <Border DockPanel.Dock="Top" Style="{StaticResource PanelTitleBar}">
-                                <StackPanel Orientation="Horizontal">
-                                    <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
-                                               VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                    <TextBlock Text="设备清单" Style="{StaticResource PanelTitleText}"/>
-                                </StackPanel>
-                            </Border>
-                            <DataGrid ItemsSource="{Binding Devices}" BorderThickness="0">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="类型"   Binding="{Binding Kind}"    Width="100"/>
-                                    <DataGridTextColumn Header="型号"   Binding="{Binding Model}"   Width="200"/>
-                                    <DataGridTextColumn Header="模式"   Binding="{Binding Backend}" Width="80"/>
-                                    <DataGridTextColumn Header="地址"   Binding="{Binding Address}" Width="220"/>
-                                    <DataGridTextColumn Header="波特率" Binding="{Binding Baud}"    Width="80"/>
-                                </DataGrid.Columns>
-                            </DataGrid>
-                        </DockPanel>
+                    <!-- DAQ973A 台数：决定万用表自动测试的工位上限 -->
+                    <Border Style="{StaticResource Card}" Margin="0,0,0,10" Padding="14,12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="DAQ973A 台数" FontWeight="SemiBold" FontSize="14"/>
+                                <TextBlock Text="{Binding DeviceConfig.DmmUnitHint}"
+                                           Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="0,3,0,0"/>
+                            </StackPanel>
+                            <ComboBox Grid.Column="1" Width="120" VerticalAlignment="Center"
+                                      SelectedValue="{Binding DeviceConfig.DmmUnitCount}" SelectedValuePath="Tag">
+                                <ComboBoxItem Content="1 台" Tag="1"/>
+                                <ComboBoxItem Content="2 台" Tag="2"/>
+                                <ComboBoxItem Content="3 台" Tag="3"/>
+                            </ComboBox>
+                        </Grid>
                     </Border>
 
-                    <Border Style="{StaticResource Card}" Grid.Column="1" Margin="10,0,0,0">
+                    <!-- 全部设备地址（可直接编辑） -->
+                    <Border Style="{StaticResource Card}" Grid.Row="1" Padding="0">
+                        <!-- IsReadOnly 必须显式关掉：主题里全局 DataGrid 样式默认只读，否则地址改不动 -->
+                        <DataGrid ItemsSource="{Binding DeviceConfig.Rows}" BorderThickness="0"
+                                  AutoGenerateColumns="False"
+                                  IsReadOnly="False"
+                                  CanUserAddRows="False" CanUserDeleteRows="False" CanUserResizeRows="False"
+                                  HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeight="34">
+                            <!-- 超出当前 DAQ973A 台数的行灰显（保存时不写入 ini） -->
+                            <DataGrid.RowStyle>
+                                <Style TargetType="DataGridRow">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsActive}" Value="False">
+                                            <Setter Property="Opacity" Value="0.4"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.RowStyle>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="设备" Binding="{Binding Title}" Width="140" IsReadOnly="True"/>
+                                <DataGridTemplateColumn Header="启用" Width="60">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                      IsChecked="{Binding Enabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Visibility="{Binding IsKindFirst, Converter={StaticResource BoolToVis}}"
+                                                      ToolTip="同类设备共用后端开关：勾选=接真实硬件，取消=走模拟"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="型号"
+                                                    Binding="{Binding Model, UpdateSourceTrigger=PropertyChanged}"
+                                                    Width="160"/>
+                                <DataGridTemplateColumn Header="总线 / 串口" Width="105">
+    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <ComboBox ItemsSource="{Binding BusOptions}"
+                                      SelectedItem="{Binding Bus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Padding="6,1" ToolTip="GPIB 设备选总线（GPIB0/1/…），串口设备选 COM 口"/>
+                        </DataTemplate>
+    </DataGridTemplateColumn.CellTemplate>
+</DataGridTemplateColumn>
+<DataGridTextColumn Header="地址号" Width="72"
+                                Binding="{Binding Number, UpdateSourceTrigger=PropertyChanged}"/>
+<DataGridTextColumn Header="完整地址" Binding="{Binding AddressPreview}"
+                                Width="*" IsReadOnly="True"
+                                Foreground="{StaticResource MutedBrush}"/>
+                                <DataGridTextColumn Header="波特率"
+                                                    Binding="{Binding Baud, UpdateSourceTrigger=PropertyChanged}"
+                                                    Width="90"/>
+                                <DataGridTextColumn Header="用途" Binding="{Binding Hint}" Width="220" IsReadOnly="True"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+
+                    <!-- 万用表通道分配：现场可单独指定哪组通道采电压 / 采电阻 / 切工位电源 -->
+                    <Border Style="{StaticResource Card}" Grid.Row="2" Margin="0,10,0,0" Padding="14,12">
                         <StackPanel>
-                            <StackPanel Orientation="Horizontal">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                 <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
                                            VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Text="参数模板（选中行后填充）" Style="{StaticResource SectionTitle}"/>
+                                <TextBlock Text="万用表通道分配（DAQ973A）" FontWeight="SemiBold" FontSize="13"/>
                             </StackPanel>
 
-                            <TextBlock Text="稳定时长 (min)" Style="{StaticResource FieldLabel}"/>
-                            <TextBox Text="100"/>
-                            <TextBlock Text="采集间隔 (min)" Style="{StaticResource FieldLabel}" Margin="0,8,0,4"/>
-                            <TextBox Text="1"/>
-                            <TextBlock Text="超时次数"       Style="{StaticResource FieldLabel}" Margin="0,8,0,4"/>
-                            <TextBox Text="100"/>
-                            <TextBlock Text="稳定次数"       Style="{StaticResource FieldLabel}" Margin="0,8,0,4"/>
-                            <TextBox Text="3"/>
-
-                            <Grid Margin="0,12,0,0">
+                            <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel>
-                                    <TextBlock Text="温度波动上限 (°C)" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Text="2"/>
+
+                                <StackPanel Width="92" Margin="0,0,10,0">
+                                    <TextBlock Text="每台工位数" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Text="{Binding DeviceConfig.DmmSlotsPerUnit, UpdateSourceTrigger=PropertyChanged}"/>
                                 </StackPanel>
-                                <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                    <TextBlock Text="温度波动下限 (°C)" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Text="-2"/>
+                                <StackPanel Grid.Column="1" Width="86" Margin="0,0,10,0">
+                                    <TextBlock Text="电压起始" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Text="{Binding DeviceConfig.VoltageStart, UpdateSourceTrigger=PropertyChanged}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Width="86" Margin="0,0,10,0">
+                                    <TextBlock Text="电阻起始" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Text="{Binding DeviceConfig.ResistanceStart, UpdateSourceTrigger=PropertyChanged}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="3" Width="100" Margin="0,0,10,0">
+                                    <TextBlock Text="工位电源起始" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Text="{Binding DeviceConfig.PowerSwitchStart, UpdateSourceTrigger=PropertyChanged}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="4" Width="130" Margin="0,0,14,0">
+                                    <TextBlock Text="总电源通道" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Text="{Binding DeviceConfig.MasterChannels, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="多个通道用逗号分隔；上电时同时闭合"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="5" VerticalAlignment="Bottom" Margin="0,0,0,6">
+                                    <TextBlock Text="{Binding DeviceConfig.DmmChannelHint}"
+                                               Foreground="{StaticResource AccentBrush}" FontSize="12"
+                                               TextWrapping="Wrap"/>
                                 </StackPanel>
                             </Grid>
-
-                            <CheckBox Content="测试固定时长" Margin="0,16,0,0"/>
-                            <TextBlock Text="说明：详细字段将在编辑模式下与 Setting.ini 双向绑定，本轮为占位。"
-                                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,12,0,0"/>
                         </StackPanel>
                     </Border>
+
+                    <TextBlock Grid.Row="3" Margin="4,10,0,0" TextWrapping="Wrap" FontSize="12"
+                               Foreground="{StaticResource MutedBrush}"
+                               Text="改完点右下角「保存」写入 Setting.ini 并重建设备，不用重启。通道分配按「每台 973 一套」生效，多台 973 用相同的通道组。"/>
                 </Grid>
             </TabItem>
 
@@ -820,7 +907,7 @@
             <!-- ════════════════════════════════════════════════════════ -->
             <!-- 3. 工位 -->
             <!-- ════════════════════════════════════════════════════════ -->
-            <TabItem Header="工位">
+            <TabItem Header="工位" Tag="工位与流程" Margin="0,14,0,0">
                 <Grid Margin="0,6,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -1095,7 +1182,7 @@
                                                             <ColumnDefinition Width="*"/>
                                                         </Grid.ColumnDefinitions>
                                                         <StackPanel Margin="0,0,8,8">
-                                                            <TextBlock Text="起始阀位" Style="{StaticResource SlotFieldLabel}"/>
+                                                            <TextBlock Text="起始阀位（按工位自动）" Style="{StaticResource SlotFieldLabel}"/>
                                                             <TextBox Style="{StaticResource SlotNumBox}"
                                                                      Text="{Binding StartValve, UpdateSourceTrigger=PropertyChanged}"/>
                                                         </StackPanel>
@@ -1312,7 +1399,7 @@
             <!-- ════════════════════════════════════════════════════════ -->
             <!-- 7. 版本信息 -->
             <!-- ════════════════════════════════════════════════════════ -->
-            <TabItem Header="版本信息">
+            <TabItem Header="版本信息" Tag="系统" Margin="0,14,0,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,4,0,0">
                         <Border Style="{StaticResource Card}" Margin="0,0,0,8">

@@ -89,13 +89,27 @@
                             <Border Grid.Column="1" Background="{StaticResource HeaderBgBrush}" CornerRadius="6"
                                     Padding="10,6" Margin="0,0,12,0" VerticalAlignment="Bottom">
                                 <StackPanel>
+                                    <!-- 自动测试的采集方式：电路板（DAC 逐工位）或万用表（DAQ973A 电压/电阻）。
+                                         决定 RunTaskScript 走 Run:PerformanceTest 还是 Run:DmmAutoTest。 -->
+                                    <TextBlock Text="采集方式" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,0,0,4"
+                                               Visibility="{Binding ShowAutoTestModeOptions, Converter={StaticResource BoolToVis}}"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8"
+                                                Visibility="{Binding ShowAutoTestModeOptions, Converter={StaticResource BoolToVis}}">
+                                        <RadioButton Content="电路板采集" GroupName="AutoTestMode" Margin="0,0,14,0"
+                                                     IsChecked="{Binding UseBoardAutoTest}"
+                                                     ToolTip="采集板（DAC）逐工位采集 UT / USC / ISC / USG，工位上限 256"/>
+                                        <RadioButton Content="万用表采集 (DAQ973A)" GroupName="AutoTestMode"
+                                                     IsChecked="{Binding UseDmmAutoTest}"
+                                                     ToolTip="{Binding DmmChannelSummary}"/>
+                                    </StackPanel>
                                     <TextBlock Text="设备启用" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,0,0,4"/>
                                     <StackPanel Orientation="Horizontal">
                                         <CheckBox Content="压力控制器" IsChecked="{Binding UsePressure}" Margin="0,0,10,0"/>
                                         <CheckBox Content="烘箱" IsChecked="{Binding UseOven}" Margin="0,0,10,0"
                                                   IsEnabled="{Binding OvenRequiredForRun, Converter={StaticResource InverseBoolConverter}}"/>
                                         <CheckBox Content="探漏" IsChecked="{Binding UseLeakCheck}"
-                                                  Visibility="{Binding ShowAutoTestModeOptions, Converter={StaticResource BoolToVis}}"/>
+                                                  Visibility="{Binding ShowLeakCheckOption, Converter={StaticResource BoolToVis}}"
+                                                  ToolTip="保压测泄漏率。万用表采集不控制气路阀门，不做探漏"/>
                                     </StackPanel>
                                     <TextBlock Text="DAQ973A 采集项" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,8,0,4"
                                                Visibility="{Binding ShowLongTermMeasureOptions, Converter={StaticResource BoolToVis}}"/>
@@ -114,6 +128,15 @@
                                         <CheckBox Content="USC" IsChecked="{Binding CollectUsc}" Margin="0,0,10,0"/>
                                         <CheckBox Content="ISC" IsChecked="{Binding CollectIsc}" Margin="0,0,10,0"/>
                                         <CheckBox Content="USG" IsChecked="{Binding CollectUsg}" Margin="0,0,10,0"/>
+                                        <CheckBox Content="烘箱温度" IsChecked="{Binding CollectOvenTemp}"/>
+                                    </StackPanel>
+                                    <!-- 万用表采集：本轮采什么由这里勾 -->
+                                    <TextBlock Text="采集项启用" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,8,0,4"
+                                               Visibility="{Binding ShowDmmCollectionOptions, Converter={StaticResource BoolToVis}}"/>
+                                    <StackPanel Orientation="Horizontal"
+                                                Visibility="{Binding ShowDmmCollectionOptions, Converter={StaticResource BoolToVis}}">
+                                        <CheckBox Content="电压" IsChecked="{Binding DmmCollectVoltage}" Margin="0,0,10,0"/>
+                                        <CheckBox Content="电阻" IsChecked="{Binding DmmCollectResistance}" Margin="0,0,10,0"/>
                                         <CheckBox Content="烘箱温度" IsChecked="{Binding CollectOvenTemp}"/>
                                     </StackPanel>
                                     <CheckBox Content="从断点续测" IsChecked="{Binding ResumeFromCheckpoint}"
@@ -310,7 +333,8 @@
 
                                 <Border Grid.Column="1" Background="{StaticResource HeaderBgBrush}"
                                         BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
-                                        Padding="8" Margin="0,0,6,6">
+                                        Padding="8" Margin="0,0,6,6"
+                                        Visibility="{Binding ShowBoardLayoutFields, Converter={StaticResource BoolToVis}}">
                                     <StackPanel>
                                         <TextBlock Text="板卡映射" FontWeight="SemiBold"
                                                    Foreground="{StaticResource AccentBrush}" Margin="0,0,0,7"/>
@@ -347,6 +371,20 @@
                                     </StackPanel>
                                 </Border>
 
+                                <!-- 万用表采集：板卡映射无意义，改显示 973 通道组 -->
+                                <Border Grid.Column="1" Background="{StaticResource AccentLightBrush}"
+                                        BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
+                                        Padding="8" Margin="0,0,6,6"
+                                        Visibility="{Binding UseDmmAutoTest, Converter={StaticResource BoolToVis}}">
+                                    <StackPanel>
+                                        <TextBlock Text="DAQ973A 通道" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource AccentBrush}" Margin="0,0,0,7"/>
+                                        <TextBlock Text="{Binding DmmChannelSummary}" FontSize="11"
+                                                   Foreground="{StaticResource TextBrush}"
+                                                   TextWrapping="Wrap" LineHeight="16"/>
+                                    </StackPanel>
+                                </Border>
+
                                 <Border Grid.Column="2" Background="{StaticResource HeaderBgBrush}"
                                         BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                                         Padding="8" Margin="0,0,0,6">
@@ -363,7 +401,7 @@
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Margin="0,0,4,5">
-                                                <TextBlock Text="起始阀位" Style="{StaticResource FieldLabel}"/>
+                                                <TextBlock Text="起始阀位（按工位自动）" Style="{StaticResource FieldLabel}"/>
                                                 <TextBox Style="{StaticResource NumBox}"
                                                          Text="{Binding StartValve, UpdateSourceTrigger=PropertyChanged}"/>
                                             </StackPanel>
@@ -390,8 +428,13 @@
                                         Background="{StaticResource AccentLightBrush}"
                                         BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
                                         Padding="8,5" Margin="0,0,0,2">
-                                    <TextBlock Text="{Binding BoardMappingSummary}" FontSize="11"
-                                               Foreground="{StaticResource TextBrush}"/>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding BoardMappingSummary}" FontSize="11"
+                                                   Foreground="{StaticResource TextBrush}"/>
+                                        <TextBlock Text="{Binding ValveRangeHint}" FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource TextBrush}"/>
+                                    </StackPanel>
                                 </Border>
                             </Grid>
                             <TextBlock HorizontalAlignment="Right" Margin="0,8,0,0"
@@ -404,7 +447,7 @@
                             </TextBlock>
                             <TextBlock Text="{Binding ChannelHint}" HorizontalAlignment="Right" Margin="0,2,0,0"
                                        Foreground="{StaticResource MutedBrush}" FontSize="11"
-                                       Visibility="{Binding ShowLongTermSlotLayout, Converter={StaticResource BoolToVis}}"/>
+                                       Visibility="{Binding ShowChannelHint, Converter={StaticResource BoolToVis}}"/>
                         </StackPanel>
                     </Border>
 

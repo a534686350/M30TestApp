@@ -19,14 +19,63 @@ public sealed partial class ConfigViewModel : ViewModelBase
     public int SlotCount
     {
         get => _slotCount;
-        set => SetSlotLayoutField(ref _slotCount, Math.Clamp(value, 1, SlotMax));
+        set => SetSlotLayoutField(ref _slotCount, Math.Clamp(value, 1, MaxSlotCountFromStart));
     }
 
     private string _batchNo = $"{DateTime.Now:yyMMdd}_01";
     public string BatchNo { get => _batchNo; set => SetSlotLayoutField(ref _batchNo, value); }
 
     private int _startIndex = 1;
-    public int StartIndex { get => _startIndex; set => SetSlotLayoutField(ref _startIndex, value); }
+    public int StartIndex
+    {
+        get => _startIndex;
+        set
+        {
+            var next = Math.Clamp(value, 1, SlotMax);
+            if (!SetSlotLayoutField(ref _startIndex, next)) return;
+            if (_slotCount > MaxSlotCountFromStart)
+            {
+                _slotCount = MaxSlotCountFromStart;
+                OnPropertyChanged(nameof(SlotCount));
+            }
+            SyncDerivedLayoutFromStartIndex();
+        }
+    }
+
+    /// <summary>从起始工位到工位上限还能生成多少个工位。</summary>
+    private int MaxSlotCountFromStart =>
+        Math.Max(1, SlotMax - Math.Clamp(_startIndex, 1, SlotMax) + 1);
+
+    /// <summary>
+    /// 起始阀位 / 起始板卡 / 起始板卡工位由起始工位推导，与批量生成、运行设置、运行时同源：
+    /// 阀门每 32 工位一个（起始 129 → 5 号阀），板卡每 BoardSlotCapacity 工位一块
+    /// （起始 129、每板 16 工位 → 板卡 9 / 工位 1）。
+    /// </summary>
+    private void SyncDerivedLayoutFromStartIndex()
+    {
+        var zeroBased = Math.Max(0, _startIndex - 1);
+
+        var valve = SlotLayoutHelper.ValveForSlot(_startIndex);
+        if (_startValve != valve)
+        {
+            _startValve = valve;
+            OnPropertyChanged(nameof(StartValve));
+        }
+
+        var capacity = Math.Max(1, _boardSlotCapacity);
+        var board = zeroBased / capacity + 1;
+        var boardSlot = zeroBased % capacity + 1;
+        if (_startBoard != board)
+        {
+            _startBoard = board;
+            OnPropertyChanged(nameof(StartBoard));
+        }
+        if (_startBoardSlot != boardSlot)
+        {
+            _startBoardSlot = boardSlot;
+            OnPropertyChanged(nameof(StartBoardSlot));
+        }
+    }
 
     private int _startBoard = 1;
     public int StartBoard { get => _startBoard; set => SetSlotLayoutField(ref _startBoard, value); }

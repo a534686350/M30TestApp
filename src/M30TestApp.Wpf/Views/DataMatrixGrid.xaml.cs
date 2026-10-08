@@ -1,8 +1,11 @@
+using System;
 using System.Collections;
 using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
+using System.Windows.Media;
 using M30TestApp.Wpf.ViewModels;
 
 namespace M30TestApp.Wpf.Views;
@@ -10,14 +13,23 @@ namespace M30TestApp.Wpf.Views;
 /// <summary>
 /// DataGrid with dynamic columns. Columns are observed via <see cref="MatrixColumns"/>.
 /// The first two columns (Slot, SerialNo) are static and frozen.
+///
+/// 顶部带一条与 DataGrid 横向滚动同步的 ScrollBar：矩阵列多时，
+/// 不用先把纵向滚动条拖到底部才能操作横向滚动。
 /// </summary>
 public partial class DataMatrixGrid : UserControl
 {
+    private ScrollViewer? _gridScrollViewer;
+    private bool _syncingScroll;
+
     public DataMatrixGrid()
     {
         InitializeComponent();
         BuildStaticColumns();
         DataGridScrollHelper.EnableDragAndWheelScroll(Grid);
+
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
     }
 
     public static readonly DependencyProperty RowsProperty = DependencyProperty.Register(
@@ -109,5 +121,70 @@ public partial class DataMatrixGrid : UserControl
             },
         };
         Grid.Columns.Add(col);
+    }
+
+    // ─── 顶部横向滚动条与 DataGrid 同步 ─────────────────────────────────────
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        // 模板化后才拿得到 DataGrid 内部的 ScrollViewer
+        _gridScrollViewer ??= FindScrollViewer(Grid);
+        if (_gridScrollViewer is null) return;
+
+        _gridScrollViewer.ScrollChanged -= OnGridScrollChanged;
+        _gridScrollViewer.ScrollChanged += OnGridScrollChanged;
+        SyncTopScrollBar();
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (_gridScrollViewer is not null)
+            _gridScrollViewer.ScrollChanged -= OnGridScrollChanged;
+        _gridScrollViewer = null;
+    }
+
+    private void OnGridScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (e.HorizontalChange == 0 && e.ExtentWidthChange == 0 && e.ViewportWidthChange == 0) return;
+        SyncTopScrollBar();
+    }
+
+    /// <summary>把 DataGrid 的横向滚动状态镜像到顶部滚动条；列少到不需要滚动时自动隐藏。</summary>
+    private void SyncTopScrollBar()
+    {
+        if (_gridScrollViewer is null) return;
+
+        _syncingScroll = true;
+        try
+        {
+            var scrollable = _gridScrollViewer.ScrollableWidth;
+            TopScrollBar.Minimum = 0;
+            TopScrollBar.Maximum = Math.Max(0, scrollable);
+            TopScrollBar.ViewportSize = Math.Max(0, _gridScrollViewer.ViewportWidth);
+            TopScrollBar.Value = _gridScrollViewer.HorizontalOffset;
+            TopScrollBar.Visibility = scrollable > 0.5 ? Visibility.Visible : Visibility.Collapsed;
+        }
+        finally
+        {
+            _syncingScroll = false;
+        }
+    }
+
+    private void OnTopScrollBarScroll(object sender, ScrollEventArgs e)
+    {
+        if (_syncingScroll || _gridScrollViewer is null) return;
+        _gridScrollViewer.ScrollToHorizontalOffset(e.NewValue);
+    }
+
+    private static ScrollViewer? FindScrollViewer(DependencyObject root)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is ScrollViewer sv) return sv;
+            var found = FindScrollViewer(child);
+            if (found is not null) return found;
+        }
+        return null;
     }
 }

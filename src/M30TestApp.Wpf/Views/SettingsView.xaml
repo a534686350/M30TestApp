@@ -8,6 +8,10 @@
              d:DataContext="{d:DesignInstance vm:SettingsViewModel}"
              mc:Ignorable="d">
 
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </UserControl.Resources>
+
     <Grid Margin="24,16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -98,6 +102,164 @@
                                           Margin="16,0,0,0"/>
                             </Grid>
                         </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ═══════ 设备 ═══════ -->
+            <TabItem Header="设备">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,8">
+                    <StackPanel Margin="0,8,0,0">
+
+                        <Border BorderBrush="{DynamicResource AccentBrush}" BorderThickness="3,0,0,0"
+                                Padding="12,0" Margin="0,0,0,16">
+                            <TextBlock Text="设备配置" FontSize="15" FontWeight="SemiBold"/>
+                        </Border>
+
+                        <!-- DAQ973A 台数：决定万用表自动测试的工位上限 -->
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,10" Padding="20,16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="DAQ973A 台数" FontWeight="SemiBold" FontSize="14"/>
+                                    <TextBlock Text="{Binding DeviceConfig.DmmUnitHint}"
+                                               Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="0,3,0,0"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="1" Width="120" VerticalAlignment="Center"
+                                          SelectedValue="{Binding DeviceConfig.DmmUnitCount}" SelectedValuePath="Tag">
+                                    <ComboBoxItem Content="1 台" Tag="1"/>
+                                    <ComboBoxItem Content="2 台" Tag="2"/>
+                                    <ComboBoxItem Content="3 台" Tag="3"/>
+                                </ComboBox>
+                            </Grid>
+                        </Border>
+
+                        <!-- 全部设备地址表 -->
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,10" Padding="0">
+                            <DataGrid ItemsSource="{Binding DeviceConfig.Rows}"
+                                      AutoGenerateColumns="False"
+                                      IsReadOnly="False"
+                                      CanUserAddRows="False" CanUserDeleteRows="False"
+                                      CanUserResizeRows="False"
+                                      HeadersVisibility="Column"
+                                      GridLinesVisibility="Horizontal"
+                                      BorderThickness="0" Background="Transparent"
+                                      RowHeight="34">
+                                <DataGrid.RowStyle>
+                                    <Style TargetType="DataGridRow">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsActive}" Value="False">
+                                                <Setter Property="Opacity" Value="0.4"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGrid.RowStyle>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="设备" Binding="{Binding Title}" Width="130" IsReadOnly="True"/>
+                                    <DataGridTemplateColumn Header="启用" Width="60">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <CheckBox HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                          IsChecked="{Binding Enabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                          Visibility="{Binding IsKindFirst, Converter={StaticResource BoolToVis}}"
+                                                          ToolTip="同类设备共用后端开关：勾选=接真实硬件，取消=走模拟"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="型号"
+                                                        Binding="{Binding Model, UpdateSourceTrigger=PropertyChanged}"
+                                                        Width="150"/>
+                                    <DataGridTemplateColumn Header="总线 / 串口" Width="105">
+    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <ComboBox ItemsSource="{Binding BusOptions}"
+                                      SelectedItem="{Binding Bus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Padding="6,1" ToolTip="GPIB 设备选总线（GPIB0/1/…），串口设备选 COM 口"/>
+                        </DataTemplate>
+    </DataGridTemplateColumn.CellTemplate>
+</DataGridTemplateColumn>
+<DataGridTextColumn Header="地址号" Width="72"
+                                Binding="{Binding Number, UpdateSourceTrigger=PropertyChanged}"/>
+<DataGridTextColumn Header="完整地址" Binding="{Binding AddressPreview}"
+                                Width="*" IsReadOnly="True"
+                                Foreground="{StaticResource MutedBrush}"/>
+                                    <DataGridTextColumn Header="波特率"
+                                                        Binding="{Binding Baud, UpdateSourceTrigger=PropertyChanged}"
+                                                        Width="90"/>
+                                    <DataGridTextColumn Header="用途" Binding="{Binding Hint}" Width="200" IsReadOnly="True"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+
+                        <!-- 万用表通道分配：现场可改哪组采电压 / 采电阻 / 切工位电源 / 总电源 -->
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,10" Padding="14,12">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                               VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBlock Text="万用表通道分配（DAQ973A）" FontWeight="SemiBold" FontSize="13"/>
+                                </StackPanel>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="92"/>
+                                        <ColumnDefinition Width="10"/>
+                                        <ColumnDefinition Width="86"/>
+                                        <ColumnDefinition Width="10"/>
+                                        <ColumnDefinition Width="86"/>
+                                        <ColumnDefinition Width="10"/>
+                                        <ColumnDefinition Width="100"/>
+                                        <ColumnDefinition Width="14"/>
+                                        <ColumnDefinition Width="130"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Margin="0,0,0,2">
+                                        <TextBlock Text="每台工位数" Style="{StaticResource FieldLabel}"/>
+                                        <TextBox Text="{Binding DeviceConfig.DmmSlotsPerUnit, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="电压起始" Style="{StaticResource FieldLabel}"/>
+                                        <TextBox Text="{Binding DeviceConfig.VoltageStart, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="4">
+                                        <TextBlock Text="电阻起始" Style="{StaticResource FieldLabel}"/>
+                                        <TextBox Text="{Binding DeviceConfig.ResistanceStart, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="6">
+                                        <TextBlock Text="工位电源起始" Style="{StaticResource FieldLabel}"/>
+                                        <TextBox Text="{Binding DeviceConfig.PowerSwitchStart, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="8">
+                                        <TextBlock Text="总电源通道" Style="{StaticResource FieldLabel}"/>
+                                        <TextBox Text="{Binding DeviceConfig.MasterChannels, UpdateSourceTrigger=PropertyChanged}"
+                                                 ToolTip="多个通道用逗号分隔；上电时同时闭合"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="9" VerticalAlignment="Bottom" Margin="0,6,0,0">
+                                        <TextBlock Text="{Binding DeviceConfig.DmmChannelHint}"
+                                                   Foreground="{StaticResource AccentBrush}" FontSize="12"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                            <Button Content="✓ 保存并应用" Style="{StaticResource PrimaryButton}" Padding="16,5"
+                                    Command="{Binding SaveDevicesCommand}"/>
+                            <Button Content="↻ 重新读取" Style="{StaticResource GhostButton}" Padding="16,5" Margin="8,0,0,0"
+                                    Command="{Binding ReloadDevicesCommand}"/>
+                        </StackPanel>
+
+                        <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="4,0,0,0">
+                            保存后立即按新配置重建设备，不需要重启。DAQ973A 每台管「每台工位数」个工位（默认 16），
+                            台数与通道都在上面配，3 台默认合计 48 工位。调试模式开启时全部设备走模拟后端，忽略这里的地址。
+                            本页与「配置 → 设备」是同一份数据，改哪边都一样。
+                        </TextBlock>
 
                     </StackPanel>
                 </ScrollViewer>

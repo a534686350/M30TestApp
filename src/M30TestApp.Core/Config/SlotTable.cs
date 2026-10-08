@@ -22,7 +22,13 @@ public sealed record SlotEntry(
     string Channel,
     string ValveAddr,
     string PositionX = "",
-    string PositionY = "") : INotifyPropertyChanged
+    string PositionY = "",
+    /// <summary>
+    /// 传感器电源开关通道（DAQ973A 通道三，301-316）。
+    /// 只用于万用表采集模式；与 <see cref="ValveAddr"/>（气路阀门继电器）是两套互不相干的东西，
+    /// 电路板采集模式本列恒为空。
+    /// </summary>
+    string PowerSwitch = "") : INotifyPropertyChanged
 {
     private string _serialNo = SerialNo;
 
@@ -85,14 +91,14 @@ public sealed record SlotEntry(
 
 /// <summary>
 /// Reads `工位对应表.csv`. Header in Chinese:
-///     工位,序列号,阀位,板卡位,板卡工位号,层数,夹具位,夹具工位号,压力控制器,数字万用表,通道,阀门,坐标X,坐标Y
-/// 坐标X/坐标Y 为后加列，老文件缺列时按空值处理。
+///     工位,序列号,阀位,板卡位,板卡工位号,层数,夹具位,夹具工位号,压力控制器,数字万用表,通道,阀门,坐标X,坐标Y,电源开关
+/// 坐标X/坐标Y/电源开关 为后加列，老文件缺列时按空值处理。
 /// 编码经 SmartText 兼容历史 GBK/ANSI 与 UTF-8（含 BOM）文件；保存统一 UTF-8 with BOM。
 /// </summary>
 public sealed class SlotTable
 {
     /// <summary>工位对应表表头（列序与 <see cref="SlotEntry"/> 一致，勿随意调整）。</summary>
-    public const string CsvHeader = "工位,序列号,阀位,板卡位,板卡工位号,层数,夹具位,夹具工位号,压力控制器,数字万用表,通道,阀门,坐标X,坐标Y";
+    public const string CsvHeader = "工位,序列号,阀位,板卡位,板卡工位号,层数,夹具位,夹具工位号,压力控制器,数字万用表,通道,阀门,坐标X,坐标Y,电源开关";
 
     public IReadOnlyList<SlotEntry> Entries { get; }
 
@@ -108,7 +114,7 @@ public sealed class SlotTable
             if (string.IsNullOrWhiteSpace(line)) continue;
             var c = line.Split(',');
             string F(int i) => i < c.Length ? c[i].Trim() : "";
-            list.Add(new SlotEntry(F(0), F(1), F(2), F(3), F(4), F(5), F(6), F(7), F(8), F(9), F(10), F(11), F(12), F(13)));
+            list.Add(new SlotEntry(F(0), F(1), F(2), F(3), F(4), F(5), F(6), F(7), F(8), F(9), F(10), F(11), F(12), F(13), F(14)));
         }
         return new SlotTable(list);
     }
@@ -128,5 +134,5 @@ public sealed class SlotTable
     public static string FormatRow(SlotEntry s) =>
         string.Join(',', s.Slot, s.SerialNo, s.Valve, s.Board, s.BoardSlotNo,
             s.Layer, s.Fixture, s.FixtureSlotNo, s.PressureController, s.Dmm, s.Channel, s.ValveAddr,
-            s.PositionX, s.PositionY);
+            s.PositionX, s.PositionY, s.PowerSwitch);
 }

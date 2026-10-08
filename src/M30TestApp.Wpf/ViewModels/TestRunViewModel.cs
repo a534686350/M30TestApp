@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -149,10 +150,42 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
 
     private void ClaimRunPage() => s_activeRunPage = this;
 
+    /// <summary>
+    /// 实时日志只显示"时间 + 采集数据"，剔除设备指令 / 流程 / 保存 / 校准等噪声行。
+    /// 数据行形态（见 Core 各采集实现）：
+    ///   Slot225 T3P0_USG_R=0.61117 (卡15 通1)          —— DacBatchSampler
+    ///   Slot1 SN=xxx CH=1 T1_UT=43.8537                —— BuiltinActions
+    ///   长期稳定性：T1-P0 Slot1 SN=xxx CH=1 = 43.8537 Ω —— LongTermStabilityRunner
+    ///   T1 烘箱实际温度：24.1℃
+    /// </summary>
+    private static readonly Regex DataLineRegex = new(
+        @"^(?:长期稳定性：\S+\s+)?(?:Slot\d+\s+(?:SN=\S+\s+CH=\S+\s+)?\S+=|T\d+\s+烘箱实际温度：)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    /// <summary>烘箱保温流程行内嵌的实测温度，如 "目标温度为 85°C;  烘箱已加热 1 min; 当前温度为 29.9°C"。</summary>
+    private static readonly Regex OvenTempRegex = new(
+        @"当前温度为\s*([\d.+-]+)\s*°C",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static bool TryExtractDataLine(LogEvent e, out string data)
+    {
+        data = "";
+        var msg = e.Message;
+        if (string.IsNullOrEmpty(msg)) return false;
+
+        if (DataLineRegex.IsMatch(msg)) { data = msg; return true; }
+
+        var mt = OvenTempRegex.Match(msg);
+        if (mt.Success) { data = $"烘箱温度 {mt.Groups[1].Value}°C"; return true; }
+
+        return false;
+    }
+
     private void OnAppLogLogged(object? sender, LogEvent e)
     {
         if (!IsActiveRunPage) return;
-        QueueLogLine(e.ToString());
+        if (!TryExtractDataLine(e, out var data)) return;
+        QueueLogLine($"{e.Time:HH:mm:ss.fff}  {data}");
     }
 
     private void OnProgress(object? sender, Core.TaskScript.TaskProgress e)
@@ -686,6 +719,11 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         _session.Context.SkipIsc = _isLongTermStabilityMode || !setupVm.CollectIsc;
         _session.Context.SkipUsg = _isLongTermStabilityMode || !setupVm.CollectUsg;
         _session.Context.SkipOvenTemp = _isLongTermStabilityMode || !setupVm.CollectOvenTemp;
+
+        // 万用表采集模式：电压 / 电阻 由本轮勾选决定（烘箱温度复用上面的 SkipOvenTemp）
+        var isDmmRun = !_isLongTermStabilityMode && setupVm.UseDmmAutoTest;
+        _session.Context.SkipDmmVoltage = isDmmRun && !setupVm.DmmCollectVoltage;
+        _session.Context.SkipDmmResistance = isDmmRun && !setupVm.DmmCollectResistance;
 
         if (_isLongTermStabilityMode)
         {

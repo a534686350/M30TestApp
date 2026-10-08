@@ -17,9 +17,19 @@ public sealed class TaskContext
 {
     public IPressureController? Pressure { get; set; }
     public IOven? Oven { get; set; }
+
+    /// <summary>主 DMM，恒等于 <see cref="Dmms"/>[0]；长期稳定性等单台路径沿用此属性。</summary>
     public IDmm? Dmm { get; set; }
+
+    /// <summary>全部 DMM（DAQ973A）。万用表自动测试按工位所属设备分派到不同实例。</summary>
+    public IReadOnlyList<IDmm> Dmms { get; set; } = Array.Empty<IDmm>();
+
     public IDac? Dac { get; set; }
     public IBoard? Board { get; set; }
+
+    /// <summary>取第 <paramref name="index"/> 台 DMM（0-based）；越界或未配置时回退到主 DMM。</summary>
+    public IDmm? DmmAt(int index) =>
+        index >= 0 && index < Dmms.Count ? Dmms[index] : Dmm;
 
     public TestPlan Plan { get; set; } = new();
     public SlotTable Slots { get; set; } = new(System.Array.Empty<SlotEntry>());
@@ -53,6 +63,12 @@ public sealed class TaskContext
 
     /// <summary>When true, skip oven temperature data collection.</summary>
     public bool SkipOvenTemp { get; set; }
+
+    /// <summary>万用表自动测试：跳过电压采集（用户本轮选择）。</summary>
+    public bool SkipDmmVoltage { get; set; }
+
+    /// <summary>万用表自动测试：跳过电阻采集（用户本轮选择）。</summary>
+    public bool SkipDmmResistance { get; set; }
 
     /// <summary>探漏阶段最终说明，记录通过或人工放行等状态。</summary>
     public string LeakCheckNote { get; set; } = "";

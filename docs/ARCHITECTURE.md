@@ -141,9 +141,22 @@ Address  = "GPIB0::10::INSTR"   ; GPIB 地址可由 Config 页拆解为 板卡+�
 
 `DataMatrixGrid` / `LongTermMatrixGrid` 的滚动与虚拟化设置**必须自洽**，改动前先读这段：
 
-- 取值组合固定为 `EnableRowVirtualization="False"` + `VirtualizingPanel.IsVirtualizing="False"` + `VirtualizingPanel.VirtualizationMode="Standard"` + `ScrollViewer.CanContentScroll="False"`。
-- 原因：`CanContentScroll="False"`（像素级平滑滚动）会**整体关闭虚拟化**，此时若再声明 `IsVirtualizing="True"` / `VirtualizationMode="Recycling"`，WPF 处于未定义行为——256 工位实测表现为矩阵塌缩、只渲染首行。两者只能取其一。
-- 选"关虚拟化 + 像素滚动"而非"开虚拟化 + ScrollUnit=Pixel"，是为了保住已调好的横向拖动滚动（`DataGridScrollHelper` 用像素偏移计算）；256 行全实例化在产线上可接受。
+- **当前取值（2026-09-30 起，两份 XAML 必须一致）**：
+  `EnableRowVirtualization="True"` + `EnableColumnVirtualization="True"` +
+  `VirtualizingPanel.VirtualizationMode="Recycling"` + `VirtualizingPanel.IsVirtualizing="True"` +
+  `ScrollViewer.CanContentScroll="True"`。
+- 为什么改成这样：原来为了保住像素级滚动把虚拟化整个关了（`IsVirtualizing=False` + `CanContentScroll=False`），
+  结果 256 工位 × N 列**全部实例化**，每次切「自动测试 / 长期稳定性」页要重建整棵控件树，卡几秒。
+  改成虚拟化 + 按项滚动后切页立竿见影。
+- **`ScrollUnit="Pixel"` 是无效属性**：`ScrollViewer.CanContentScroll="True"` 时 WPF 按「项」滚动，
+  `ScrollUnit` 只在 `CanContentScroll="False"` 时才生效。留在这里只是占位，
+  **别以为现在跑的是像素滚动** —— 判断语义一律读 `ScrollViewer.CanContentScroll`，别看 `ScrollUnit`。
+- **仍然生效的铁律**：`CanContentScroll="False"` 与 `IsVirtualizing="True"` / `VirtualizationMode="Recycling"`
+  不可同时声明 —— 前者会整体关闭虚拟化，叠加后者 WPF 处于未定义行为，256 工位实测表现为矩阵塌缩、只渲染首行。
+  也就是只能二选一：「全关虚拟化 + 像素滚动」或「开虚拟化 + 按项滚动」，不能混着写。
+- 两种取值下扫码定位都不会算错：`DataGridScrollHelper.DoScroll` 已按 `CanContentScroll` 分两条路
+  （为真走按项算、为假走 `TransformToAncestor` 像素算），像素分支另有 `row is null` /
+  `InvalidOperationException` 兜底（行容器被虚拟化回收时退化为 `ScrollIntoView`）。
 - 列宽仍用 `Auto`；动态加列由 `MatrixColumns.CollectionChanged` → `AddDynamicColumn` 触发，不要在行更新循环里改列集合结构。
 - 相关取值散落在 XAML 属性，**没有** Style 兜底，两份 XAML 需同步修改。
 
@@ -158,22 +171,30 @@ Address  = "GPIB0::10::INSTR"   ; GPIB 地址可由 Config 页拆解为 板卡+�
 - 横向滚动条的"长度"就是它的 `Width`。若对所有方向统一设 `Width`/`MinWidth`，横向条会塌成几像素的小疙瘩，无法点击拖动（v1.2.39 修复前的实际症状）。
 - 正确写法：`Horizontal` 触发器设 `Height`/`MinHeight`（控制轨道粗细），`Vertical` 触发器设 `Width`/`MinWidth`。
 
-## 10. 界面外壳与主题约定（浅色工控 v2）
+## 10. 界面外壳与主题约定（浅色工控 v3 ·紧凑型，2026-10-08 重构）
 
 主窗口为**五段式工控外壳**，自 `MainWindow.xaml` 单文件承载，改动前先读这段：
 
 | 段 | 高度 | 内容 |
 | --- | --- | --- |
-| Row0 顶部横幅 | 42 | 品牌条 + 版本/工位胶囊 + 运行状态 LED + 报警计数 + 时钟（`x:Name="ClockText"`） |
-| Row1 模块页签条 | 38 | **6 个模块页签**（`MainTab` 样式）+ 右上「系统 ▾」下拉（原菜单栏全部项收在这里） |
-| Row2 命令条 | 54 | 开始测试 / 停止 + 当前测试模式 + 当前工步 + 右侧方案名 |
+| Row0 顶部横幅 | 34 | 品牌条 + 版本/工位胶囊 + 运行状态 LED + 报警计数 + 时钟（`x:Name="ClockText"`）+ **主题切换 / 全屏** |
+| Row1 模块页签条 | 34 | **6 个模块页签**（`NavTab` 样式，BasedOn `MainTab`）+ 右上「系统 ▾」下拉 |
+| Row2 命令条 | **固定 38** | 测试族：开始/停止 + 当前工步；其余页：页面标题 + 副标题。右侧方案名 |
 | Row3 工作区 | * | `ContentControl Content="{Binding CurrentView}"`，**不加内边距**，把宽度全留给数据矩阵 |
-| Row4 状态栏 | 30 | 5 个设备 LED（`Devices`）+ 系统就绪 + 版本号 |
+| Row4 状态栏 | 26 | 设备 LED 组（`Devices`）+ 系统就绪 + 版本号 |
 
-主页签只有 6 个：自动测试 / 长期稳定性 / 手动调试 / 快速测试 ｜ 日志 / 设置。
-**所有配置类页面统一收在「设置」下面**（不要再往主页签加"方案""工位""配置"这类入口，否则又会出现"主页签 vs 子页签"重复）：
+顶部固定 chrome = 34+34+38+26 = **132px**（v2 是 157px）。
 
-- 「设置」页签 → `ShowConfigCommand` → `ConfigView`，其内部是**左侧竖排子导航**（`SideTabControl` + `SideTabItem` 样式）：
+**命令条高度固定、绝不折叠。** v2 用的是 `RowDefinition Height="Auto"` + `Visible` 仅当 `SelectedNavKey == "Test"`，
+结果切到配置 / 手动 / 日志页时整条消失、工作区内容整体上移约 47px，四个页签的内容起始位置全都不一样。
+现在一律常驻，只换里面的内容。
+
+主页签 6 个、**全部平级**：自动测试 │ 长期稳定性 │ 快速测试 ‖ 手动调试 │ 日志 │ 配置。
+三种测试本来就是三个独立视图（`MainViewModel.TestModeView` 按 `TestMode` 切换），
+v2 把它们降级到命令条里当二级单选属于层级错位，已提到一级。
+**所有配置类页面统一收在「配置」下面**（不要再往主页签加"方案""工位"这类入口，否则又会出现"主页签 vs 子页签"重复）：
+
+- 「配置」页签 → `ShowConfigCommand` → `ConfigView`，其内部是**左侧竖排子导航**（`SideTabControl` + `SideTabItem` 样式）：
   方案 / 接口设置 / 温度采集 / 气路与参数 / 压力指令 / 设备 / 指令 / 工位 / 测试流程 / 版本信息 / 系统设置。
 - 子页签用 `SelectedValuePath="Header"` + `SelectedSection` 双向绑定；**重命名/增删页签不影响绑定**，但 `MainViewModel` 里写死的节名要同步。
 - 原「参数控制」一页塞了 5 块内容又长又挤，已拆成 `接口设置` / `温度采集` / `气路与参数` / `压力指令` 四个子页。
@@ -181,12 +202,24 @@ Address  = "GPIB0::10::INSTR"   ; GPIB 地址可由 Config 页拆解为 板卡+�
 - 子页签条目多时用左侧竖排（`SideTabControl`）；条目少的页面仍用顶部横排（隐式 `TabControl`/`TabItem` 样式）。
 - `指标限值`、`计算` 两个子页 `Visibility="Collapsed"`，保留待用。
 
+**主操作（开始 / 停止）只放在顶部命令条**，页面内的 ControlBar 不再放第二组
+（v2 的测试页里同时有命令条和 ControlBar 两组「开始 / 停止」，操作员会犹豫点哪个）。
+测试页 ControlBar 只留本页特有的过程控制（暂停 / 继续）+ 进度条。
+
 页签选中态的实现方式（不要改成别的方式）：
 
-- 页签是 `RadioButton` + `GroupName="MainNav"`，样式键 `MainTab`。
-- `IsChecked` 绑定 `SelectedNavKey`，经 `Converters/NavKeyIsConverter`（`ConverterParameter` 传键名，`Mode=TwoWay`）。
-  该转换器的 `ConvertBack` 在「取消选中」时返回 `Binding.DoNothing`——否则点另一个页签会把选中态写空。
+- 页签是 `RadioButton`，样式 `NavTab`（`Window.Resources` 里 `BasedOn="{StaticResource MainTab}"`）。
+- **`IsChecked` 绑定 `MainViewModel` 的 6 个显式 bool**（`IsTabAuto` / `IsTabLongTerm` / `IsTabQuick` /
+  `IsTabManual` / `IsTabLog` / `IsTabSettings`），`Mode=OneWay`，状态变化时由 `NotifyTabFlags()` 统一通知。
+  三种测试都是 `SelectedNavKey == "Test"`，所以另有一个派生的 `SelectedTabKey` 区分 Auto/LongTerm/Quick。
+- **绝对不要把 `IsChecked` 绑成 `Mode=TwoWay`**：`SelectedTabKey` 是只读计算属性，
+  WPF 会抛 `InvalidOperationException: 无法对只读属性 SelectedTabKey 进行 TwoWay 绑定`，
+  **窗口整个起不来**（只弹「未处理异常」框），而编译器不会报任何错。
+  点页签切换页面靠 `Command`，不靠回写绑定。
+- 这几个 RadioButton **不设 `GroupName`**：互斥已由「同一时刻只有一个 bool 为 true」保证，
+  再叠加 RadioButton 组内互斥逻辑会与单向绑定打架。
 - 页签文案一律走 `{DynamicResource Nav.*}`（`Strings/zh-CN.xaml` / `en-US.xaml`），**不要硬编码**，否则语言切换会失效。
+  需要的键都已存在：`Nav.TestRun` / `Nav.LongTermStability` / `Nav.QuickTest` / `Nav.Manual` / `Nav.Log` / `Nav.Config`。
 
 主题文件（`Themes/Light.xaml` / `Dark.xaml`）的硬性规则：
 

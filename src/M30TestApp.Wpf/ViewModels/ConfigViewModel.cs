@@ -83,6 +83,12 @@ public sealed partial class ConfigViewModel : ViewModelBase
     // ── 设备 ────────────────────────────────────────────────────────────
     public ObservableCollection<DeviceProfile> Devices { get; } = new();
 
+    /// <summary>
+    /// 设备配置编辑器（可编辑）。配置页「设备」页与偏好设置「设备」页**共用同一个实例**
+    /// （由 <c>MainViewModel</c> 创建后注入），两页看到的表格永远是同一份数据。
+    /// </summary>
+    public M30TestApp.Wpf.Mvvm.DeviceConfigSet DeviceConfig { get; }
+
 
     // ������ ��ָ�� ��������������������������������������������������������������������������������������������������������������������������
     public ObservableCollection<ModelCommandsVm> ModelCommands { get; } = new();
@@ -221,17 +227,19 @@ public sealed partial class ConfigViewModel : ViewModelBase
     public RelayCommand AddPressureModelCommand { get; }
     public RelayCommand DeletePressureModelCommand { get; }
 
-    public ConfigViewModel(TestSession session)
+    public ConfigViewModel(TestSession session, M30TestApp.Wpf.Mvvm.DeviceConfigSet deviceConfig)
     {
         _session = session;
         _commands = session.Commands;
-        _settingIni = File.Exists(AppPaths.SettingIni)
-            ? IniFile.Load(AppPaths.SettingIni)
-            : new IniFile();
+        DeviceConfig = deviceConfig;
+        // Setting.ini 的**唯一内存副本**在会话上（App 启动时加载）。以前这里自己再 Load 一份，
+        // 于是偏好设置页与配置页各改各的ini 内存副本，后保存的整份覆盖前一份。现在共用同一份。
+        _settingIni = _session.Context.Settings;
         Plan = session.Plan;
 
         LoadPressureModels(session.Commands);
 
+        DeviceConfig.Load(_settingIni);
         RefreshComPorts();
         LoadDeviceSettings();
         LoadAppSettings();
@@ -765,9 +773,9 @@ public sealed partial class ConfigViewModel : ViewModelBase
         for (var i = 1; i <= 16; i++)
             SwitchUnitCards.Add(new SettingPairVm($"卡{i}", LoadSetting(SwitchUnitSection, $"Card{i}", (300 + i).ToString()), CardChannels, section: SwitchUnitSection, key: $"Card{i}"));
 
-        ValveSettings.Add(new SettingPairVm("总阀", LoadSetting(ValveSection, "MasterValve", "101"), ValveChannels, section: ValveSection, key: "MasterValve"));
+        ValveSettings.Add(NewValveSetting("总阀", "MasterValve", "101"));
         for (var i = 1; i <= 8; i++)
-            ValveSettings.Add(new SettingPairVm($"阀门{i}", LoadSetting(ValveSection, $"Valve{i}", (101 + i).ToString()), ValveChannels, section: ValveSection, key: $"Valve{i}"));
+            ValveSettings.Add(NewValveSetting($"阀门{i}", $"Valve{i}", (101 + i).ToString()));
 
         for (var i = 1; i <= 4; i++)
             TempSensorSettings.Add(new SettingPairVm($"温度传感器{i}", LoadSetting(TempSensorSection, $"Sensor{i}", (200 + i).ToString()), TempChannels, section: TempSensorSection, key: $"Sensor{i}"));
@@ -848,6 +856,18 @@ public sealed partial class ConfigViewModel : ViewModelBase
     private string LoadSetting(string section, string key, string fallback) =>
         _settingIni.Get(section, key, fallback);
 
+    /// <summary>阀门配置行：通道 + 接线极性（反相）。现场各阀接线不统一，必须逐个可调。</summary>
+    private SettingPairVm NewValveSetting(string name, string key, string fallbackAddress) =>
+        new(name,
+            LoadSetting(ValveSection, key, fallbackAddress),
+            ValveChannels,
+            section: ValveSection,
+            key: key,
+            supportsInvert: true)
+        {
+            Invert = ValveRelay.ReadInvert(_settingIni, key),
+        };
+
     private void SaveSettings()
     {
         SaveDeviceProfiles();
@@ -865,6 +885,8 @@ public sealed partial class ConfigViewModel : ViewModelBase
         SavePairs(ValveSettings);
         SavePairs(TempSensorSettings);
         SavePairs(DelaySettings);
+        // 设备页的编辑（含 DAQ973A 台数与各台地址）必须先落进 ini，再走下面的重建。
+        DeviceConfig.Save(_settingIni);
         _settingIni.Save(AppPaths.SettingIni);
         _session.Context.Settings = _settingIni;
         ApplyDeviceProfilesToSession();
@@ -875,19 +897,19 @@ public sealed partial class ConfigViewModel : ViewModelBase
         AppLog.Info("Config", $"已保存所有配置到 {AppPaths.SettingIni}");
     }
 
-    private void ApplyDeviceProfilesToSession()
-    {
-        var station = StationProfile.Load(_settingIni);
-        foreach (var kv in station.Devices)
-            _session.Station.Devices[kv.Key] = kv.Value;
-        _session.RebuildDevices(AppPreferences.DebugMode(_settingIni));
-    }
+    /// <summary>
+    /// 把设备配置同步进会话并重建设备。逻辑已收口到 <see cref="TestSession.ReloadStation"/>
+    /// —— 配置页与偏好设置页保存设备配置都必须走它，否则改了地址会话内不生效。
+    /// </summary>
+    private void ApplyDeviceProfilesToSession() => _session.ReloadStation(_settingIni);
 
     private void ReloadSettings()
     {
         _settingIni = File.Exists(AppPaths.SettingIni)
             ? IniFile.Load(AppPaths.SettingIni)
             : new IniFile();
+        // 重载后换掉会话持有的那份，偏好设置页保存时才会写到同一份上。
+        _session.Context.Settings = _settingIni;
         LoadDeviceSettings();
         LoadAppSettings();
         BuildParameterSettings();
@@ -955,6 +977,8 @@ public sealed partial class ConfigViewModel : ViewModelBase
         {
             if (string.IsNullOrWhiteSpace(setting.Section) || string.IsNullOrWhiteSpace(setting.Key)) continue;
             _settingIni.Set(setting.Section, setting.Key, setting.Value);
+            if (setting.SupportsInvert)
+                _settingIni.Set(setting.Section, ValveRelay.InvertKeyFor(setting.Key), setting.Invert.ToString());
         }
     }
 

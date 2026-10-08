@@ -81,13 +81,14 @@ public sealed class TaskStepVm : ViewModelBase
 /// <summary>通用「名称=值」设置行，可选下拉选项与 ini 落盘定位。</summary>
 public sealed class SettingPairVm : ViewModelBase
 {
-    public SettingPairVm(string name, string value, IEnumerable<string>? options = null, string unit = "", string section = "", string key = "")
+    public SettingPairVm(string name, string value, IEnumerable<string>? options = null, string unit = "", string section = "", string key = "", bool supportsInvert = false)
     {
         Name = name;
         _value = value;
         Unit = unit;
         Section = section;
         Key = string.IsNullOrWhiteSpace(key) ? name : key;
+        SupportsInvert = supportsInvert;
         Options = options is null ? new ObservableCollection<string>() : new ObservableCollection<string>(options);
     }
 
@@ -100,6 +101,17 @@ public sealed class SettingPairVm : ViewModelBase
 
     private string _value;
     public string Value { get => _value; set => SetField(ref _value, value); }
+
+    /// <summary>是否显示「反相」开关（只有阀门继电器需要：现场接线不统一）。</summary>
+    public bool SupportsInvert { get; }
+
+    private bool _invert;
+
+    /// <summary>
+    /// true = 该继电器接线反相：逻辑「开阀」下发 ROUT:CLOSE、逻辑「关阀」下发 ROUT:OPEN。
+    /// 保存到 [ValveSettings] {Key}Invert，运行时由 ValveRelay 统一解释。
+    /// </summary>
+    public bool Invert { get => _invert; set => SetField(ref _invert, value); }
 }
 
 /// <summary>压力控制器指令编辑行。</summary>

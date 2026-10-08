@@ -48,7 +48,8 @@
     <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="180"/>
+            <!-- 数据I/O + 历史记录：180 偏矮，日志多滚两下就顶到底，抬到 220 -->
+            <RowDefinition Height="104"/>
         </Grid.RowDefinitions>
 
         <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -67,11 +68,20 @@
             <!-- 采集卡串口 -->
             <Border Style="{StaticResource Card}" Grid.Column="0" Margin="0,0,8,8">
                 <StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
-                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <TextBlock Text="数据采集卡串口设置" Style="{StaticResource GroupTitle}"/>
-                    </StackPanel>
+                    <!-- 标题行右侧挂「刷新」，不再和串口号挤同一格，避免首行控件被压窄 -->
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal">
+                            <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="数据采集卡串口设置" Style="{StaticResource GroupTitle}"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="刷新" Padding="8,1" Style="{StaticResource GhostButton}"
+                                Command="{Binding RefreshComPortsCommand}"/>
+                    </Grid>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -82,28 +92,21 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
-                        <Grid Grid.Row="0" Grid.Column="0" Margin="0,0,4,6">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,4,8">
                             <TextBlock Text="串口号" Style="{StaticResource Lbl}"/>
-                            <ComboBox Grid.Column="0" Margin="0,18,4,0"
-                                      ItemsSource="{Binding ComPorts}"
+                            <ComboBox ItemsSource="{Binding ComPorts}"
                                       Text="{Binding CardCom, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       IsEditable="True"/>
-                            <Button Grid.Column="1" Margin="0,18,0,0" Padding="8,0"
-                                    Content="刷新" Command="{Binding RefreshComPortsCommand}"/>
-                        </Grid>
-                        <StackPanel Grid.Row="0" Grid.Column="1" Margin="4,0,0,6">
+                        </StackPanel>
+                        <StackPanel Grid.Row="0" Grid.Column="1" Margin="4,0,0,8">
                             <TextBlock Text="校验位" Style="{StaticResource Lbl}"/>
                             <ComboBox ItemsSource="{Binding ParityList}" SelectedItem="{Binding CardParity}"/>
                         </StackPanel>
-                        <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,4,6">
+                        <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,4,8">
                             <TextBlock Text="波特率" Style="{StaticResource Lbl}"/>
                             <ComboBox ItemsSource="{Binding BaudRates}" SelectedItem="{Binding CardBaud}"/>
                         </StackPanel>
-                        <StackPanel Grid.Row="1" Grid.Column="1" Margin="4,0,0,6">
+                        <StackPanel Grid.Row="1" Grid.Column="1" Margin="4,0,0,8">
                             <TextBlock Text="停止位" Style="{StaticResource Lbl}"/>
                             <ComboBox ItemsSource="{Binding StopBits}" SelectedItem="{Binding CardStop}"/>
                         </StackPanel>
@@ -111,7 +114,7 @@
                             <TextBlock Text="数据位" Style="{StaticResource Lbl}"/>
                             <ComboBox ItemsSource="{Binding DataBits}" SelectedItem="{Binding CardData}"/>
                         </StackPanel>
-                        <Button Grid.Row="2" Grid.Column="1" Margin="4,0,0,0" VerticalAlignment="Bottom"
+                        <Button Grid.Row="2" Grid.Column="1" Margin="4,20,0,0" VerticalAlignment="Top"
                                 Content="{Binding CardSerialButtonText}" Style="{StaticResource ActionButton}"
                                 Command="{Binding OpenCardSerialCommand}"/>
                     </Grid>
@@ -209,60 +212,102 @@
                                     Command="{Binding SafeResetCommand}"/>
                         </StackPanel>
                     </Grid>
-                    <Separator Margin="0,0,0,6"/>
-                    <StackPanel Orientation="Horizontal">
-                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
-                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <TextBlock Text="读取数据" Style="{StaticResource GroupTitle}"/>
-                    </StackPanel>
-                    <Grid HorizontalAlignment="Left">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="160"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-
-                        <Button Grid.Row="0" Grid.Column="0" Content="📡 读 Usig"
-                                Style="{StaticResource ReadButton}"
-                                Command="{Binding ReadUsigCommand}"/>
-                        <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource OutBox}"
-                                 Text="{Binding ReadUsig}"/>
-                        <TextBlock Grid.Row="0" Grid.Column="2" Text="mV" Margin="4,0,0,0"
-                                   VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
-
-                        <Button Grid.Row="1" Grid.Column="0" Content="🌡 读 UT"
-                                Style="{StaticResource ReadButton}"
-                                Command="{Binding ReadUtCommand}" Margin="0,6,8,0"/>
-                        <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource OutBox}"
-                                 Text="{Binding ReadUT}" Margin="0,6,0,0"/>
-                        <TextBlock Grid.Row="1" Grid.Column="2" Text="mV" Margin="4,6,0,0"
-                                   VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
-
-                        <Button Grid.Row="2" Grid.Column="0" Content="🌡 读温度变送器 (T)"
-                                Style="{StaticResource ReadButton}"
-                                Command="{Binding ReadTCommand}" Margin="0,6,8,0"/>
-                        <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource OutBox}"
-                                 Text="{Binding ReadT}" Margin="0,6,0,0"/>
-                        <TextBlock Grid.Row="2" Grid.Column="2" Text="mV" Margin="4,6,0,0"
-                                   VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
-
-                        <Button Grid.Row="3" Grid.Column="0" Content="🔬 读 40uA"
-                                Style="{StaticResource ReadButton}"
-                                Command="{Binding Read40uACommand}" Margin="0,6,8,0"/>
-                        <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource OutBox}"
-                                 Text="{Binding Read40uA}" Margin="0,6,0,0"/>
-                        <TextBlock Grid.Row="3" Grid.Column="2" Text="uA" Margin="4,6,0,0"
-                                   VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
-                    </Grid>
                 </StackPanel>
             </Border>
         </Grid>
+
+        <!-- ════════════════════════════════════════════════════════ -->
+        <!-- Row 0b: 读取数据（全宽横排：4 项并排，比竖排省一半高度） -->
+        <!-- ════════════════════════════════════════════════════════ -->
+        <Border Style="{StaticResource Card}" Margin="0,0,0,8">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                               VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <TextBlock Text="读取数据" Style="{StaticResource GroupTitle}"/>
+                </StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+<Grid Grid.Column="0" Margin="0,0,10,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="📡 读 Usig" Style="{StaticResource ReadButton}"
+                                Command="{Binding ReadUsigCommand}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <Grid Grid.Column="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" Style="{StaticResource OutBox}" Text="{Binding ReadUsig}"/>
+                            <TextBlock Grid.Column="1" Text="mV" Margin="6,0,0,0" VerticalAlignment="Center"
+                                       Foreground="{StaticResource MutedBrush}"/>
+                        </Grid>
+                    </Grid>
+
+<Grid Grid.Column="1" Margin="0,0,10,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="🌡 读 UT" Style="{StaticResource ReadButton}"
+                                Command="{Binding ReadUtCommand}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <Grid Grid.Column="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" Style="{StaticResource OutBox}" Text="{Binding ReadUT}"/>
+                            <TextBlock Grid.Column="1" Text="mV" Margin="6,0,0,0" VerticalAlignment="Center"
+                                       Foreground="{StaticResource MutedBrush}"/>
+                        </Grid>
+                    </Grid>
+
+<Grid Grid.Column="2" Margin="0,0,10,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="🌡 读温度变送器 (T)" Style="{StaticResource ReadButton}"
+                                Command="{Binding ReadTCommand}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <Grid Grid.Column="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" Style="{StaticResource OutBox}" Text="{Binding ReadT}"/>
+                            <TextBlock Grid.Column="1" Text="mV" Margin="6,0,0,0" VerticalAlignment="Center"
+                                       Foreground="{StaticResource MutedBrush}"/>
+                        </Grid>
+                    </Grid>
+
+<Grid Grid.Column="3" Margin="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="🔬 读 40uA" Style="{StaticResource ReadButton}"
+                                Command="{Binding Read40uACommand}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <Grid Grid.Column="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" Style="{StaticResource OutBox}" Text="{Binding Read40uA}"/>
+                            <TextBlock Grid.Column="1" Text="uA" Margin="6,0,0,0" VerticalAlignment="Center"
+                                       Foreground="{StaticResource MutedBrush}"/>
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </StackPanel>
+        </Border>
 
         <!-- ════════════════════════════════════════════════════════ -->
         <!-- Row 1: 通道选择 + 压控 + 烘箱温控 + 阀门控制              -->

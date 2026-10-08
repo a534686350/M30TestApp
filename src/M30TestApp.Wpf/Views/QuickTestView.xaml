@@ -46,7 +46,8 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="220"/>
+            <!-- 测试日志：内容是一行状态 + 滚动日志，140 足够，多出来的高度让给结果表 -->
+            <RowDefinition Height="140"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
@@ -60,56 +61,70 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Width="120" Margin="0,0,10,0">
+                <!-- ① 压力点组 -->
+                <StackPanel Width="104" Margin="0,0,8,0">
                     <TextBlock Text="P0" Style="{StaticResource FieldLabel}"/>
                     <TextBox Text="{Binding P0, UpdateSourceTrigger=PropertyChanged}"/>
                 </StackPanel>
-                <StackPanel Grid.Column="1" Width="120" Margin="0,0,10,0">
+                <StackPanel Grid.Column="1" Width="104" Margin="0,0,8,0">
                     <TextBlock Text="P50" Style="{StaticResource FieldLabel}"/>
                     <TextBox Text="{Binding P50, UpdateSourceTrigger=PropertyChanged}"/>
                 </StackPanel>
-                <StackPanel Grid.Column="2" Width="120" Margin="0,0,10,0">
+                <StackPanel Grid.Column="2" Width="104" Margin="0,0,8,0">
                     <TextBlock Text="P100" Style="{StaticResource FieldLabel}"/>
                     <TextBox Text="{Binding P100, UpdateSourceTrigger=PropertyChanged}"/>
                 </StackPanel>
-                <StackPanel Grid.Column="3" Width="100" Margin="0,0,16,0">
+                <StackPanel Grid.Column="3" Width="88" Margin="0,0,12,0">
                     <TextBlock Text="单位" Style="{StaticResource FieldLabel}"/>
                     <ComboBox ItemsSource="{Binding PressureUnits}"
                               Text="{Binding PressureUnit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                               IsEditable="True"/>
                 </StackPanel>
 
-                <StackPanel Grid.Column="4" Width="90" Margin="0,0,10,0">
+                <Rectangle Grid.Column="4" Width="1" Fill="{StaticResource BorderBrush}"
+                           Margin="0,0,12,0" VerticalAlignment="Stretch"/>
+
+                <!-- ② 控压参数组 -->
+                <StackPanel Grid.Column="5" Width="82" Margin="0,0,8,0">
                     <TextBlock Text="压力精度" Style="{StaticResource FieldLabel}"/>
                     <TextBox Text="{Binding PressurePrecision, UpdateSourceTrigger=PropertyChanged}"/>
                 </StackPanel>
-
-                <StackPanel Grid.Column="5" Width="80" Margin="0,0,16,0">
+                <StackPanel Grid.Column="6" Width="72" Margin="0,0,12,0">
                     <TextBlock Text="保压(s)" Style="{StaticResource FieldLabel}"/>
                     <TextBox Text="{Binding HoldSeconds, UpdateSourceTrigger=PropertyChanged}"/>
                 </StackPanel>
 
-                <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Bottom" Margin="0,0,16,0">
-                    <StackPanel Width="80" Margin="0,0,8,0">
+                <Rectangle Grid.Column="7" Width="1" Fill="{StaticResource BorderBrush}"
+                           Margin="0,0,12,0" VerticalAlignment="Stretch"/>
+
+                <!-- ③ 工位范围组 -->
+                <StackPanel Grid.Column="8" Orientation="Horizontal" VerticalAlignment="Bottom" Margin="0,0,16,0">
+                    <StackPanel Width="76" Margin="0,0,8,0">
                         <TextBlock Text="起始工位" Style="{StaticResource FieldLabel}"/>
                         <TextBox Text="{Binding StartSlot, UpdateSourceTrigger=PropertyChanged}"/>
                     </StackPanel>
-                    <StackPanel Width="80">
+                    <StackPanel Width="76">
                         <TextBlock Text="结束工位" Style="{StaticResource FieldLabel}"/>
                         <TextBox Text="{Binding EndSlot, UpdateSourceTrigger=PropertyChanged}"/>
                     </StackPanel>
                 </StackPanel>
 
-                <StackPanel Grid.Column="7" VerticalAlignment="Bottom">
-                    <TextBlock Text="{Binding SensorName}" FontWeight="SemiBold"/>
-                    <TextBlock Text="{Binding Status}" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="0,4,0,0"/>
+                <!-- ④ 方案 / 状态 -->
+                <StackPanel Grid.Column="9" VerticalAlignment="Bottom">
+                    <TextBlock Text="{Binding SensorName}" FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding Status}" Foreground="{StaticResource MutedBrush}"
+                               FontSize="12" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
 
-                <StackPanel Grid.Column="8" Orientation="Horizontal" VerticalAlignment="Bottom">
+                <!-- ⑤ 操作 -->
+                <StackPanel Grid.Column="10" Orientation="Horizontal" VerticalAlignment="Bottom">
                     <Button Content="刷新工位" Style="{StaticResource GhostButton}" Padding="12,6"
                             Command="{Binding RefreshSlotsCommand}" Margin="0,0,8,0"/>
                     <Button Content="开始快速测试" Style="{StaticResource SaveButton}" Padding="16,6"

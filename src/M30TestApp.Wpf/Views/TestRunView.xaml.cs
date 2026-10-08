@@ -25,8 +25,9 @@ public partial class TestRunView : UserControl
         if (!IsLoaded) return;
 
         // 采集矩阵优先：窄窗口收窄右侧栏（测试统计 + 实时日志），把宽度让给矩阵。
-        var compact = ActualHeight < 760 || ActualWidth < 1120;
-        RightRailColumn.Width = new GridLength(compact ? 260 : 330);
+        // 实时日志只显示"时间 + 采集数据"，单行约 50 字符（约 340px），右栏必须留足宽度避免数据被截断。
+        var compact = ActualWidth < 1120;
+        RightRailColumn.Width = new GridLength(compact ? 400 : 480);
     }
 
     /// <summary>

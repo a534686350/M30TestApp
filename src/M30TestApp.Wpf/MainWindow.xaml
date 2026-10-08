@@ -14,6 +14,18 @@
         Background="{DynamicResource BgBrush}"
         WindowStartupLocation="CenterScreen">
 
+    <!--
+        工控外壳 v3（2026-10-08 重构，紧凑型）。
+
+        与 v2 的差别：
+        1. 顶部固定 chrome 由 157px 压到 132px（42+38+Auto+30 → 34+34+38+26）。
+        2. 命令条**高度固定 38、从不折叠** —— v2 用 Height="Auto" + 仅测试页 Visible，
+           切页时整条消失、工作区内容整体上移约 47px，四个页签内容起始位置全不一样。
+           现在改为一律常驻，只换里面的内容（测试族=开始/停止+工步，其余=页面标题+副标题）。
+        3. 测试类型（自动测试 / 长期稳定性 / 快速测试）从命令条里的二级单选提到顶部一级页签，
+           三个测试本来就是三个独立视图（MainViewModel.TestModeView），不该被降级。
+        4. 主题切换 / 全屏提到顶栏右侧，不必再进「系统」菜单点第三层。
+    -->
     <Window.Resources>
         <conv:NavKeyIsConverter x:Key="NavKeyIs"/>
 
@@ -22,13 +34,13 @@
             <Setter Property="Background" Value="{DynamicResource BannerChipBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="0"/>
-            <Setter Property="Padding" Value="7,2"/>
+            <Setter Property="CornerRadius" Value="3"/>
+            <Setter Property="Padding" Value="6,1"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
 
         <Style x:Key="BannerChipText" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontSize" Value="10.5"/>
             <Setter Property="Foreground" Value="{DynamicResource TitleSubBrush}"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
@@ -39,35 +51,39 @@
         </Style>
 
         <Style x:Key="StatusLedText" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="FontSize" Value="11"/>
             <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
+
+        <!-- 页签选中态：统一走 SelectedTabKey（测试族三页各占一个值） -->
+        <Style x:Key="NavTab" TargetType="RadioButton" BasedOn="{StaticResource MainTab}"/>
     </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="42"/>
+            <RowDefinition Height="34"/>
+            <RowDefinition Height="34"/>
+            <!-- 命令条常驻：高度固定，绝不因切页折叠（那正是 v2「布局切换不完美」的根因） -->
             <RowDefinition Height="38"/>
-            <RowDefinition Height="54"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="30"/>
+            <RowDefinition Height="26"/>
         </Grid.RowDefinitions>
 
-        <!-- ═══ Row0 顶部横幅：品牌 | 工位/版本 | 运行状态 · 报警 · 时钟 ═══ -->
+        <!-- ═══ Row0 顶部横幅 34：品牌 | 工位/版本 | 状态 · 报警 · 时钟 · 主题 · 全屏 ═══ -->
         <Border Grid.Row="0" Background="{DynamicResource TopBarBrush}"
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
             <DockPanel LastChildFill="False" Margin="12,0">
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Rectangle Width="4" Height="20" Fill="{DynamicResource AccentBrush}"/>
+                    <Rectangle Width="3" Height="16" Fill="{DynamicResource AccentBrush}"/>
                     <TextBlock Text="M30 压力传感器自动测试系统"
-                               FontSize="14" FontWeight="Bold"
+                               FontSize="13" FontWeight="SemiBold"
                                Foreground="{DynamicResource TitleFgBrush}"
-                               VerticalAlignment="Center" Margin="10,0,0,0"/>
-                    <Border Style="{StaticResource BannerChip}" Margin="10,0,0,0">
+                               VerticalAlignment="Center" Margin="9,0,0,0"/>
+                    <Border Style="{StaticResource BannerChip}" Margin="9,0,0,0">
                         <TextBlock Text="{Binding VersionText}" Style="{StaticResource BannerChipText}"/>
                     </Border>
-                    <Border Style="{StaticResource BannerChip}" Margin="6,0,0,0">
+                    <Border Style="{StaticResource BannerChip}" Margin="5,0,0,0">
                         <TextBlock Text="{Binding StationTitle, StringFormat=工位 · {0}}"
                                    Style="{StaticResource BannerChipText}"/>
                     </Border>
@@ -77,50 +93,81 @@
                     <Border Style="{StaticResource BannerChip}">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="7" Height="7" Fill="{DynamicResource LedOnBrush}"
-                                     VerticalAlignment="Center" Margin="0,0,6,0"/>
-                            <TextBlock Text="{Binding CurrentRunStatus}" FontSize="11" FontWeight="Bold"
+                                     VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBlock Text="{Binding CurrentRunStatus}" FontSize="10.5" FontWeight="Bold"
                                        Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource BannerChip}" Background="{DynamicResource BannerAlarmBrush}"
-                            Margin="6,0,0,0">
+                            Margin="5,0,0,0">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="7" Height="7" Fill="{DynamicResource LedErrorBrush}"
-                                     VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                     VerticalAlignment="Center" Margin="0,0,5,0"/>
                             <TextBlock Text="{Binding TestRun.ErrCount, StringFormat=报警 {0}}"
-                                       FontSize="11" Foreground="{DynamicResource TextBrush}"
+                                       FontSize="10.5" Foreground="{DynamicResource TextBrush}"
                                        VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
-                    <TextBlock x:Name="ClockText" FontSize="12" Margin="14,0,0,0"
+                    <TextBlock x:Name="ClockText" FontSize="11.5" Margin="12,0,0,0"
                                FontFamily="Consolas"
                                Foreground="{DynamicResource TitleSubBrush}" VerticalAlignment="Center"/>
+
+                    <Button Content="{Binding ToggleThemeText}" Command="{Binding ToggleThemeCommand}"
+                            Style="{StaticResource GhostButton}"
+                            FontSize="10.5" Padding="9,1" Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            ToolTip="切换深色 / 浅色主题（原来要进「系统」菜单点第三层）"/>
+                    <Button Content="全屏" Click="ToggleFullscreen_Click"
+                            Style="{StaticResource GhostButton}"
+                            FontSize="10.5" Padding="9,1" Margin="5,0,0,0"
+                            VerticalAlignment="Center"
+                            ToolTip="全屏 / 还原（F11）"/>
                 </StackPanel>
             </DockPanel>
         </Border>
 
-        <!-- ═══ Row1 模块页签条：9 个模块 + 右上系统菜单 ═══ -->
+        <!-- ═══ Row1 模块页签条 34：测试族三页 + 手动 / 日志 / 配置，同一级 ═══
+             这几个 RadioButton **故意不设 GroupName**：互斥已经由 SelectedTabKey 这一个
+             单一来源保证（谁选中全看它），再叠加 GroupName 的组内互斥逻辑会和
+             IsChecked 的单向绑定打架 —— 表现为「点了长期稳定性，高亮却停在手动调试」。
+             不设组后点击仍正常走 Command，绑定随即把 IsChecked 刷回正确值。 -->
         <Border Grid.Row="1" Background="{DynamicResource TabStripBrush}"
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
             <DockPanel LastChildFill="False">
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Stretch">
-                    <RadioButton Style="{DynamicResource MainTab}" GroupName="MainNav"
-                                 Content="测试"
-                                 Command="{Binding ShowTestCenterCommand}"
-                                 IsChecked="{Binding SelectedNavKey, Converter={StaticResource NavKeyIs}, ConverterParameter=Test, Mode=TwoWay}"/>
-                    <RadioButton Style="{DynamicResource MainTab}" GroupName="MainNav"
+                    <!-- 测试族：三个本来独立的视图，v2 被降级到命令条当二级单选 -->
+                    <RadioButton Style="{StaticResource NavTab}"
+                                 Content="{DynamicResource Nav.TestRun}"
+                                 Command="{Binding ShowTestRunCommand}"
+                                 IsChecked="{Binding IsTabAuto, Mode=OneWay}"
+                                 ToolTip="按测试方案逐温度点 × 逐压力点自动采集"/>
+                    <RadioButton Style="{StaticResource NavTab}"
+                                 Content="{DynamicResource Nav.LongTermStability}"
+                                 Command="{Binding ShowLongTermStabilityCommand}"
+                                 IsChecked="{Binding IsTabLongTerm, Mode=OneWay}"
+                                 ToolTip="长时间连续采集，观察漂移"/>
+                    <RadioButton Style="{StaticResource NavTab}"
+                                 Content="{DynamicResource Nav.QuickTest}"
+                                 Command="{Binding ShowQuickTestCommand}"
+                                 IsChecked="{Binding IsTabQuick, Mode=OneWay}"
+                                 ToolTip="单工位快速验证"/>
+
+                    <Rectangle Width="1" Fill="{DynamicResource DividerBrush}" Margin="7,8"/>
+                    <RadioButton Style="{StaticResource NavTab}"
                                  Content="{DynamicResource Nav.Manual}"
                                  Command="{Binding ShowManualCommand}"
-                                 IsChecked="{Binding SelectedNavKey, Converter={StaticResource NavKeyIs}, ConverterParameter=Manual, Mode=TwoWay}"/>
-                    <Rectangle Width="1" Fill="{DynamicResource DividerBrush}" Margin="8,9"/>
-                    <RadioButton Style="{DynamicResource MainTab}" GroupName="MainNav"
+                                 IsChecked="{Binding IsTabManual, Mode=OneWay}"
+                                 ToolTip="设备点动与单次读数"/>
+                    <RadioButton Style="{StaticResource NavTab}"
                                  Content="{DynamicResource Nav.Log}"
                                  Command="{Binding ShowLogCommand}"
-                                 IsChecked="{Binding SelectedNavKey, Converter={StaticResource NavKeyIs}, ConverterParameter=Log, Mode=TwoWay}"/>
-                    <RadioButton Style="{DynamicResource MainTab}" GroupName="MainNav"
-                                 Content="{DynamicResource Nav.Settings}"
+                                 IsChecked="{Binding IsTabLog, Mode=OneWay}"
+                                 ToolTip="全量运行日志"/>
+                    <RadioButton Style="{StaticResource NavTab}"
+                                 Content="{DynamicResource Nav.Config}"
                                  Command="{Binding ShowConfigCommand}"
-                                 IsChecked="{Binding SelectedNavKey, Converter={StaticResource NavKeyIs}, ConverterParameter=Settings, Mode=TwoWay}"/>
+                                 IsChecked="{Binding IsTabSettings, Mode=OneWay}"
+                                 ToolTip="方案 / 工位 / 设备 / 指令配置"/>
                 </StackPanel>
 
                 <Menu DockPanel.Dock="Right" Background="Transparent" VerticalAlignment="Center" Margin="0,0,8,0">
@@ -136,10 +183,6 @@
                         <MenuItem Header="工位配置" Command="{Binding ShowConfigSlotsCommand}"/>
                         <MenuItem Header="偏好设置（语言 / 更新）" Command="{Binding ShowSettingsCommand}"/>
                         <Separator/>
-                        <MenuItem Header="深色主题" Command="{Binding ShowDarkThemeCommand}"/>
-                        <MenuItem Header="浅色主题" Command="{Binding ShowLightThemeCommand}"/>
-                        <Separator/>
-                        <MenuItem Header="全屏切换" InputGestureText="F11" Click="ToggleFullscreen_Click"/>
                         <MenuItem Header="版本信息与更新" Command="{Binding ShowVersionInfoCommand}"/>
                         <MenuItem Header="关于 M30 Test Console" Click="About_Click"/>
                         <Separator/>
@@ -149,62 +192,73 @@
             </DockPanel>
         </Border>
 
-        <!-- ═══ Row2 命令条：主操作 + 当前模式/工步 + 方案 ═══ -->
+        <!-- ═══ Row2 命令条 38（常驻不折叠）：测试族=主操作+工步，其余=页面标题+说明 ═══ -->
         <Border Grid.Row="2" Background="{DynamicResource ToolbarBrush}"
-                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
-                Padding="12,0">
-            <DockPanel LastChildFill="False" VerticalAlignment="Center">
-                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+            <Grid Margin="12,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- 测试族：开始 / 停止 / 当前工步 -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsTestFamily}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
                     <Button Content="▶  开始测试"
-                            Style="{DynamicResource ToolbarStartButton}"
+                            Style="{StaticResource ToolbarStartButton}"
                             Command="{Binding StartSelectedRunCommand}"
-                            FontSize="13" MinWidth="112"
-                            ToolTip="按当前选中的测试模式开始测试"/>
+                            FontSize="12.5" MinWidth="104"
+                            ToolTip="按当前测试类型开始（F5）"/>
                     <Button Content="■  停止"
-                            Style="{DynamicResource ToolbarStopButton}"
+                            Style="{StaticResource ToolbarStopButton}"
                             Command="{Binding StopSelectedRunCommand}"
-                            FontSize="13" MinWidth="82" Margin="8,0,0,0"/>
-                    <!-- 测试类型选择器：自动测试 / 长期稳定性 / 快速测试 共用同一个表格页面。
-                         两道分隔线一起包在可折叠组里，否则非测试页会剩下一条孤立的空分隔线。 -->
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <StackPanel.Style>
-                            <Style TargetType="StackPanel">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedNavKey}" Value="Test">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </StackPanel.Style>
-                        <Separator Style="{DynamicResource ToolbarSeparator}"/>
-                        <TextBlock Text="测试类型" Style="{StaticResource FieldLabel}"
-                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <RadioButton Style="{DynamicResource ModeTab}" GroupName="TestMode" Content="自动测试"
-                                     Command="{Binding ShowTestRunCommand}"
-                                     IsChecked="{Binding TestMode, Converter={StaticResource NavKeyIs}, ConverterParameter=Auto, Mode=TwoWay}"/>
-                        <RadioButton Style="{DynamicResource ModeTab}" GroupName="TestMode" Content="长期稳定性"
-                                     Command="{Binding ShowLongTermStabilityCommand}"
-                                     IsChecked="{Binding TestMode, Converter={StaticResource NavKeyIs}, ConverterParameter=LongTerm, Mode=TwoWay}"/>
-                        <RadioButton Style="{DynamicResource ModeTab}" GroupName="TestMode" Content="快速测试"
-                                     Command="{Binding ShowQuickTestCommand}"
-                                     IsChecked="{Binding TestMode, Converter={StaticResource NavKeyIs}, ConverterParameter=Quick, Mode=TwoWay}"/>
-                        <Separator Style="{DynamicResource ToolbarSeparator}"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Vertical" VerticalAlignment="Center" Margin="4,0" MaxWidth="430">
+                            FontSize="12.5" MinWidth="74" Margin="7,0,0,0"/>
+                    <Separator Style="{StaticResource ToolbarSeparator}"/>
+                    <StackPanel Margin="4,0" MaxWidth="430">
                         <TextBlock Text="当前工步" Style="{StaticResource FieldLabel}"/>
-                        <TextBlock Text="{Binding CurrentRunStep}" FontSize="11.5"
+                        <TextBlock Text="{Binding CurrentRunStep}" FontSize="11"
                                    Foreground="{DynamicResource TextBrush}"
                                    TextTrimming="CharacterEllipsis"
                                    ToolTip="{Binding CurrentRunStep}"/>
                     </StackPanel>
                 </StackPanel>
 
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding PlanTitle}" FontSize="11.5"
+                <!-- 非测试族：页面标题 + 这一页是干什么的（高度不变，所以切页不跳） -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsTestFamily}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <Rectangle Width="3" Height="15" Fill="{DynamicResource AccentBrush}"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding PageTitle}" FontSize="13" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TitleFgBrush}"
+                               VerticalAlignment="Center" Margin="8,0,0,0"/>
+                    <TextBlock Text="{Binding PageSubtitle}" FontSize="11"
+                               Foreground="{DynamicResource MutedBrush}"
+                               VerticalAlignment="Center" Margin="10,0,0,0"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding PlanTitle}" FontSize="11"
                                Foreground="{DynamicResource MutedBrush}"/>
                 </StackPanel>
-            </DockPanel>
+            </Grid>
         </Border>
 
         <!-- ═══ Row3 工作区（全宽） ═══ -->
@@ -212,7 +266,7 @@
             <ContentControl Content="{Binding CurrentView}"/>
         </Border>
 
-        <!-- ═══ Row4 状态栏：设备 LED 组 | 就绪 | 版本 ═══ -->
+        <!-- ═══ Row4 状态栏 26：设备 LED 组 | 就绪 | 版本 ═══ -->
         <Border Grid.Row="4" Background="{DynamicResource StatusBarBrush}"
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0"
                 Padding="12,0">
@@ -226,30 +280,28 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,14,0" VerticalAlignment="Center">
-                                    <Ellipse Width="9" Height="9" Fill="{Binding DotBrush}"
+                                <StackPanel Orientation="Horizontal" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <Ellipse Width="8" Height="8" Fill="{Binding DotBrush}"
                                              Stroke="{DynamicResource BorderBrush}" StrokeThickness="0.8"
                                              VerticalAlignment="Center" Margin="0,0,5,0"/>
                                     <TextBlock Text="{Binding Title}" Style="{StaticResource StatusLedText}"/>
-                                    <TextBlock Text="{Binding StateText}" FontSize="10.5"
-                                               Foreground="{Binding DotBrush}" Margin="4,0,0,0"
+                                    <TextBlock Text="{Binding StateText}" FontSize="10"
+                                               Foreground="{Binding DotBrush}" Margin="3,0,0,0"
                                                VerticalAlignment="Center"/>
                                 </StackPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <Rectangle Width="1" Height="14" Fill="{DynamicResource DividerBrush}"
-                               VerticalAlignment="Center" Margin="2,0,12,0"/>
-                    <Ellipse Width="6" Height="6" Fill="{DynamicResource LedOnBrush}"
-                             VerticalAlignment="Center" Margin="0,0,5,0"/>
-                    <TextBlock Text="系统就绪   ·   F11 全屏" FontSize="10.5"
+                    <Rectangle Width="1" Height="12" Fill="{DynamicResource DividerBrush}"
+                               VerticalAlignment="Center" Margin="2,0,10,0"/>
+                    <TextBlock Text="系统就绪 · F11 全屏" FontSize="10"
                                Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"/>
                 </StackPanel>
 
                 <TextBlock DockPanel.Dock="Right"
                            Text="{Binding VersionText, StringFormat=M30 Test Console {0}}"
-                           FontSize="10.5" Margin="0,0,2,0"
+                           FontSize="10" Margin="0,0,2,0"
                            Foreground="{DynamicResource MutedBrush}"
                            VerticalAlignment="Center"/>
             </DockPanel>

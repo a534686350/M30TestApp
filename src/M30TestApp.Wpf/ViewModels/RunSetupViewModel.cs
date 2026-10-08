@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -301,45 +302,85 @@ public sealed class RunSetupViewModel : ViewModelBase
         return string.Join(Environment.NewLine, lines);
     }
 
-    private static string ExpandDmmAutoTestPreview(TestPlan plan)
+    private string ExpandDmmAutoTestPreview(TestPlan plan)
     {
         var lines = new List<string>();
-        lines.Add("Run:DmmAutoTest 万用表自动测试");
+        lines.Add("═══ Run:DmmAutoTest 万用表自动测试 ═══");
         lines.Add("");
-        lines.Add("工位上限 16；电压通道 101-116；电阻通道 201-216；切换通道预留 301-304。");
-        lines.Add("保温、保压、压力点和温度点流程与自动测试一致。");
+        var cfg = ChannelConfig;
+        var swEnd = cfg.PowerSwitchStart + DmmAutoSlotMap.SlotsPerUnit - 1;
+        lines.Add($"DAQ973A × {DmmAutoTestUnitCount}，工位 {_startIndex}-{EndIndex}（模式上限 {DmmAutoTestSlotLimit}）。");
+        lines.Add($"通道分配（以「配置 → 设备」里保存的为准）：{cfg.Summary}。");
+        lines.Add("控制对象是传感器电源开关，全程不控制气路阀门。");
         lines.Add("电压按 mV 写入 USG 指标列，电阻写入 DMM_R 并优先用于 TCR。");
         lines.Add("");
 
-        foreach (var tp in plan.TempPoints)
+        for (var ti = 0; ti < plan.TempPoints.Count; ti++)
         {
+            var tp = plan.TempPoints[ti];
             var soak = tp.SoakMinutes ?? 120;
-            lines.Add($"温度点 {tp.Name} = {tp.Celsius} C");
-            lines.Add($"    设置烘箱 -> 等待到达 -> 保温 {soak} min -> 采集电阻 DMM_R");
+            lines.Add($"【{ti + 1}】温度点 {tp.Name} = {tp.Celsius} °C");
+            lines.Add($"    设置烘箱 → 等待到达 → 保温 {soak} min");
+
             foreach (var pp in plan.PressurePoints)
-                lines.Add($"    压力点 {pp.Name} = {pp.Value} {plan.PressureUnit} -> 稳定 -> 保压 -> 采集电压 USG");
-            lines.Add("    下行回差压力点 -> 采集电压 USG_R");
+            {
+                lines.Add($"    ── 压力点 {pp.Name} = {pp.Value} {plan.PressureUnit} [{pp.PressureTypeDisplay}]");
+                lines.Add("       设压力 → 稳定 → 保压");
+                lines.Add($"       上电：{cfg.PowerSwitchStart}-{swEnd} + 总电源 {cfg.MasterChannels} 同时闭合 → 逐工位读电压 USG");
+                lines.Add($"       断电：{cfg.PowerSwitchStart}-{swEnd} 与总电源 {cfg.MasterChannels} 全部断开");
+            }
+
+            lines.Add("    逐工位读电阻 → DMM_R");
+            lines.Add("    读取烘箱温度 → OvenTemp（全部工位）");
             lines.Add("");
         }
 
-        lines.Add("结束：计算指标 -> 保存数据 -> 泄压");
+        lines.Add("【结束】计算指标 → 保存数据 → 泄压 → 关烘箱");
         return string.Join(Environment.NewLine, lines);
     }
 
     // ─── Slot layout inputs ────────────────────────────────────────────────
     public const int SlotMax = SlotLayoutHelper.SlotMax;
     public const int LongTermStabilitySlotMax = 60;
-    public const int DmmAutoTestSlotMax = 16;
+    /// <summary>万用表采集模式最多支持的工位数 = 3 台 × 每台工位数（默认 48）。</summary>
+    public int DmmAutoTestSlotMax => DmmAutoSlotMap.MaxSlotCount;
+
+    /// <summary>万用表采集模式实际可用的工位上限 = 已配置的 973 台数 × 16。</summary>
+    public int DmmAutoTestSlotLimit =>
+        Math.Clamp(_session.Dmms.Count, 1, DmmAutoSlotMap.MaxUnits) * DmmAutoSlotMap.SlotsPerUnit;
+
+    /// <summary>本次万用表采集会用到的 973 台数（1-3）。</summary>
+    public int DmmAutoTestUnitCount =>
+        Math.Clamp((SlotCount + DmmAutoSlotMap.SlotsPerUnit - 1) / DmmAutoSlotMap.SlotsPerUnit,
+            1, Math.Clamp(_session.Dmms.Count, 1, DmmAutoSlotMap.MaxUnits));
+
     public int SlotLimit => _isLongTermStabilityMode
         ? LongTermStabilitySlotMax
-        : UseDmmAutoTest ? DmmAutoTestSlotMax : SlotMax;
+        : UseDmmAutoTest ? DmmAutoTestSlotLimit : SlotMax;
     public bool IsLongTermStabilityMode => _isLongTermStabilityMode;
     public bool ShowLongTermSlotLayout => _isLongTermStabilityMode;
     public bool ShowLegacySlotLayoutFields => !_isLongTermStabilityMode;
+
+    /// <summary>万用表模式下「板卡映射 / 夹具阀位」整块无意义，应隐藏。</summary>
+    public bool ShowBoardLayoutFields => !_isLongTermStabilityMode && !UseDmmAutoTest;
+
+    /// <summary>
+    /// 当前生效的通道配置（来自「配置 → 设备」保存的 <c>[DmmAutoTest]</c> 段）。
+    /// 提示文案一律从它生成 —— 以前这里写死 101-116/201-216/301-316/319-320，
+    /// 现场改了通道，界面提示还停在旧数字上，照着接线就错。
+    /// </summary>
+    private static DmmAutoChannelConfig ChannelConfig => DmmAutoSlotMap.Current;
+
+    /// <summary>万用表模式替代「板卡映射」显示的通道摘要。</summary>
+    public string DmmChannelSummary =>
+        $"{DmmAutoTestUnitCount} 台 DAQ973A × {DmmAutoSlotMap.SlotsPerUnit} 工位\n{ChannelConfig.Summary}";
+
     public string ChannelHint => _isLongTermStabilityMode
         ? "通道映射：1-20→101-120，21-40→201-220，41-60→301-320（电压/电阻共用）"
-        : UseDmmAutoTest ? "DMM channels: V=101-116 / R=201-216 / Switch=301-304"
-        : "";
+        : UseDmmAutoTest
+            ? string.Join(Environment.NewLine,
+                Enumerable.Range(0, DmmAutoTestUnitCount).Select(i => DmmAutoSlotMap.UnitChannelHint(i)))
+            : "";
 
     public string LongTermSlotRangeHint => _isLongTermStabilityMode
         ? LongTermStabilitySlotMap.FormatRangeHint(_startIndex, EndIndex)
@@ -368,18 +409,51 @@ public sealed class RunSetupViewModel : ViewModelBase
         get => _startIndex;
         set
         {
-            var next = UsesFixedDmmSlotMap
-                ? Math.Clamp(value, 1, SlotLimit)
-                : value;
+            // 工位号直接决定生成的 Slot 名与阀门号，必须落在 1..工位上限内。
+            var next = Math.Clamp(value, 1, SlotLimit);
             if (!SetField(ref _startIndex, next)) return;
-            if (UsesFixedDmmSlotMap && _slotCount > MaxSlotCountFromStart)
+            if (_slotCount > MaxSlotCountFromStart)
             {
                 _slotCount = MaxSlotCountFromStart;
                 OnPropertyChanged(nameof(SlotCount));
             }
+            SyncDerivedLayoutFromStartIndex();
             NotifySlotRangeChanged();
             NotifyBoardLayoutChanged();
             Regenerate();
+        }
+    }
+
+    /// <summary>
+    /// 「起始阀位 / 起始板卡 / 起始板卡工位」不再是独立的手填参数，全部由起始工位推导：
+    /// 阀门每 32 工位一个（起始 129 → 5 号阀），板卡每 BoardSlotCapacity 工位一块
+    /// （起始 129、每板 16 工位 → 板卡 9 / 工位 1）。
+    /// 输入框仍可编辑（历史兼容），但起始工位一变就按工位重算覆盖，
+    /// 避免出现「起始工位 129 却从 1 号板卡 / 1 号阀开始数」的错配。
+    /// </summary>
+    private void SyncDerivedLayoutFromStartIndex()
+    {
+        var zeroBased = Math.Max(0, _startIndex - 1);
+
+        var valve = SlotLayoutHelper.ValveForSlot(_startIndex);
+        if (_startValve != valve)
+        {
+            _startValve = valve;
+            OnPropertyChanged(nameof(StartValve));
+        }
+
+        var capacity = Math.Max(1, _boardSlotCapacity);
+        var board = zeroBased / capacity + 1;
+        var boardSlot = zeroBased % capacity + 1;
+        if (_startBoard != board)
+        {
+            _startBoard = board;
+            OnPropertyChanged(nameof(StartBoard));
+        }
+        if (_startBoardSlot != boardSlot)
+        {
+            _startBoardSlot = boardSlot;
+            OnPropertyChanged(nameof(StartBoardSlot));
         }
     }
 
@@ -408,11 +482,15 @@ public sealed class RunSetupViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(EndIndex));
         OnPropertyChanged(nameof(LongTermSlotRangeHint));
+        OnPropertyChanged(nameof(ValveRangeHint));
+        OnPropertyChanged(nameof(DmmAutoTestUnitCount));
+        OnPropertyChanged(nameof(DmmChannelSummary));
+        OnPropertyChanged(nameof(ChannelHint));
     }
 
-    private int MaxSlotCountFromStart => UsesFixedDmmSlotMap
-        ? Math.Max(1, SlotLimit - Math.Clamp(_startIndex, 1, SlotLimit) + 1)
-        : SlotLimit;
+    /// <summary>从起始工位到工位上限还能生成多少个工位（起始 129 → 最多 128 个）。</summary>
+    private int MaxSlotCountFromStart =>
+        Math.Max(1, SlotLimit - Math.Clamp(_startIndex, 1, SlotLimit) + 1);
 
     private int _startBoard = 1;
     public int StartBoard { get => _startBoard; set => SetLayoutField(ref _startBoard, value); }
@@ -423,8 +501,23 @@ public sealed class RunSetupViewModel : ViewModelBase
     private int _boardSlotCapacity = 16;
     public int BoardSlotCapacity { get => _boardSlotCapacity; set => SetLayoutField(ref _boardSlotCapacity, Math.Max(1, value)); }
 
+    /// <summary>
+    /// 起始阀位。只作为「由起始工位推导出来的结果」展示（每 32 工位一个阀），
+    /// 真实取值一律由 <see cref="SyncDerivedLayoutFromStartIndex"/> 按工位重算，
+    /// 手填值不会影响生成的阀门列与运行时实际打开的阀门。
+    /// </summary>
     private int _startValve = 1;
-    public int StartValve { get => _startValve; set => SetLayoutField(ref _startValve, value); }
+    public int StartValve
+    {
+        get => _startValve;
+        set
+        {
+            if (_startValve == value) return;
+            _startValve = value;
+            OnPropertyChanged(nameof(StartValve));
+            OnPropertyChanged(nameof(ValveRangeHint));
+        }
+    }
 
     private int _fixtureSlotCapacity = 8;
     public int FixtureSlotCapacity { get => _fixtureSlotCapacity; set => SetLayoutField(ref _fixtureSlotCapacity, Math.Max(1, value)); }
@@ -442,6 +535,11 @@ public sealed class RunSetupViewModel : ViewModelBase
     public int LastBoardSlot => CurrentSlotLayout.LastBoardSlot;
 
     public string BoardMappingSummary => CurrentSlotLayout.BoardMappingSummary;
+
+    /// <summary>本次测试工位范围实际会用到的阀门（按工位自动推导，DMM 模式不使用压力阀）。</summary>
+    public string ValveRangeHint => UsesFixedDmmSlotMap
+        ? ""
+        : $"{SlotLayoutHelper.ValveRangeText(_startIndex, _slotCount)}（工位 {_startIndex}-{_startIndex + _slotCount - 1}，每 32 工位一个阀）";
 
     private int _startSerial = 1;
     public int StartSerial { get => _startSerial; set => SetLayoutField(ref _startSerial, value); }
@@ -481,6 +579,12 @@ public sealed class RunSetupViewModel : ViewModelBase
     public bool CollectOvenTemp { get => _collectOvenTemp; set => SetField(ref _collectOvenTemp, value); }
 
     public bool ShowAutoTestModeOptions => !_isLongTermStabilityMode;
+
+    /// <summary>
+    /// 「探漏」勾选框的可见性。万用表采集全程不控制气路阀门（气密性检测属电路板采集的活），
+    /// 这里必须一起隐藏 —— 否则用户勾了却发现根本没跑，白折腾。
+    /// </summary>
+    public bool ShowLeakCheckOption => ShowAutoTestModeOptions && !UseDmmAutoTest;
     public string RunTaskScript => _isLongTermStabilityMode
         ? "Run:LongTermStabilityTest"
         : UseDmmAutoTest ? "Run:DmmAutoTest" : "Run:PerformanceTest";
@@ -498,7 +602,12 @@ public sealed class RunSetupViewModel : ViewModelBase
             OnPropertyChanged(nameof(UseDmmAutoTest));
             OnPropertyChanged(nameof(UseBoardAutoTest));
             OnPropertyChanged(nameof(ShowCollectionOptions));
+            OnPropertyChanged(nameof(ShowDmmCollectionOptions));
+            OnPropertyChanged(nameof(ShowBoardLayoutFields));
+            OnPropertyChanged(nameof(ShowChannelHint));
             OnPropertyChanged(nameof(SlotLimit));
+            OnPropertyChanged(nameof(DmmAutoTestSlotLimit));
+            OnPropertyChanged(nameof(DmmAutoTestUnitCount));
             OnPropertyChanged(nameof(ChannelHint));
             OnPropertyChanged(nameof(PlanTaskPreview));
             Regenerate();
@@ -516,7 +625,24 @@ public sealed class RunSetupViewModel : ViewModelBase
 
     public bool ShowCollectionOptions => !_isLongTermStabilityMode && !UseDmmAutoTest;
 
+    // ─── 万用表采集项：本轮是否采电压 / 电阻 / 烘箱温度 ────────────────────
+
+    private bool _dmmCollectVoltage = true;
+    public bool DmmCollectVoltage { get => _dmmCollectVoltage; set => SetField(ref _dmmCollectVoltage, value); }
+
+    private bool _dmmCollectResistance = true;
+    public bool DmmCollectResistance { get => _dmmCollectResistance; set => SetField(ref _dmmCollectResistance, value); }
+
+    /// <summary>万用表模式下显示「电压 / 电阻 / 烘箱温度」勾选（电路板模式显示的是 UT/USC/ISC/USG）。</summary>
+    public bool ShowDmmCollectionOptions => !_isLongTermStabilityMode && UseDmmAutoTest;
+
     public bool ShowLongTermMeasureOptions => _isLongTermStabilityMode;
+
+    /// <summary>
+    /// 长期稳定性与万用表自动测试都使用固定的 DAQ973A 通道映射，
+    /// 都要在工位页显示通道提示（板卡模式没有固定通道，不显示）。
+    /// </summary>
+    public bool ShowChannelHint => _isLongTermStabilityMode || UseDmmAutoTest;
 
     /// <summary>烘箱选项可由操作员按现场设备情况自由启用或停用。</summary>
     public bool OvenRequiredForRun => false;
@@ -588,7 +714,7 @@ public sealed class RunSetupViewModel : ViewModelBase
         _session = session;
         _isLongTermStabilityMode = isLongTermStabilityMode;
         if (_isLongTermStabilityMode)
-            _startChannel = 101;
+            _startChannel = LongTermStabilitySlotMap.ChannelForSlot(1);
 
         LoadPlanFolders(session.Plan);
         SeedFromCurrentSlots(session.Slots);
@@ -621,7 +747,7 @@ public sealed class RunSetupViewModel : ViewModelBase
         _slotCount = Math.Clamp(_slotCount, 1, MaxSlotCountFromStart);
         _startChannel = _isLongTermStabilityMode
             ? LongTermStabilitySlotMap.ChannelForSlot(_startIndex)
-            : DmmAutoVoltageChannelForSlot(_startIndex);
+            : DmmAutoSlotMap.VoltageChannelForSlot(_startIndex);
 
         OnPropertyChanged(nameof(StartIndex));
         OnPropertyChanged(nameof(SlotCount));
@@ -647,6 +773,7 @@ public sealed class RunSetupViewModel : ViewModelBase
         OnPropertyChanged(nameof(LastBoard));
         OnPropertyChanged(nameof(LastBoardSlot));
         OnPropertyChanged(nameof(BoardMappingSummary));
+        OnPropertyChanged(nameof(ValveRangeHint));
     }
 
     private void DetectCheckpoint(TestSession session)
@@ -849,7 +976,7 @@ public sealed class RunSetupViewModel : ViewModelBase
             OnPropertyChanged(nameof(ChannelHint));
         }
         else if (UsesFixedDmmSlotMap)
-            _startChannel = DmmAutoVoltageChannelForSlot(_startIndex);
+            _startChannel = DmmAutoSlotMap.VoltageChannelForSlot(_startIndex);
 
         if (bool.TryParse(ini.Get("Slots", "UsePressure", ""), out var up)) _usePressure = up;
         if (bool.TryParse(ini.Get("Slots", "UseOven", ""), out var uo)) _useOven = uo;
@@ -861,6 +988,8 @@ public sealed class RunSetupViewModel : ViewModelBase
         if (bool.TryParse(ini.Get("Slots", "CollectIsc", ""), out var cisc)) _collectIsc = cisc;
         if (bool.TryParse(ini.Get("Slots", "CollectUsg", ""), out var cusg)) _collectUsg = cusg;
         if (bool.TryParse(ini.Get("Slots", "CollectOvenTemp", ""), out var cot)) _collectOvenTemp = cot;
+        if (bool.TryParse(ini.Get("Slots", "DmmCollectVoltage", ""), out var dcv)) _dmmCollectVoltage = dcv;
+        if (bool.TryParse(ini.Get("Slots", "DmmCollectResistance", ""), out var dcr)) _dmmCollectResistance = dcr;
 
         _reportDevice = ini.Get("Report", "DeviceName", ini.Get("Device.Pressure", "Model", ""));
         _reportWaferNo = ini.Get("Report", "WaferNo", "");
@@ -890,7 +1019,13 @@ public sealed class RunSetupViewModel : ViewModelBase
             if (idx > 0) _batchNo = first[..idx];
         }
 
+        // 现有工位表的第一行决定起始工位：表里已经是 Slot129 就别再退回 1，
+        // 否则重新生成会把工位号重置成 1-64，阀门也跟着错回 1、2 号阀。
+        if (slots.Entries.Count > 0)
+            _startIndex = Math.Clamp(SlotDacAddress.ParseSlotIndex(slots.Entries[0].Slot), 1, SlotLimit);
+
         NormalizeFixedDmmLayout();
+        SyncDerivedLayoutFromStartIndex();
     }
 
     /// <summary>当前布局参数快照（公式计算 / 批量生成 / ini 持久化共用，与 ConfigViewModel 一致）。</summary>
@@ -940,12 +1075,15 @@ public sealed class RunSetupViewModel : ViewModelBase
         }
 
         NormalizeFixedDmmLayout();
+        SyncDerivedLayoutFromStartIndex();
 
         var generated = SlotLayoutHelper.Generate(BuildSlotLayoutOptions());
         if (_isLongTermStabilityMode)
             generated = ApplyLongTermStabilityChannels(generated, _startIndex);
         else if (UseDmmAutoTest)
             generated = ApplyDmmAutoTestChannels(generated, _startIndex);
+        else
+            generated = FillPressureValveAddresses(generated);
         if (preserveSerials)
         {
             SlotLayoutHelper.ApplyPreservedSerials(generated, preserved);
@@ -983,28 +1121,56 @@ public sealed class RunSetupViewModel : ViewModelBase
         return result;
     }
 
+    /// <summary>
+    /// 万用表采集模式的工位映射：按 16 工位一组分到 973-1 / 973-2 / 973-3。
+    /// 「数字万用表」列写设备号、「通道」列写电压通道、「电源开关」列写 301-316；
+    /// 气路阀门相关列（阀位 / 阀门）一律清空 —— 万用表模式不控制阀门。
+    /// </summary>
     private static List<SlotEntry> ApplyDmmAutoTestChannels(List<SlotEntry> slots, int startSlotNo)
     {
-        var count = Math.Min(slots.Count, DmmAutoTestSlotMax - startSlotNo + 1);
+        var count = Math.Min(slots.Count, DmmAutoSlotMap.MaxSlotCount - startSlotNo + 1);
         var result = new List<SlotEntry>(count);
         for (var i = 0; i < count; i++)
         {
             var slotNo = startSlotNo + i;
+            var unit = DmmAutoSlotMap.UnitIndexForSlot(slotNo);
+            var local = DmmAutoSlotMap.LocalIndexForSlot(slotNo);
             result.Add(slots[i] with
             {
                 Slot = $"Slot{slotNo}",
+                Valve = "",
+                ValveAddr = "",
                 Board = "DMM",
-                BoardSlotNo = slotNo.ToString(),
-                Channel = DmmAutoVoltageChannelForSlot(slotNo).ToString(),
-                Dmm = "DAQ970A/DAQ973A",
-                ValveAddr = DmmAutoSwitchChannelForSlot(slotNo).ToString()
+                BoardSlotNo = (local + 1).ToString(CultureInfo.InvariantCulture),
+                Channel = DmmAutoSlotMap.VoltageChannelForSlot(slotNo).ToString(CultureInfo.InvariantCulture),
+                Dmm = $"973-{unit + 1}",
+                PowerSwitch = DmmAutoSlotMap.PowerSwitchChannelForSlot(slotNo).ToString(CultureInfo.InvariantCulture),
             });
         }
         return result;
     }
 
-    private static int DmmAutoVoltageChannelForSlot(int slotNo) => 100 + slotNo;
-    private static int DmmAutoSwitchChannelForSlot(int slotNo) => 301 + Math.Clamp((slotNo - 1) / 4, 0, 3);
+    /// <summary>
+    /// 压力测试模式：把每个工位实际会用到的阀门继电器通道写进「阀门」列（ValveAddr），
+    /// 让操作员在预览里就能核对（例如工位 129-192 → 阀 5/6 → 通道 106/107）。
+    /// 运行时 BuiltinActions 用同一个 SlotLayoutHelper.ValveForSlot 解析，两者不会漂移。
+    /// </summary>
+    private List<SlotEntry> FillPressureValveAddresses(List<SlotEntry> slots)
+    {
+        var settings = _session.Context.Settings;
+        var result = new List<SlotEntry>(slots.Count);
+        foreach (var slot in slots)
+        {
+            var valveNo = SlotLayoutHelper.ValveForSlot(SlotDacAddress.ParseSlotIndex(slot.Slot));
+            var address = settings.Get("ValveSettings", $"Valve{valveNo}", "");
+            result.Add(slot with
+            {
+                Valve = valveNo.ToString(),
+                ValveAddr = string.IsNullOrWhiteSpace(address) ? "-" : address.Trim(),
+            });
+        }
+        return result;
+    }
 
     private static double PressureRateToPa(double value, string? unit) =>
         (unit ?? "").Trim().ToUpperInvariant() switch
@@ -1038,6 +1204,8 @@ public sealed class RunSetupViewModel : ViewModelBase
             ini.Set("Slots", "CollectIsc", CollectIsc.ToString());
             ini.Set("Slots", "CollectUsg", CollectUsg.ToString());
             ini.Set("Slots", "CollectOvenTemp", CollectOvenTemp.ToString());
+            ini.Set("Slots", "DmmCollectVoltage", DmmCollectVoltage.ToString());
+            ini.Set("Slots", "DmmCollectResistance", DmmCollectResistance.ToString());
             ini.Set("Slots", "AutoTestMode", UseDmmAutoTest ? "Dmm" : "Board");
             ini.Set("Report", "DeviceName", (ReportDevice ?? "").Trim());
             ini.Set("Report", "WaferNo", (ReportWaferNo ?? "").Trim());

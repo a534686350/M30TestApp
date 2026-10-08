@@ -341,7 +341,24 @@ public sealed class ReadDmmSampleAction : IAction
 
 public sealed class RunPerformanceTestAction : IAction
 {
-    private sealed record ValveGroup(string ValveNo, string Address, List<SlotEntry> Slots);
+    /// <summary>
+    /// 一个阀组 = 阀门继电器（含接线极性）+ 该阀负责的工位。
+    /// 开关一律走 <see cref="ValveRelay"/>，由 [ValveSettings] 的 {Key}Invert 决定实际指令。
+    /// </summary>
+    private sealed record ValveGroup(ValveRelay Relay, List<SlotEntry> Slots)
+    {
+        public string ValveNo => Relay.Key.StartsWith("Valve", StringComparison.OrdinalIgnoreCase)
+            ? Relay.Key["Valve".Length..]
+            : Relay.Key;
+
+        public string Address => Relay.Address;
+
+        public bool Inverted => Relay.Inverted;
+
+        public Task OpenAsync(TaskContext ctx, CancellationToken ct) => Relay.OpenAsync(ctx.Dmm!, ct);
+
+        public Task CloseAsync(TaskContext ctx, CancellationToken ct) => Relay.CloseAsync(ctx.Dmm!, ct);
+    }
 
     public string Key => "Run:PerformanceTest";
 
@@ -599,36 +616,45 @@ public sealed class RunPerformanceTestAction : IAction
             .Where(g => !string.IsNullOrWhiteSpace(g.Key))
             .OrderBy(g => int.TryParse(g.Key, out var n) ? n : int.MaxValue)
             .Select(g => new ValveGroup(
-                g.Key,
-                ctx.Settings.Get("ValveSettings", $"Valve{g.Key}", ""),
+                ValveRelay.ForValveNo(ctx.Settings, g.Key),
                 g.OrderBy(s => SlotDacAddress.ParseSlotIndex(s.Slot)).ToList()))
-            .Where(g => !string.IsNullOrWhiteSpace(g.Address))
+            .Where(g => g.Relay.IsValid)
             .ToList();
     }
 
+    /// <summary>
+    /// 工位 → 阀门号。优先取工位表里的「阀位」列（预览时已按测试工位算好），
+    /// 缺失时按工位号推导（每 32 工位一个阀），与 SlotLayoutHelper.ValveForSlot 同源。
+    /// </summary>
     private static string ResolveValveNo(SlotEntry slot)
     {
+        if (!string.IsNullOrWhiteSpace(slot.Valve) &&
+            int.TryParse(slot.Valve.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var declared) &&
+            declared > 0)
+            return declared.ToString(CultureInfo.InvariantCulture);
+
         var slotIndex = SlotDacAddress.ParseSlotIndex(slot.Slot);
         if (slotIndex <= 0) return "";
-        return ((slotIndex - 1) / 32 + 1).ToString(CultureInfo.InvariantCulture);
+        return SlotLayoutHelper.ValveForSlot(slotIndex).ToString(CultureInfo.InvariantCulture);
     }
 
     private static async Task PreparePressureValveRoutingAsync(TaskContext ctx, CancellationToken ct)
     {
-        if (ctx.Dmm is null) return;
+        var dmm = ctx.Dmm;
+        if (dmm is null) return;
 
         var groups = GetValveGroups(ctx);
         if (groups.Count == 0) return;
 
-        var masterValve = ctx.Settings.Get("ValveSettings", "MasterValve", "");
+        var masterValve = ValveRelay.Master(ctx.Settings);
         var switchMs = GetDelayMs(ctx, "ValveSwitchMs", 500);
         var ventWaitMs = Math.Max(switchMs, GetDelayMs(ctx, "VentWaitMs", 120000) / 10);
 
         AppLog.Info("Valve", "开始加压测试前先打开全部阀门排空气路");
-        if (!string.IsNullOrWhiteSpace(masterValve))
-            await ctx.Dmm.OpenRelayAsync(masterValve, ct);
+        if (masterValve.IsValid)
+            await masterValve.OpenAsync(dmm, ct);
         foreach (var group in groups)
-            await ctx.Dmm.OpenRelayAsync(group.Address, ct);
+            await group.OpenAsync(ctx, ct);
         await Task.Delay(switchMs, ct);
 
         if (ctx.Pressure is not null)
@@ -637,68 +663,72 @@ public sealed class RunPerformanceTestAction : IAction
             await Task.Delay(ventWaitMs, ct);
         }
 
-        if (!string.IsNullOrWhiteSpace(masterValve))
-            await ctx.Dmm.CloseRelayAsync(masterValve, ct);
-        AppLog.Info("Valve", $"排空完成，已关闭总阀 {masterValve}");
+        if (masterValve.IsValid)
+            await masterValve.CloseAsync(dmm, ct);
+        AppLog.Info("Valve", $"排空完成，已关闭总阀 {masterValve.Address}");
     }
 
     private static async Task ActivateValveGroupAsync(TaskContext ctx, ValveGroup targetGroup, string source, CancellationToken ct)
     {
-        if (ctx.Dmm is null) return;
+        var dmm = ctx.Dmm;
+        if (dmm is null) return;
 
         var groups = GetValveGroups(ctx);
-        var masterValve = ctx.Settings.Get("ValveSettings", "MasterValve", "");
+        var masterValve = ValveRelay.Master(ctx.Settings);
         var switchMs = GetDelayMs(ctx, "ValveSwitchMs", 500);
 
         try
         {
-            if (!string.IsNullOrWhiteSpace(masterValve))
-                await ctx.Dmm.CloseRelayAsync(masterValve, ct);
+            if (masterValve.IsValid)
+                await masterValve.CloseAsync(dmm, ct);
             foreach (var group in groups)
-                await ctx.Dmm.CloseRelayAsync(group.Address, ct);
+                await group.CloseAsync(ctx, ct);
 
-            await ctx.Dmm.OpenRelayAsync(targetGroup.Address, ct);
+            await targetGroup.OpenAsync(ctx, ct);
             await Task.Delay(switchMs, ct);
             AppLog.Info(source,
-                $"阀门切换完成：关闭总阀 {masterValve}，只打开 {targetGroup.ValveNo} 号阀 {targetGroup.Address}");
+                $"阀门切换完成：关闭总阀 {masterValve.Address}，只打开 {targetGroup.ValveNo} 号阀 {targetGroup.Address}" +
+                (targetGroup.Inverted ? "（该阀接线反相，实际下发 ROUT:CLOSE）" : ""));
         }
         catch (Exception ex)
         {
             AppLog.Error("Valve",
                 $"阀门切换失败：目标阀{targetGroup.ValveNo} 地址{targetGroup.Address}，" +
-                $"总阀{masterValve}，{ex}");
+                $"总阀{masterValve.Address}，{ex}");
             throw;
         }
     }
 
     private static async Task OpenAllPressureValvesAsync(TaskContext ctx, string source, CancellationToken ct)
     {
-        if (ctx.Dmm is null) return;
+        var dmm = ctx.Dmm;
+        if (dmm is null) return;
 
         var groups = GetValveGroups(ctx);
-        var masterValve = ctx.Settings.Get("ValveSettings", "MasterValve", "");
+        var masterValve = ValveRelay.Master(ctx.Settings);
         var switchMs = GetDelayMs(ctx, "ValveSwitchMs", 500);
 
-        if (!string.IsNullOrWhiteSpace(masterValve))
-            await ctx.Dmm.OpenRelayAsync(masterValve, ct);
+        if (masterValve.IsValid)
+            await masterValve.OpenAsync(dmm, ct);
         foreach (var group in groups)
-            await ctx.Dmm.OpenRelayAsync(group.Address, ct);
+            await group.OpenAsync(ctx, ct);
         await Task.Delay(switchMs, ct);
         AppLog.Info(source, "已打开全部阀门用于泄压/排空");
     }
 
     private static async Task CloseAllPressureValvesAsync(TaskContext ctx, string source, CancellationToken ct)
     {
-        if (ctx.Dmm is null) return;
+        var dmm = ctx.Dmm;
+        if (dmm is null) return;
 
         var groups = GetValveGroups(ctx);
-        var masterValve = ctx.Settings.Get("ValveSettings", "MasterValve", "");
+        var masterValve = ValveRelay.Master(ctx.Settings);
         var switchMs = GetDelayMs(ctx, "ValveSwitchMs", 500);
 
-        if (!string.IsNullOrWhiteSpace(masterValve))
-            await ctx.Dmm.CloseRelayAsync(masterValve, ct);
+        if (masterValve.IsValid)
+            await masterValve.CloseAsync(dmm, ct);
         foreach (var group in groups)
-            await ctx.Dmm.CloseRelayAsync(group.Address, ct);
+            await group.CloseAsync(ctx, ct);
         await Task.Delay(switchMs, ct);
         AppLog.Info(source, "已关闭全部阀门");
     }
@@ -873,7 +903,7 @@ public sealed class RunPerformanceTestAction : IAction
             return;
         }
 
-        var masterValve = ctx.Settings.Get("ValveSettings", "MasterValve", "");
+        var masterValve = ValveRelay.Master(ctx.Settings);
         AppLog.Info("Leak", $"本次探漏阀组：{string.Join(", ", valveGroups.Select(v => $"阀{v.ValveNo}({v.Slots.Count}工位)"))}（共{valveGroups.Count}组）");
 
         var leakPressures = LeakCheckPlanHelper.ResolvePressures(ctx.Plan);
@@ -897,10 +927,10 @@ public sealed class RunPerformanceTestAction : IAction
 
         // 初始状态：全部阀门关闭（主阀始终保持关闭）
         AppLog.Info("Leak", "关闭所有阀门");
-        if (!string.IsNullOrWhiteSpace(masterValve))
-            await ctx.Dmm.CloseRelayAsync(masterValve, ct);
+        if (masterValve.IsValid)
+            await masterValve.CloseAsync(ctx.Dmm, ct);
         foreach (var group in valveGroups)
-            await ctx.Dmm.CloseRelayAsync(group.Address, ct);
+            await group.CloseAsync(ctx, ct);
         await Task.Delay(switchMs, ct);
 
         // 泄压
@@ -925,12 +955,11 @@ public sealed class RunPerformanceTestAction : IAction
             {
                 ct.ThrowIfCancellationRequested();
                 var vName = $"阀{group.ValveNo}";
-                var vAddr = group.Address;
                 AppLog.Info("Leak", $"正在对{vName}进行探漏 @ {leakP}{pressureUnit}");
                 try
                 {
-                    foreach (var g in valveGroups) await ctx.Dmm.CloseRelayAsync(g.Address, ct);
-                    await ctx.Dmm.OpenRelayAsync(vAddr, ct);
+                    foreach (var g in valveGroups) await g.CloseAsync(ctx, ct);
+                    await group.OpenAsync(ctx, ct);
                     await Task.Delay(switchMs, ct);
 
                     var (passed, leakRate) = await RunLeakRateCheckAsync(
@@ -956,7 +985,7 @@ public sealed class RunPerformanceTestAction : IAction
                     if (!passed)
                         AppLog.Warn("Leak", $"{vName} @ {leakP}{pressureUnit} 探漏失败");
 
-                    await ctx.Dmm.CloseRelayAsync(vAddr, ct);
+                    await group.CloseAsync(ctx, ct);
                 }
                 catch (Exception ex)
                 {
@@ -1527,16 +1556,33 @@ public sealed class RunPerformanceTestAction : IAction
     }
 }
 
+/// <summary>
+/// 万用表自动测试（Run:DmmAutoTest）——与电路板自动测试并列的采集方案。
+///
+/// 用 1-3 台 DAQ973A 采电压/电阻，最多 48 工位：
+///   工位 1-16 → 973-1，17-32 → 973-2，33-48 → 973-3（每台独立的通道组）
+///   电压通道 101-116、电阻通道 201-216、工位电源开关 301-316、总电源 319/320
+///
+/// 每个温度点的采集顺序：
+///   1. 上电：每台 973 闭合本台 301-316 + 319/320（总电源同时闭合）
+///   2. 逐压力点（正向）：设压力 → 稳定 → 保压 → 逐工位读电压 mV → {Tn}{Pm}_USG
+///   3. 下行回差（压力点 ≥2）：反向再走一遍 → {Tn}{Pm}_USG_R
+///   4. 断电：每台 973 断开 301-320
+///   5. 逐工位读电阻 Ω → {Tn}_DMM_R
+///   6. 读烘箱温度 → {Tn}_OvenTemp
+///
+/// 控制对象是传感器电源开关；全程不触碰气路阀门（<see cref="ValveRelay"/>）——那是电路板测试的东西。
+/// </summary>
 public sealed class RunDmmAutoTestAction : IAction
 {
     public string Key => "Run:DmmAutoTest";
 
     public async Task ExecuteAsync(TaskContext ctx, TaskCommand cmd, CancellationToken ct)
     {
-        if (ctx.Dmm is null)
+        if (ctx.Dmms.Count == 0 && ctx.Dmm is null)
         {
-            AppLog.Warn("Run", "DMM auto test requires a configured DMM; skipped");
-            return;
+            AppLog.Error("Run", "万用表自动测试未配置 DAQ973A，已中止");
+            throw new InvalidOperationException("DmmAutoTest requires at least one DAQ973A");
         }
 
         ctx.Matrix.Clear();
@@ -1544,25 +1590,85 @@ public sealed class RunDmmAutoTestAction : IAction
         foreach (var slot in ctx.Slots.Entries)
             ctx.Matrix.EnsureSlot(slot.Slot);
 
-        await RunPerformanceTestAction.InitDevicesAsync(ctx, ct);
-        if (!ctx.SkipLeakCheck)
-            await RunPerformanceTestAction.PerformLeakCheckAsync(ctx, ct);
+        var units = ActiveUnits(ctx);
+        EnsureUnitsAvailable(ctx, units);
+        var powerMap = PowerSwitchMap(ctx);
 
-        foreach (var tp in ctx.Plan.TempPoints)
+        AppLog.Info("Run",
+            $"开始万用表自动测试：方案={ctx.Plan.Name}，工位={ctx.Slots.Entries.Count}，DAQ973A×{units.Count}，" +
+            $"控制对象=传感器电源开关（不控制气路阀门）");
+
+        await OpenDmmsAsync(ctx, ct);
+
+        // 探漏会关总阀 + 各阀组保压，属于电路板测试的气路逻辑。
+        // 万用表模式只控传感器电源开关、不控任何气路阀门，因此一律不跑探漏：
+        // 工位表里若残留阀门列（旧工位表或手工改过 ini），直接执行会误关现场气路。
+        AppLog.Info("Leak",
+            "万用表采集模式不控制气路阀门，跳过探漏（需要气密性检测请用电路板采集模式）");
+
+        var powered = false;
+        try
         {
-            ctx.CurrentTemp = $"{tp.Name}: {tp.Celsius} C";
-            if (ctx.Oven is not null && ctx.Oven.State == ConnectionState.Connected)
+            for (var ti = 0; ti < ctx.Plan.TempPoints.Count; ti++)
             {
-                await RunPerformanceTestAction.SetAndWaitOvenAsync(ctx, tp, "DMM", ct);
-                var soak = tp.SoakMinutes ?? (int.TryParse(ctx.Settings.Get("DelaySettings", "SoakMinutes", "120"), out var sm) ? sm : 120);
-                await RunPerformanceTestAction.SoakWithLogAsync(ctx, soak, tp.Name, ct);
-            }
+                await ctx.WaitIfPausedAsync(ct);
+                var tp = ctx.Plan.TempPoints[ti];
+                ctx.CurrentTemp = $"{tp.Name}: {tp.Celsius}℃";
+                ctx.CurrentPressure = "";
+                AppLog.Info("Run", $"万用表自动测试：温度点 {tp.Name} ({ti + 1}/{ctx.Plan.TempPoints.Count})");
 
-            await ReadDmmResistanceAsync(ctx, tp, ct);
-            await MeasureDmmPressureAsync(ctx, tp, reverse: false, ct);
-            if (ctx.Plan.PressurePoints.Count >= 2)
-                await MeasureDmmPressureAsync(ctx, tp, reverse: true, ct);
-            await RunPerformanceTestAction.ReadOvenTempForAllSlots(ctx, tp, ct);
+                if (ctx.Oven is not null && ctx.Oven.State == ConnectionState.Connected)
+                {
+                    await RunPerformanceTestAction.SetAndWaitOvenAsync(ctx, tp, "Run", ct);
+                    var soak = tp.SoakMinutes ?? (int.TryParse(ctx.Settings.Get("DelaySettings", "SoakMinutes", "120"), out var sm) ? sm : 120);
+                    await RunPerformanceTestAction.SoakWithLogAsync(ctx, soak, tp.Name, ct);
+                }
+                else
+                {
+                    AppLog.Info("Run", "烘箱未连接或未启用，跳过温度设置和保温");
+                }
+
+                // 电压：需要上电 → 逐压力点采集 → 断电
+                if (!ctx.SkipDmmVoltage)
+                {
+                    await PowerOnAsync(ctx, tp, powerMap, ct);
+                    powered = true;
+                    try
+                    {
+                        await SweepPressureAsync(ctx, tp, reverse: false, ct);
+                        if (ctx.Plan.PressurePoints.Count >= 2)
+                            await SweepPressureAsync(ctx, tp, reverse: true, ct);
+                    }
+                    finally
+                    {
+                        await PowerOffAsync(ctx, tp, powerMap, ct);
+                        powered = false;
+                    }
+                }
+                else
+                {
+                    AppLog.Info("Run", $"跳过 {tp.Name} 电压采集（用户选择）");
+                }
+
+                // 电阻：断电状态下采集
+                if (!ctx.SkipDmmResistance)
+                    await ReadResistanceAsync(ctx, tp, ct);
+                else
+                    AppLog.Info("Run", $"跳过 {tp.Name} 电阻采集（用户选择）");
+
+                await RunPerformanceTestAction.ReadOvenTempForAllSlots(ctx, tp, ct);
+            }
+        }
+        finally
+        {
+            // 兜底：异常 / 取消路径上绝不能把 301-316、319-320 留在闭合状态。
+            // 用 CancellationToken.None —— 原 token 可能已取消，断电必须继续做完。
+            if (powered)
+            {
+                AppLog.Warn("Run", "流程提前退出，兜底断开全部工位电源与总电源");
+                try { await PowerOffAsync(ctx, null, powerMap, CancellationToken.None); }
+                catch (Exception ex) { AppLog.Error("Run", $"兜底断电失败：{ex.Message}"); }
+            }
         }
 
         MetricsCalculator.Calculate(ctx);
@@ -1574,82 +1680,252 @@ public sealed class RunDmmAutoTestAction : IAction
             await ctx.Oven.StopAsync(ct);
     }
 
-    private static async Task ReadDmmResistanceAsync(TaskContext ctx, TempPoint tp, CancellationToken ct)
+    // ─── 设备与通道解析 ─────────────────────────────────────────────────────
+
+    /// <summary>本次工位表实际用到的 973 台号（0-based），按升序。</summary>
+    private static List<int> ActiveUnits(TaskContext ctx) =>
+        ctx.Slots.Entries
+            .Select(s => DmmAutoSlotMap.UnitIndexForSlot(SlotDacAddress.ParseSlotIndex(s.Slot)))
+            .Distinct()
+            .OrderBy(u => u)
+            .ToList();
+
+    /// <summary>
+    /// 工位数不得超过「已连接的 973 台数 × 每台工位数」，超了直接中止。
+    ///
+    /// 必须显式拦的原因：超限工位在 <see cref="DmmAutoSlotMap.UnitIndexForSlot"/> 里被 clamp 到最后一台，
+    /// 而 <see cref="TaskContext.DmmAt"/> 越界又会回退主 DMM —— 两者叠加，工位 17（只配了 1 台时）
+    /// 会去读 973-1 的通道 101，矩阵照样出数、状态还是 Ok，数据却串到了别的工位。
+    /// 与其出脏数据不如当场中止，并提示怎么改。
+    /// </summary>
+    private static void EnsureUnitsAvailable(TaskContext ctx, List<int> units)
     {
-        var column = $"{tp.Name}_DMM_R";
-        if (!ctx.Columns.Contains(column)) ctx.Columns.Add(column);
-        foreach (var slot in ctx.Slots.Entries)
+        var connected = Math.Max(ctx.Dmms.Count, ctx.Dmm is null ? 0 : 1);
+        var missing = units.Where(u => u >= connected).Distinct().OrderBy(u => u).ToList();
+        if (missing.Count == 0)
+            return;
+
+        var names = string.Join("、", missing.Select(u => $"973-{u + 1}"));
+        var limit = connected * DmmAutoSlotMap.SlotsPerUnit;
+        AppLog.Error("Run",
+            $"工位表需要 {names}，但只连接了 {connected} 台 DAQ973A（本轮上限 {limit} 个工位），已中止");
+        throw new InvalidOperationException(
+            $"工位表超出已连接的 DAQ973A 台数：工位表需要 {names}，实际只有 {connected} 台。" +
+            $"请到「配置 → 设备」把 DAQ973A 台数调大，或减少工位数 / 调整起始工位（本轮上限 {limit} 个工位）。");
+    }
+
+    /// <summary>电压通道：优先用工位表「通道」列，缺省按工位号推导。</summary>
+    private static string VoltageChannel(SlotEntry slot)
+    {
+        if (!string.IsNullOrWhiteSpace(slot.Channel) && slot.Channel.Trim() != "-")
+            return slot.Channel.Trim();
+        var n = SlotDacAddress.ParseSlotIndex(slot.Slot);
+        return DmmAutoSlotMap.VoltageChannelForSlot(n).ToString(CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>电阻通道：优先用工位表推导值（表里没有独立列），按工位号算 201-216。</summary>
+    private static string ResistanceChannel(SlotEntry slot) =>
+        DmmAutoSlotMap.ResistanceChannelForSlot(SlotDacAddress.ParseSlotIndex(slot.Slot))
+            .ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>电源开关通道：优先用「电源开关」列，缺省按工位号推导 301-316。</summary>
+    private static string PowerSwitchChannel(SlotEntry slot)
+    {
+        if (!string.IsNullOrWhiteSpace(slot.PowerSwitch) && slot.PowerSwitch.Trim() != "-")
+            return slot.PowerSwitch.Trim();
+        var n = SlotDacAddress.ParseSlotIndex(slot.Slot);
+        return DmmAutoSlotMap.PowerSwitchChannelForSlot(n).ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static int GetSlotDelayMs(TaskContext ctx) =>
+        int.TryParse(ctx.Settings.Get("DelaySettings", "DmmSlotDelayMs", "100"), out var ms) ? Math.Max(0, ms) : 100;
+
+    private static int GetSwitchDelayMs(TaskContext ctx) =>
+        int.TryParse(ctx.Settings.Get("DelaySettings", "DmmSwitchMs", "500"), out var ms) ? Math.Max(0, ms) : 500;
+
+    // ─── 设备初始化 ─────────────────────────────────────────────────────────
+
+    private static async Task OpenDmmsAsync(TaskContext ctx, CancellationToken ct)
+    {
+        for (var i = 0; i < ctx.Dmms.Count; i++)
         {
-            ct.ThrowIfCancellationRequested();
-            var channel = ResistanceChannel(slot);
-            try
-            {
-                var value = await ctx.Dmm!.ReadResistanceAsync(channel, ct);
-                ctx.Matrix.Set(slot.Slot, column, value, double.IsNaN(value) ? CellStatus.Error : CellStatus.Ok);
-            }
-            catch (Exception ex)
-            {
-                AppLog.Error("Read", $"DMM resistance {slot.Slot} channel={channel} failed: {ex.Message}");
-                ctx.Matrix.Set(slot.Slot, column, double.NaN, CellStatus.Error);
-            }
+            var dmm = ctx.Dmms[i];
+            await dmm.OpenAsync(ct);
+            if (dmm.State != ConnectionState.Connected)
+                throw new InvalidOperationException($"DAQ973A #{i + 1} 连接失败（{dmm.Address}）");
+            AppLog.Info("Init", $"DAQ973A #{i + 1} {dmm.Model} 已连接（{dmm.Address}）");
         }
     }
 
-    private static async Task MeasureDmmPressureAsync(TaskContext ctx, TempPoint tp, bool reverse, CancellationToken ct)
+    // ─── 电源开关（973 通道三） ──────────────────────────────────────────────
+
+    /// <summary>
+    /// 本轮工位表用到的「973 台号 → 该台工位电源开关通道」映射（台号升序、每台通道去重）。
+    /// 上电/断电各算一次即可 —— 原先每台 973 都把整张工位表重新过一遍。
+    /// </summary>
+    private static List<(int Unit, List<string> Channels)> PowerSwitchMap(TaskContext ctx) =>
+        ctx.Slots.Entries
+            .Select(s => (Unit: DmmAutoSlotMap.UnitIndexForSlot(SlotDacAddress.ParseSlotIndex(s.Slot)),
+                          Channel: PowerSwitchChannel(s)))
+            .GroupBy(x => x.Unit)
+            .OrderBy(g => g.Key)
+            .Select(g => (g.Key, g.Select(x => x.Channel)
+                                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                                        .ToList()))
+            .ToList();
+
+    /// <summary>上电：每台 973 闭合本台全部工位电源开关，并同时闭合总电源（默认 319/320）。</summary>
+    private static async Task PowerOnAsync(
+        TaskContext ctx, TempPoint? tp, List<(int Unit, List<string> Channels)> map, CancellationToken ct)
+    {
+        foreach (var (unit, channels) in map)
+        {
+            var dmm = RequireDmm(ctx, unit);
+            var masters = DmmAutoSlotMap.MasterPowerChannels();
+            var closed = new List<string>();
+
+            // 中途失败要把已经闭合的通道断开，绝不能把「半上电」状态留在设备上。
+            try
+            {
+                foreach (var channel in channels)
+                {
+                    await dmm.CloseRelayAsync(channel, ct);
+                    closed.Add(channel);
+                }
+                foreach (var master in masters)
+                {
+                    await dmm.CloseRelayAsync(master, ct);
+                    closed.Add(master);
+                }
+            }
+            catch
+            {
+                foreach (var channel in closed)
+                {
+                    try { await dmm.OpenRelayAsync(channel, CancellationToken.None); }
+                    catch { /* 补救失败不再掩盖原始异常 */ }
+                }
+                throw;
+            }
+
+            AppLog.Info("Dmm",
+                $"{Label(tp)} 973-{unit + 1} 上电：工位电源 {string.Join("/", channels)} + 总电源 {string.Join("/", masters)}");
+        }
+
+        var delay = GetSwitchDelayMs(ctx);
+        if (delay > 0) await Task.Delay(delay, ct);
+    }
+
+    /// <summary>断电：每台 973 断开本台工位电源开关与总电源（默认 301-320）。</summary>
+    private static async Task PowerOffAsync(
+        TaskContext ctx, TempPoint? tp, List<(int Unit, List<string> Channels)> map, CancellationToken ct)
+    {
+        foreach (var (unit, channels) in map)
+        {
+            var dmm = RequireDmm(ctx, unit);
+            var masters = DmmAutoSlotMap.MasterPowerChannels();
+
+            // 先断工位电源再断总电源：与上电顺序相反，避免总电源带载切换。
+            foreach (var channel in channels)
+                await dmm.OpenRelayAsync(channel, ct);
+            foreach (var master in masters)
+                await dmm.OpenRelayAsync(master, ct);
+
+            AppLog.Info("Dmm",
+                $"{Label(tp)} 973-{unit + 1} 断电：{string.Join("/", channels.Concat(masters))} 全部断开");
+        }
+
+        var delay = GetSwitchDelayMs(ctx);
+        if (delay > 0) await Task.Delay(delay, ct);
+    }
+
+    /// <summary>
+    /// 取该台 973。取不到就抛，**不静默跳过** —— 工位表里既然有这台工位，
+    /// 就必须能控到它；悄悄跳过等于让这批工位采不到数却显示正常。
+    /// </summary>
+    private static IDmm RequireDmm(TaskContext ctx, int unit) =>
+        ctx.DmmAt(unit)
+        ?? throw new InvalidOperationException(
+            $"973-{unit + 1} 未连接，但工位表里包含该台的工位。请到「配置 → 设备」确认台数与 GPIB 地址。");
+
+    private static string Label(TempPoint? tp) => tp is null ? "流程结束" : tp.Name;
+
+    // ─── 采集 ───────────────────────────────────────────────────────────────
+
+    /// <summary>遍历压力点采电压：正向写 USG，反向（回差）写 USG_R。</summary>
+    private static async Task SweepPressureAsync(TaskContext ctx, TempPoint tp, bool reverse, CancellationToken ct)
     {
         var points = reverse
             ? ctx.Plan.PressurePoints.AsEnumerable().Reverse().Skip(1)
             : ctx.Plan.PressurePoints.AsEnumerable();
+
         foreach (var pp in points)
         {
-            var groups = ctx.Slots.Entries
-                .GroupBy(s => string.IsNullOrWhiteSpace(s.ValveAddr) || s.ValveAddr.Trim() == "-" ? "" : s.ValveAddr.Trim(), StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            foreach (var group in groups)
+            await ctx.WaitIfPausedAsync(ct);
+            ct.ThrowIfCancellationRequested();
+
+            ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit}";
+            var column = $"{tp.Name}{pp.Name}_{(reverse ? "USG_R" : "USG")}";
+            AppLog.Info("Run",
+                $"万用表自动测试：压力点 {tp.Name}-{pp.Name} = {pp.Value}{ctx.Plan.PressureUnit} [{pp.PressureTypeDisplay}] → {column}");
+
+            await RunPerformanceTestAction.SetAndWaitPressureAsync(ctx, pp, ct);
+            await RunPerformanceTestAction.PressureHoldAsync(ctx, pp, ct);
+
+            if (!ctx.Columns.Contains(column)) ctx.Columns.Add(column);
+            var delayMs = GetSlotDelayMs(ctx);
+
+            foreach (var slot in ctx.Slots.Entries)
             {
-                await SelectDmmSwitchAsync(ctx, group.Key, ct);
-                await RunPerformanceTestAction.SetAndWaitPressureAsync(ctx, pp, ct);
-                await RunPerformanceTestAction.PressureHoldAsync(ctx, pp, ct);
-                var column = $"{tp.Name}{pp.Name}_{(reverse ? "USG_R" : "USG")}";
-                if (!ctx.Columns.Contains(column)) ctx.Columns.Add(column);
-                foreach (var slot in group)
+                ct.ThrowIfCancellationRequested();
+                await ctx.WaitIfPausedAsync(ct);
+                var unit = DmmAutoSlotMap.UnitIndexForSlot(SlotDacAddress.ParseSlotIndex(slot.Slot));
+                var channel = VoltageChannel(slot);
+                try
                 {
-                    ct.ThrowIfCancellationRequested();
-                    try
-                    {
-                        var value = await ctx.Dmm!.ReadVoltageAsync(slot.Channel, ct) * 1000.0;
-                        ctx.Matrix.Set(slot.Slot, column, value, double.IsNaN(value) ? CellStatus.Error : CellStatus.Ok);
-                    }
-                    catch (Exception ex)
-                    {
-                        AppLog.Error("Read", $"DMM voltage {slot.Slot} channel={slot.Channel} failed: {ex.Message}");
-                        ctx.Matrix.Set(slot.Slot, column, double.NaN, CellStatus.Error);
-                    }
+                    var dmm = ctx.DmmAt(unit) ?? throw new InvalidOperationException($"973-{unit + 1} 未连接");
+                    var value = await dmm.ReadVoltageAsync(channel, ct) * 1000.0;   // V → mV
+                    ctx.Matrix.Set(slot.Slot, column, value, double.IsNaN(value) ? CellStatus.Error : CellStatus.Ok);
+                    AppLog.Info("Read", $"{slot.Slot} {column}={value:G6} (973-{unit + 1} V{channel})");
                 }
+                catch (Exception ex)
+                {
+                    AppLog.Error("Read", $"万用表电压 {slot.Slot} 通道{channel} 失败: {ex.Message}");
+                    ctx.Matrix.Set(slot.Slot, column, double.NaN, CellStatus.Error);
+                }
+                if (delayMs > 0) await Task.Delay(delayMs, ct);
             }
         }
-        await SelectDmmSwitchAsync(ctx, "", ct);
     }
 
-    private static async Task SelectDmmSwitchAsync(TaskContext ctx, string selected, CancellationToken ct)
+    /// <summary>断电状态下逐工位读电阻，写 {Tn}_DMM_R（指标计算里优先用于 TCR）。</summary>
+    private static async Task ReadResistanceAsync(TaskContext ctx, TempPoint tp, CancellationToken ct)
     {
-        var addresses = ctx.Slots.Entries
-            .Select(s => s.ValveAddr?.Trim() ?? "")
-            .Where(a => !string.IsNullOrWhiteSpace(a) && a != "-")
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        foreach (var address in addresses)
-            await ctx.Dmm!.OpenRelayAsync(address, ct);
-        if (!string.IsNullOrWhiteSpace(selected))
-            await ctx.Dmm!.CloseRelayAsync(selected, ct);
-        var delay = int.TryParse(ctx.Settings.Get("DelaySettings", "ValveSwitchMs", "500"), out var ms) ? Math.Max(0, ms) : 500;
-        if (delay > 0) await Task.Delay(delay, ct);
-    }
+        var column = $"{tp.Name}_DMM_R";
+        if (!ctx.Columns.Contains(column)) ctx.Columns.Add(column);
+        AppLog.Info("Run", $"万用表自动测试：{tp.Name} 断电状态下采集电阻 → {column}");
 
-    private static string ResistanceChannel(SlotEntry slot)
-    {
-        var index = SlotDacAddress.ParseSlotIndex(slot.Slot);
-        return (200 + Math.Max(1, index)).ToString(CultureInfo.InvariantCulture);
+        var delayMs = GetSlotDelayMs(ctx);
+        foreach (var slot in ctx.Slots.Entries)
+        {
+            ct.ThrowIfCancellationRequested();
+            await ctx.WaitIfPausedAsync(ct);
+            var unit = DmmAutoSlotMap.UnitIndexForSlot(SlotDacAddress.ParseSlotIndex(slot.Slot));
+            var channel = ResistanceChannel(slot);
+            try
+            {
+                var dmm = ctx.DmmAt(unit) ?? throw new InvalidOperationException($"973-{unit + 1} 未连接");
+                var value = await dmm.ReadResistanceAsync(channel, ct);
+                ctx.Matrix.Set(slot.Slot, column, value, double.IsNaN(value) ? CellStatus.Error : CellStatus.Ok);
+                AppLog.Info("Read", $"{slot.Slot} {column}={value:G6} (973-{unit + 1} R{channel})");
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error("Read", $"万用表电阻 {slot.Slot} 通道{channel} 失败: {ex.Message}");
+                ctx.Matrix.Set(slot.Slot, column, double.NaN, CellStatus.Error);
+            }
+            if (delayMs > 0) await Task.Delay(delayMs, ct);
+        }
     }
 }
 

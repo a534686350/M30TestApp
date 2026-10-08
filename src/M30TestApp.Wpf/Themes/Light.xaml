@@ -2,29 +2,36 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
-    <!-- ────────── 浅色工控体系 v2：浅钢灰底 + 白面板 + 钢蓝强调 + 硬边框高密度 ────────── -->
-    <Color x:Key="BgColor">#FFEDF1F5</Color>
+    <!-- ────────── 浅色工控体系 v3 ──────────
+         取色原则（对齐主流工业 HMI 实践）：
+           · 同界面主色 ≤5 种：1 主色(钢蓝) + 2 辅助(灰阶) + 2 警示(琥珀/红)
+           · 60-30-10：60% 中性底灰 → 30% 白卡片 → 10% 强调蓝
+           · 层次靠明度差而非重边框：底 #F1F5F9 → 卡片 #FFFFFF → 表头 #F4F7FA
+           · 正文与背景对比度 ≥ 7:1（WCAG AAA）
+           · 不用纯黑背景、不用紫色系状态指示（现场反光 / 色盲识别）
+    -->
+    <Color x:Key="BgColor">#FFF1F5F9</Color>
     <Color x:Key="SurfaceColor">#FFFFFFFF</Color>
-    <Color x:Key="BorderColor">#FFC6CFD9</Color>
-    <Color x:Key="TextColor">#FF1B2733</Color>
-    <Color x:Key="MutedColor">#FF64748B</Color>
-    <Color x:Key="AccentColor">#FF185FA5</Color>
-    <Color x:Key="AccentColorHover">#FF0F4C85</Color>
-    <Color x:Key="AccentLight">#FFE6F1FB</Color>
+    <Color x:Key="BorderColor">#FFDCE3EB</Color>
+    <Color x:Key="TextColor">#FF16212E</Color>
+    <Color x:Key="MutedColor">#FF6B7A8C</Color>
+    <Color x:Key="AccentColor">#FF2563EB</Color>
+    <Color x:Key="AccentColorHover">#FF1D4ED8</Color>
+    <Color x:Key="AccentLight">#FFEFF6FF</Color>
     <Color x:Key="SuccessColor">#FF16A34A</Color>
     <Color x:Key="WarnColor">#FFD97706</Color>
     <Color x:Key="ErrorColor">#FFDC2626</Color>
-    <Color x:Key="HeaderBgColor">#FFDCE3EA</Color>
-    <Color x:Key="RowAltColor">#FFF4F7FA</Color>
+    <Color x:Key="HeaderBgColor">#FFF4F7FA</Color>
+    <Color x:Key="RowAltColor">#FFFAFCFE</Color>
     <Color x:Key="SidebarBg">#FFF1F4F7</Color>
-    <Color x:Key="NavHoverBg">#FFE2EAF3</Color>
-    <Color x:Key="MenuBarColor">#FFEFF3F7</Color>
+    <Color x:Key="NavHoverBg">#FFE8EFF7</Color>
+    <Color x:Key="MenuBarColor">#FFF7F9FB</Color>
     <Color x:Key="ToolbarColor">#FFFFFFFF</Color>
-    <Color x:Key="StatusBarColor">#FFE9EEF3</Color>
+    <Color x:Key="StatusBarColor">#FFEFF3F7</Color>
     <Color x:Key="PageHeaderColor">#FFF7F9FB</Color>
     <Color x:Key="SidebarHeaderColor">#FFE8ECF1</Color>
     <Color x:Key="DeviceStripColor">#FFF2F5F9</Color>
-    <Color x:Key="RunStatusColor">#FFE6F1FB</Color>
+    <Color x:Key="RunStatusColor">#FFEFF6FF</Color>
 
     <!-- 顶部横幅为浅色底，文字改用深钢蓝 -->
     <SolidColorBrush x:Key="TitleFgBrush"  Color="#FF0B2C4D"/>
@@ -57,17 +64,17 @@
     <SolidColorBrush x:Key="RunStatusBrush"   Color="{StaticResource RunStatusColor}"/>
 
     <!-- 新增：新外壳专用（横幅/页签/面板头/LED） -->
-    <SolidColorBrush x:Key="TabStripBrush"    Color="#FFEDF1F5"/>
+    <SolidColorBrush x:Key="TabStripBrush"    Color="#FFF1F5F9"/>
     <SolidColorBrush x:Key="TabActiveBrush"   Color="#FFFFFFFF"/>
     <SolidColorBrush x:Key="BannerChipBrush"  Color="#FFFFFFFF"/>
-    <SolidColorBrush x:Key="PanelHeaderBrush" Color="#FFE8EDF2"/>
-    <SolidColorBrush x:Key="PanelBodyBrush"   Color="#FFF5F7FA"/>
+    <SolidColorBrush x:Key="PanelHeaderBrush" Color="#FFF4F7FA"/>
+    <SolidColorBrush x:Key="PanelBodyBrush"   Color="#FFFAFCFE"/>
     <SolidColorBrush x:Key="LedOnBrush"       Color="#FF16A34A"/>
     <SolidColorBrush x:Key="LedOffBrush"      Color="#FF94A3B8"/>
     <SolidColorBrush x:Key="LedWarnBrush"     Color="#FFD97706"/>
     <SolidColorBrush x:Key="LedErrorBrush"    Color="#FFDC2626"/>
     <SolidColorBrush x:Key="BannerAlarmBrush" Color="#FFFDF0EF"/>
-    <SolidColorBrush x:Key="DividerBrush"     Color="#FFC6CFD9"/>
+    <SolidColorBrush x:Key="DividerBrush"     Color="#FFDCE3EB"/>
 
     <SolidColorBrush x:Key="BgGradientBrush" Color="{StaticResource BgColor}"/>
     <!-- 顶部横幅：浅钢蓝渐变（浅色底 + 深色字） -->
@@ -95,7 +102,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                            CornerRadius="0" Padding="{TemplateBinding Padding}"
+                            CornerRadius="6" Padding="{TemplateBinding Padding}"
                             Effect="{x:Null}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
@@ -122,7 +129,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                            CornerRadius="0" Padding="{TemplateBinding Padding}"
+                            CornerRadius="6" Padding="{TemplateBinding Padding}"
                             Effect="{x:Null}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
@@ -152,7 +159,7 @@
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Bd" Background="{TemplateBinding Background}"
                             BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                            CornerRadius="0" Padding="{TemplateBinding Padding}">
+                            CornerRadius="6" Padding="{TemplateBinding Padding}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
@@ -171,8 +178,8 @@
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="0"/>
-        <Setter Property="Padding" Value="10"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="12"/>
         <Setter Property="Effect" Value="{x:Null}"/>
     </Style>
 
@@ -271,9 +278,9 @@
     <Style x:Key="MainTab" TargetType="RadioButton">
         <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
         <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="FontSize" Value="13"/>
-        <Setter Property="Padding" Value="16,0"/>
-        <Setter Property="Height" Value="38"/>
+        <Setter Property="FontSize" Value="12.5"/>
+        <Setter Property="Padding" Value="14,0"/>
+        <Setter Property="Height" Value="34"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
@@ -311,7 +318,7 @@
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
         <Setter Property="FontSize" Value="12.5"/>
         <Setter Property="Padding" Value="14,0"/>
-        <Setter Property="Height" Value="30"/>
+        <Setter Property="Height" Value="28"/>
         <Setter Property="MinWidth" Value="88"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
@@ -348,15 +355,15 @@
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="8"/>
     </Style>
 
     <Style x:Key="PanelTitleBar" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource PanelHeaderBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="0,0,0,1"/>
-        <Setter Property="Padding" Value="10,0"/>
-        <Setter Property="Height" Value="26"/>
+        <Setter Property="Padding" Value="12,0"/>
+        <Setter Property="Height" Value="28"/>
     </Style>
 
     <Style x:Key="PanelTitleText" TargetType="TextBlock">
@@ -393,12 +400,12 @@
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="HorizontalGridLinesBrush" Value="#FFEBF0F5"/>
-        <Setter Property="VerticalGridLinesBrush" Value="#FFEBF0F5"/>
+        <Setter Property="HorizontalGridLinesBrush" Value="#FFEFF3F8"/>
+        <Setter Property="VerticalGridLinesBrush" Value="Transparent"/>
         <Setter Property="RowBackground" Value="{DynamicResource SurfaceBrush}"/>
         <Setter Property="AlternatingRowBackground" Value="{DynamicResource RowAltBrush}"/>
-        <Setter Property="RowHeight" Value="32"/>
-        <Setter Property="ColumnHeaderHeight" Value="36"/>
+        <Setter Property="RowHeight" Value="30"/>
+        <Setter Property="ColumnHeaderHeight" Value="34"/>
         <Setter Property="HeadersVisibility" Value="Column"/>
         <Setter Property="AutoGenerateColumns" Value="False"/>
         <Setter Property="CanUserAddRows" Value="False"/>
@@ -410,12 +417,12 @@
 
     <Style TargetType="DataGridColumnHeader">
         <Setter Property="Background" Value="{DynamicResource HeaderBgBrush}"/>
-        <Setter Property="Foreground" Value="#FF3D5568"/>
-        <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="FontSize" Value="11"/>
-        <Setter Property="BorderBrush" Value="#FFC4CED8"/>
-        <Setter Property="BorderThickness" Value="0,0,1,1"/>
-        <Setter Property="Padding" Value="10,6"/>
+        <Setter Property="Foreground" Value="#FF4A5A6B"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontSize" Value="11.5"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+        <Setter Property="Padding" Value="10,7"/>
         <Setter Property="HorizontalContentAlignment" Value="Center"/>
     </Style>
 
@@ -457,7 +464,7 @@
                 <ControlTemplate TargetType="TextBox">
                     <Border x:Name="Bd" Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="0" Padding="{TemplateBinding Padding}">
+                            CornerRadius="6" Padding="{TemplateBinding Padding}">
                         <ScrollViewer x:Name="PART_ContentHost" />
                     </Border>
                     <ControlTemplate.Triggers>
@@ -557,7 +564,9 @@
                         <Border Grid.Column="0" VerticalAlignment="Top" Width="160"
                                 Background="{DynamicResource SidebarHeaderBrush}"
                                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
-                            <TabPanel IsItemsHost="True" Margin="0,6,0,6"/>
+                            <!-- 用 StackPanel 而不是 TabPanel：竖排时 TabPanel 会吃掉/错位各 TabItem 的 Margin，
+                                 分组间隔会变得忽大忽小。StackPanel 才能让 Margin 精确生效。 -->
+                            <StackPanel IsItemsHost="True" Margin="0,6,0,6"/>
                         </Border>
                         <ContentPresenter Grid.Column="1" ContentSource="SelectedContent" Margin="14,0,0,0"/>
                     </Grid>
@@ -568,22 +577,32 @@
 
     <Style x:Key="SideTabItem" TargetType="TabItem">
         <Setter Property="Padding" Value="16,0"/>
-        <Setter Property="Height" Value="40"/>
+        <Setter Property="Height" Value="36"/>
         <Setter Property="MinWidth" Value="160"/>
         <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
-        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontSize" Value="12.5"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
-                    <Border x:Name="Bd" Background="Transparent"
-                            BorderBrush="Transparent" BorderThickness="3,0,0,0"
-                            Padding="{TemplateBinding Padding}">
-                        <ContentPresenter ContentSource="Header" VerticalAlignment="Center"
-                                          HorizontalAlignment="Left"/>
-                    </Border>
+                    <StackPanel>
+                        <!-- 分组标题：只在设了 Tag 的组首项上出现（Tag 为空则整块折叠） -->
+                        <TextBlock x:Name="GrpTitle" Text="{TemplateBinding Tag}"
+                                   FontSize="10.5" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource MutedBrush}"
+                                   Margin="19,0,0,5"/>
+                        <Border x:Name="Bd" Background="Transparent"
+                                BorderBrush="Transparent" BorderThickness="3,0,0,0"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter ContentSource="Header" VerticalAlignment="Center"
+                                              HorizontalAlignment="Left"/>
+                        </Border>
+                    </StackPanel>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="Tag" Value="{x:Null}">
+                            <Setter TargetName="GrpTitle" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{DynamicResource TabActiveBrush}"/>
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>

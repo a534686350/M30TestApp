@@ -205,7 +205,7 @@ public static class DacBatchSampler
         return new SlotEntry(
             Slot: name,
             SerialNo: "-",
-            Valve: ((slotNum - 1) / 32 + 1).ToString(CultureInfo.InvariantCulture),
+            Valve: SlotLayoutHelper.ValveForSlot(slotNum).ToString(CultureInfo.InvariantCulture),
             Board: board.ToString(CultureInfo.InvariantCulture),
             BoardSlotNo: boardSlot.ToString(CultureInfo.InvariantCulture),
             Layer: "1",
