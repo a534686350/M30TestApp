@@ -48,7 +48,6 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
     private readonly DeviceStatusVm? _dacStatus;
     private CancellationTokenSource? _batchCts;
     private CancellationTokenSource? _frequencyCts;
-    private SerialPort? _ovenSerial;
     private const int MaxDataIoLines = 2000;
     private const int MaxHistoryLines = 500;
     private const int MaxFrequencyRows = 2000;
@@ -115,19 +114,25 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
     public string OvenParity { get; set; } = "None";
     public string OvenStop { get; set; } = "1";
     public string OvenData { get; set; } = "8";
-    private bool _isOvenSerialOpen;
-    public bool IsOvenSerialOpen
-    {
-        get => _isOvenSerialOpen;
-        set
-        {
-            if (!SetField(ref _isOvenSerialOpen, value)) return;
-            OnPropertyChanged(nameof(OvenSerialButtonText));
-            OnPropertyChanged(nameof(OvenSerialStatusText));
-        }
-    }
+    /// <summary>
+    /// 烘箱连接状态，直接取设备层 <see cref="TestSession.Oven"/>。
+    ///
+    /// 以前这里自己再开一个 <c>SerialPort</c>，于是同一个 COM 口有两个所有者：
+    /// 在手动调试页开过烘箱串口之后，长期稳定性 / 自动测试再来 Open 就是
+    /// 「对 COM5 的访问被拒绝」→ 连接失败 → 跳过温度设置和保温。
+    /// 现在串口只有一个所有者（设备层），手动页和所有测试流程共用同一个实例。
+    /// </summary>
+    public bool IsOvenSerialOpen => _session.Oven is { State: ConnectionState.Connected };
     public string OvenSerialButtonText => IsOvenSerialOpen ? "关闭串口" : "打开串口";
     public string OvenSerialStatusText => IsOvenSerialOpen ? $"已连接 {OvenCom}" : "未连接";
+
+    /// <summary>烘箱连接状态变化后刷新界面上三个派生文案。</summary>
+    private void RefreshOvenState()
+    {
+        OnPropertyChanged(nameof(IsOvenSerialOpen));
+        OnPropertyChanged(nameof(OvenSerialButtonText));
+        OnPropertyChanged(nameof(OvenSerialStatusText));
+    }
 
     // ─── 通道选择 ───────────────────────────────────────────────────────────
     public ObservableCollection<string> CardAddrs { get; } =
@@ -195,6 +200,10 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
 
     private string _readOvenText = "";
     public string ReadOvenText { get => _readOvenText; set => SetField(ref _readOvenText, value); }
+    private string _readCurrentText = "";
+
+    /// <summary>「采集电流」结果，格式 Usource/Isource（uA）。</summary>
+    public string ReadCurrentText { get => _readCurrentText; set => SetField(ref _readCurrentText, value); }
 
     private string _closedUtPowerCard = "";
     public string UtPowerText => string.Equals(_closedUtPowerCard, CardAddr, StringComparison.OrdinalIgnoreCase)
@@ -321,6 +330,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
     public AsyncRelayCommand SetTempCommand { get; }
     public AsyncRelayCommand StopOvenCommand { get; }
     public AsyncRelayCommand ReadOvenCommand { get; }
+    public AsyncRelayCommand ReadCurrentCommand { get; }
 
     public AsyncRelayCommand SafeResetCommand { get; }
     public AsyncRelayCommand SwitchUtPowerCommand { get; }
@@ -383,17 +393,19 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         });
         OpenOvenSerialCommand = Wrap("打开烘箱串口", async () =>
         {
+            // 统一走设备层的 _session.Oven：串口只允许一个所有者，否则会和
+            // 长期稳定性 / 自动测试抢同一个 COM 口（见 IsOvenSerialOpen 注释）。
             if (IsOvenSerialOpen)
             {
-                _ovenSerial?.Close();
-                IsOvenSerialOpen = false;
-                _ovenStatus?.SetOverride(ConnectionState.Disconnected);
-                DeviceBus.Info("Oven", $"{OvenCom} closed");
-                Hist($"烘箱串口 {OvenCom} 已关闭");
-                return;
+                await _session.Oven.CloseAsync();
+                Hist($"烘箱 {OvenCom} 已关闭");
             }
-
-            await OpenOvenSerialAsync();
+            else
+            {
+                await _session.Oven.OpenAsync();
+                Hist($"烘箱 {OvenCom} 已打开（{_session.Oven.Model}）");
+            }
+            RefreshOvenState();
         });
 
         ConnectPressureCommand = Wrap("联接压力控制器", async () =>
@@ -496,33 +508,39 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
 
         SetTempCommand = Wrap("设定温度", async () =>
         {
-            var setCommand = $"TEMP,S{TargetTemp.ToString("0.0", CultureInfo.InvariantCulture)}";
-            var setReply = await QueryOvenLineAsync(setCommand);
-            if (!setReply.StartsWith("OK", StringComparison.OrdinalIgnoreCase))
+            var ok = await _session.Oven.SetTempAsync(TargetTemp);
+            if (!ok)
             {
-                MessageBox.Show("温度设定失败：" + setReply, "烘箱", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(
+                    "温度设定失败：设备未返回 OK。\n请检查串口连接、型号是否与 Command.ini 段名一致。",
+                    "烘箱", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            var openReply = await QueryOvenLineAsync("POWER,ON");
-            if (!openReply.StartsWith("OK", StringComparison.OrdinalIgnoreCase))
-            {
-                MessageBox.Show("烘箱启动失败：" + openReply, "烘箱", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            Hist($"设温并启动 → {TargetTemp:F1} °C，返回：{setReply} / {openReply}");
+            Hist($"设温并启动 → {TargetTemp:F1} °C");
+            RefreshOvenState();
         });
         StopOvenCommand = Wrap("停止烘箱", async () =>
         {
-            var reply = await QueryOvenLineAsync("POWER,OFF");
-            Hist($"停止烘箱，返回：{reply}");
+            await _session.Oven.StopAsync();
+            Hist("停止烘箱");
+            RefreshOvenState();
         });
         ReadOvenCommand = Wrap("读取温度", async () =>
         {
-            var reply = await QueryOvenLineAsync("TEMP?");
-            ReadOvenText = FormatOvenTemperature(reply);
+            var temp = await _session.Oven.ReadTempAsync();
+            ReadOvenText = double.IsNaN(temp) ? "读取失败（设备无应答）" : $"{temp:F2} °C";
             Hist($"温度 = {ReadOvenText}");
+        });
+        ReadCurrentCommand = Wrap("采集电流", async () =>
+        {
+            // 按当前选中的「采集卡地址 / 通道地址」读 Usource 与 Isource 两路电流。
+            var us = await _session.Dac.ReadUsourceAsync(
+                0, 25, 5, CardAddr, ChannelAddr);
+            var isv = await _session.Dac.ReadIsourceAsync(
+                0, 25, 5, CardAddr, ChannelAddr);
+            ReadCurrentText = $"{us:G4}/{isv:G4}";
+            Hist($"采集电流 → Usource {us:G4} / Isource {isv:G4} uA（卡{CardAddr} 通{ChannelAddr}）");
         });
 
         SafeResetCommand = Wrap("安全复位", SafeResetAsync);
@@ -592,69 +610,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
     private AsyncRelayCommand Wrap(string source, Func<Task> body, Func<bool> canExecute) =>
         new(body, canExecute) { Source = source };
 
-    private Task OpenOvenSerialAsync()
-    {
-        if (_ovenSerial is { IsOpen: true } &&
-            string.Equals(_ovenSerial.PortName, OvenCom, StringComparison.OrdinalIgnoreCase))
-        {
-            DeviceBus.Info("Oven", $"{OvenCom} already open");
-            return Task.CompletedTask;
-        }
-
-        _ovenSerial?.Dispose();
-        _ovenSerial = new SerialPort(
-            OvenCom,
-            int.Parse(OvenBaud, CultureInfo.InvariantCulture),
-            Enum.Parse<Parity>(OvenParity),
-            int.Parse(OvenData, CultureInfo.InvariantCulture),
-            OvenStop switch
-            {
-                "1.5" => System.IO.Ports.StopBits.OnePointFive,
-                "2" => System.IO.Ports.StopBits.Two,
-                _ => System.IO.Ports.StopBits.One
-            })
-        {
-            NewLine = "\r\n",
-            ReadTimeout = 1000,
-            WriteTimeout = 1000
-        };
-
-        DeviceBus.Tx("Oven", $"OPEN {OvenCom} {OvenBaud} {OvenParity} {OvenData}{OvenStop}");
-        _ovenSerial.Open();
-        IsOvenSerialOpen = true;
-        _ovenStatus?.SetOverride(ConnectionState.Connected);
-        DeviceBus.Rx("Oven", "OK");
-        Hist($"烘箱串口 {OvenCom} 已打开");
-        return Task.CompletedTask;
-    }
-
-    private async Task WriteOvenLineAsync(string command)
-    {
-        await OpenOvenSerialAsync();
-        if (_ovenSerial is null || !_ovenSerial.IsOpen)
-            throw new InvalidOperationException($"烘箱串口 {OvenCom} 未打开");
-
-        DeviceBus.Tx("Oven", "Send: " + command);
-        _ovenSerial.WriteLine(command);
-        await Task.Delay(50);
-    }
-
-    private async Task<string> QueryOvenLineAsync(string command)
-    {
-        await OpenOvenSerialAsync();
-        if (_ovenSerial is null || !_ovenSerial.IsOpen)
-            throw new InvalidOperationException($"烘箱串口 {OvenCom} 未打开");
-
-        _ovenSerial.DiscardInBuffer();
-        DeviceBus.Tx("Oven", "Send: " + command);
-        var bytes = System.Text.Encoding.ASCII.GetBytes(command);
-        _ovenSerial.Write(bytes, 0, bytes.Length);
-        await Task.Delay(300);
-        var reply = _ovenSerial.BytesToRead > 0 ? _ovenSerial.ReadExisting() : "";
-        DeviceBus.Rx("Oven", "Get: " + (string.IsNullOrWhiteSpace(reply) ? "NO RX" : reply.Trim()));
-        return reply.Trim();
-    }
-
+    private Task OpenOvenSerialAsync() => _session.Oven.OpenAsync();
     public async Task ToggleValveAsync(int index, bool on)
     {
         // 每个阀的接线极性可以不同（有的 OPEN 是开、有的 CLOSE 是开），
@@ -790,13 +746,6 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
             yield return ini.Get("SwitchUnitCards", $"Card{i}", (300 + i).ToString());
     }
 
-    private static string FormatOvenTemperature(string reply)
-    {
-        var first = reply.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? reply;
-        return double.TryParse(first, NumberStyles.Float, CultureInfo.InvariantCulture, out var t)
-            ? $"{t:0.0} °C"
-            : first;
-    }
 
     private void ApplySelectedSlotMapping()
     {
@@ -1451,8 +1400,6 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         _frequencyCts?.Cancel();
         _frequencyCts?.Dispose();
         _frequencyCts = null;
-        _ovenSerial?.Dispose();
-        _ovenSerial = null;
     }
 }
 
