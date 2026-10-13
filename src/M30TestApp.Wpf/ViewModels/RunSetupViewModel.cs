@@ -394,9 +394,98 @@ public sealed class RunSetupViewModel : ViewModelBase
         {
             var next = Math.Clamp(value, 1, MaxSlotCountFromStart);
             if (!SetField(ref _slotCount, next)) return;
+            // 手动改「工位数量」= 回到连续模式，清掉勾选的零散工位
+            if (_selectedSlots.Count > 0) ClearSlotSelectionCore();
             NotifySlotRangeChanged();
             NotifyBoardLayoutChanged();
             Regenerate();
+        }
+    }
+
+    // ─── 测试工位选择（可不连续，例如 1-8、10-16） ───────────────────────
+
+    private readonly HashSet<int> _selectedSlots = new();
+
+    /// <summary>勾选的工位号。为空 = 用「起始工位 + 工位数量」的连续模式。</summary>
+    public bool UseExplicitSlotSelection => _selectedSlots.Count > 0;
+
+    private string _slotSelectionText = "";
+    /// <summary>区间文本，如 <c>1-8,10-16</c>；点「应用」后生效。</summary>
+    public string SlotSelectionText
+    {
+        get => _slotSelectionText;
+        set => SetField(ref _slotSelectionText, value);
+    }
+
+    /// <summary>1..N 的工位勾选格（超过 48 只给文本框，避免几百个格子）。</summary>
+    public ObservableCollection<SlotToggleVm> SlotToggles { get; } = new();
+
+    public string SlotSelectionSummary =>
+        _selectedSlots.Count == 0
+            ? "当前：连续模式（按上面的「起始工位 + 工位数量」生成）"
+            : $"当前：已选 {_selectedSlots.Count} 个工位 — {SlotLayoutHelper.FormatSlotSelection(_selectedSlots)}";
+
+    public RelayCommand ApplySlotSelectionCommand { get; }
+    public RelayCommand SelectAllSlotsCommand { get; }
+    public RelayCommand ClearSlotSelectionCommand { get; }
+    public RelayCommand QuickSlotRangeCommand { get; }
+
+    /// <summary>把选中的工位号写进选择状态（并重建预览）。</summary>
+    private void SetSlotSelection(IEnumerable<int> slotNos, bool regenerate = true)
+    {
+        var list = slotNos.Where(n => n >= 1 && n <= SlotMaxAllowed).Distinct().OrderBy(n => n).ToList();
+        _selectedSlots.Clear();
+        foreach (var n in list) _selectedSlots.Add(n);
+
+        // 直接改字段：走 SlotCount 的 setter 会反过来把选择清掉
+        if (list.Count > 0 && _slotCount != list.Count)
+        {
+            _slotCount = list.Count;
+            OnPropertyChanged(nameof(SlotCount));
+        }
+
+        _slotSelectionText = SlotLayoutHelper.FormatSlotSelection(_selectedSlots);
+        OnPropertyChanged(nameof(SlotSelectionText));
+        OnPropertyChanged(nameof(SlotSelectionSummary));
+        OnPropertyChanged(nameof(UseExplicitSlotSelection));
+        SyncSlotToggles();
+        if (regenerate) Regenerate();
+    }
+
+    private void ClearSlotSelectionCore()
+    {
+        _selectedSlots.Clear();
+        _slotSelectionText = "";
+        OnPropertyChanged(nameof(SlotSelectionText));
+        OnPropertyChanged(nameof(SlotSelectionSummary));
+        OnPropertyChanged(nameof(UseExplicitSlotSelection));
+        SyncSlotToggles();
+    }
+
+    private int SlotMaxAllowed => Math.Min(SlotLayoutHelper.SlotMax, Math.Max(1, MaxSlotCountFromStart));
+
+    /// <summary>重建勾选格（1..min(上限, 48)）。</summary>
+    private void BuildSlotToggles()
+    {
+        var n = Math.Min(SlotMaxAllowed, 48);
+        if (SlotToggles.Count == n) { SyncSlotToggles(); return; }
+        SlotToggles.Clear();
+        for (var i = 1; i <= n; i++)
+            SlotToggles.Add(new SlotToggleVm(i, _selectedSlots.Contains(i), OnSlotToggleChanged));
+    }
+
+    private void OnSlotToggleChanged(int no, bool on)
+    {
+        if (on) _selectedSlots.Add(no); else _selectedSlots.Remove(no);
+        SetSlotSelection(_selectedSlots.ToList());
+    }
+
+    private void SyncSlotToggles()
+    {
+        foreach (var t in SlotToggles)
+        {
+            var want = _selectedSlots.Contains(t.No);
+            if (t.IsSelected != want) t.SetSelectedQuiet(want);
         }
     }
 
@@ -727,6 +816,32 @@ public sealed class RunSetupViewModel : ViewModelBase
         Regenerate();
 
         RegenerateCommand = new RelayCommand(_ => ConfirmAndRegenerate());
+
+        ApplySlotSelectionCommand = new RelayCommand(_ =>
+            SetSlotSelection(SlotLayoutHelper.ParseSlotSelection(SlotSelectionText)));
+
+        SelectAllSlotsCommand = new RelayCommand(_ =>
+            SetSlotSelection(Enumerable.Range(1, SlotMaxAllowed)));
+
+        ClearSlotSelectionCommand = new RelayCommand(_ =>
+        {
+            ClearSlotSelectionCore();
+            Regenerate();
+        });
+
+        // 参数形如 "1-8"：整组已在选中集合里就取消，否则并进去 —— 方便按板/按组切
+        QuickSlotRangeCommand = new RelayCommand(p =>
+        {
+            var range = SlotLayoutHelper.ParseSlotSelection(p as string);
+            if (range.Count == 0) return;
+            var hasAll = range.All(n => _selectedSlots.Contains(n));
+            var next = _selectedSlots.ToList();
+            if (hasAll) next.RemoveAll(n => range.Contains(n));
+            else next.AddRange(range.Where(n => !_selectedSlots.Contains(n)));
+            SetSlotSelection(next);
+        });
+
+        BuildSlotToggles();
         ApplyCommand      = new RelayCommand(_ => Apply(),  _ => SelectedPlan is not null && PreviewSlots.Count > 0);
         CancelCommand     = new RelayCommand(_ => { DialogResult = false; RequestClose?.Invoke(this, EventArgs.Empty); });
     }
@@ -1077,7 +1192,10 @@ public sealed class RunSetupViewModel : ViewModelBase
         NormalizeFixedDmmLayout();
         SyncDerivedLayoutFromStartIndex();
 
-        var generated = SlotLayoutHelper.Generate(BuildSlotLayoutOptions());
+        // 勾了零散工位就按选中的生成（支持 1-8、10-16 这种不连续），否则走原来的连续区间
+        var generated = UseExplicitSlotSelection
+            ? SlotLayoutHelper.GenerateForSlots(BuildSlotLayoutOptions(), _selectedSlots)
+            : SlotLayoutHelper.Generate(BuildSlotLayoutOptions());
         if (_isLongTermStabilityMode)
             generated = ApplyLongTermStabilityChannels(generated, _startIndex);
         else if (UseDmmAutoTest)
@@ -1223,5 +1341,41 @@ public sealed class RunSetupViewModel : ViewModelBase
 
         DialogResult = true;
         RequestClose?.Invoke(this, EventArgs.Empty);
+    }
+}
+
+
+/// <summary>运行设置窗口「选择测试工位」里的一个勾选格。</summary>
+public sealed class SlotToggleVm : ViewModelBase
+{
+    private readonly Action<int, bool> _onChanged;
+    private bool _quiet;
+
+    public int No { get; }
+    public string Text => No.ToString();
+
+    private bool _isSelected;
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set
+        {
+            if (!SetField(ref _isSelected, value)) return;
+            if (!_quiet) _onChanged(No, value);
+        }
+    }
+
+    public SlotToggleVm(int no, bool selected, Action<int, bool> onChanged)
+    {
+        No = no;
+        _isSelected = selected;
+        _onChanged = onChanged;
+    }
+
+    /// <summary>VM 回写状态时静默设置，不回调（否则会递归）。</summary>
+    public void SetSelectedQuiet(bool value)
+    {
+        _quiet = true;
+        try { IsSelected = value; } finally { _quiet = false; }
     }
 }

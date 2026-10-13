@@ -448,6 +448,70 @@
                             <TextBlock Text="{Binding ChannelHint}" HorizontalAlignment="Right" Margin="0,2,0,0"
                                        Foreground="{DynamicResource MutedBrush}" FontSize="11"
                                        Visibility="{Binding ShowChannelHint, Converter={StaticResource BoolToVis}}"/>
+                        
+                            <!-- 选择测试工位（可不连续，例如 1-8 与 10-16 混选） -->
+                            <Rectangle Height="1" Fill="{DynamicResource DividerBrush}" Margin="0,10,0,9"/>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="选择测试工位" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource AccentBrush}" Margin="0,0,8,0"/>
+                                <TextBlock Text="可不连续；留空则按上面的连续范围生成"
+                                           Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Style="{StaticResource InputField}"
+                                         Text="{Binding SlotSelectionText, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="例如 1-8,10-16（逗号/顿号/空格都可分隔）"/>
+                                <Button Grid.Column="1" Content="应用" Style="{StaticResource SaveButton}"
+                                        Padding="14,4" Margin="6,0,0,0"
+                                        Command="{Binding ApplySlotSelectionCommand}"/>
+                                <Button Grid.Column="2" Content="恢复连续" Style="{StaticResource GhostButton}"
+                                        Padding="12,4" Margin="6,0,0,0"
+                                        Command="{Binding ClearSlotSelectionCommand}"
+                                        ToolTip="清空选择，回到「起始工位 + 工位数量」的连续模式"/>
+                            </Grid>
+                            <WrapPanel Margin="0,6,0,0">
+                                <Button Content="全选" Style="{StaticResource GhostButton}" Padding="9,2" Margin="0,0,6,0"
+                                        Command="{Binding SelectAllSlotsCommand}"/>
+                                <Button Content="1-8" Style="{StaticResource GhostButton}" Padding="9,2" Margin="0,0,6,0"
+                                        Command="{Binding QuickSlotRangeCommand}" CommandParameter="1-8"
+                                        ToolTip="整组加选 / 取消"/>
+                                <Button Content="9-16" Style="{StaticResource GhostButton}" Padding="9,2" Margin="0,0,6,0"
+                                        Command="{Binding QuickSlotRangeCommand}" CommandParameter="9-16"
+                                        ToolTip="整组加选 / 取消"/>
+                                <Button Content="17-24" Style="{StaticResource GhostButton}" Padding="9,2" Margin="0,0,6,0"
+                                        Command="{Binding QuickSlotRangeCommand}" CommandParameter="17-24"
+                                        ToolTip="整组加选 / 取消"/>
+                                <Button Content="25-32" Style="{StaticResource GhostButton}" Padding="9,2" Margin="0,0,6,0"
+                                        Command="{Binding QuickSlotRangeCommand}" CommandParameter="25-32"
+                                        ToolTip="整组加选 / 取消"/>
+                                <Button Content="33-40" Style="{StaticResource GhostButton}" Padding="9,2" Margin="0,0,6,0"
+                                        Command="{Binding QuickSlotRangeCommand}" CommandParameter="33-40"
+                                        ToolTip="整组加选 / 取消"/>
+                                <Button Content="41-48" Style="{StaticResource GhostButton}" Padding="9,2" Margin="0,0,6,0"
+                                        Command="{Binding QuickSlotRangeCommand}" CommandParameter="41-48"
+                                        ToolTip="整组加选 / 取消"/>
+                            </WrapPanel>
+                            <ItemsControl ItemsSource="{Binding SlotToggles}" Margin="0,8,0,0">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Content="{Binding Text}" MinWidth="36" Margin="0,0,8,4"
+                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                  ToolTip="勾选要测试的工位"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding SlotSelectionSummary}" Margin="0,4,0,0"
+                                       Foreground="{DynamicResource AccentBrush}" FontSize="11"/>
                         </StackPanel>
                     </Border>
 
