@@ -25,6 +25,7 @@ public partial class LongTermMatrixGrid : UserControl
     {
         InitializeComponent();
         DataGridScrollHelper.EnableEnterToNextCell(Grid);
+        DataGridScrollHelper.EnableClickToEdit(Grid);
         BuildStaticColumns();
         DataGridScrollHelper.EnableDragAndWheelScroll(Grid);
         Loaded += OnLoaded;
@@ -111,7 +112,7 @@ public partial class LongTermMatrixGrid : UserControl
     {
         Grid.Columns.Clear();
         Grid.Columns.Add(CreateTextColumn("Slot", "工位", 70));
-        Grid.Columns.Add(CreateTextColumn("SerialNo", "序列号", 150));
+        Grid.Columns.Add(CreateTextColumn("SerialNo", "序列号", 150, readOnly: false));
     }
 
     private void RebuildColumns()
@@ -188,13 +189,14 @@ public partial class LongTermMatrixGrid : UserControl
         });
     }
 
-    private DataGridTextColumn CreateTextColumn(string path, string header, double width) =>
+    private DataGridTextColumn CreateTextColumn(string path, string header, double width, bool readOnly = true) =>
         new()
         {
             Header = CreateSubHeader(header),
-            Binding = new Binding(path) { Mode = BindingMode.OneWay },
+            Binding = new Binding(path) { Mode = readOnly ? BindingMode.OneWay : BindingMode.TwoWay },
             Width = width,
-            IsReadOnly = true,   // 工位 / 序列号：标识行，不给改，回车导航也会跳过
+            // 工位只读（标识行）；序列号可编辑（漏扫补录），改完写回工位表
+            IsReadOnly = readOnly,
         };
 
     private static object CreateSubHeader(LongTermMatrixColumnVm col) =>

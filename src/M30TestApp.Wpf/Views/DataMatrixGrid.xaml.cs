@@ -30,6 +30,7 @@ public partial class DataMatrixGrid : UserControl
         BuildStaticColumns();
         DataGridScrollHelper.EnableDragAndWheelScroll(Grid);
         DataGridScrollHelper.EnableEnterToNextCell(Grid);
+        DataGridScrollHelper.EnableClickToEdit(Grid);
 
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
@@ -92,12 +93,12 @@ public partial class DataMatrixGrid : UserControl
             Width = 70,
             IsReadOnly = true,
         });
+        // 序列号可编辑：现场漏扫 / 扫错要能补录，改完写回工位表（MatrixRowVm 直接引用 SlotEntry）
         Grid.Columns.Add(new DataGridTextColumn
         {
             Header = "序列号",
-            Binding = new Binding("SerialNo") { Mode = BindingMode.OneWay },
+            Binding = new Binding("SerialNo") { Mode = BindingMode.TwoWay },
             Width = 150,
-            IsReadOnly = true,
         });
     }
 

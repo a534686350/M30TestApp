@@ -288,4 +288,44 @@ internal static class DataGridScrollHelper
         grid.ScrollIntoView(item, target);
         grid.BeginEdit();   // 直接进编辑态，省一次 F2
     }
+
+    // ─── 单击即进入编辑（Excel 手感） ───────────────────────────────────────
+
+    /// <summary>
+    /// 单击单元格就进入编辑态。DataGrid 默认要「再点一次」或按 F2 才进编辑，
+    /// 现场用起来就是「点不动」。按住 Ctrl / Shift 时不抢，保留多选。
+    /// </summary>
+    internal static void EnableClickToEdit(DataGrid grid) =>
+        grid.PreviewMouseLeftButtonUp += (_, e) => OnClickToEdit(grid, e);
+
+    private static void OnClickToEdit(DataGrid grid, MouseButtonEventArgs e)
+    {
+        if (Keyboard.Modifiers != ModifierKeys.None) return;   // Ctrl / Shift：让多选正常工作
+
+        var cell = FindAncestor<DataGridCell>(e.OriginalSource as DependencyObject);
+        if (cell is null || cell.IsReadOnly || cell.IsEditing) return;
+
+        // 用 MouseUp 而不是 MouseDown：拖拽滚动（EnableDragAndWheelScroll）也在 Down 上，
+        // 用 Up 才不会在拖动格子时误进编辑。
+        // 延后一拍再 BeginEdit，让 DataGrid 先把 CurrentCell / 焦点落定。
+        grid.Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
+        {
+            if (cell.IsEditing || cell.IsReadOnly) return;
+            // 必须显式把 CurrentCell 指到这一格：BeginEdit() 是对 CurrentCell 生效的，
+            // 只靠点击 DataGrid 不一定会更新它（表现就是「点了没反应、也进不了编辑」）。
+            grid.CurrentCell = new DataGridCellInfo(cell.DataContext, cell.Column);
+            cell.Focus();
+            grid.BeginEdit();
+        }));
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? node) where T : DependencyObject
+    {
+        while (node is not null)
+        {
+            if (node is T hit) return hit;
+            node = VisualTreeHelper.GetParent(node);
+        }
+        return null;
+    }
 }

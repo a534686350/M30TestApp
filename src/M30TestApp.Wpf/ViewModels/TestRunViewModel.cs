@@ -107,7 +107,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         TotalTempPoints = session.Plan.TempPoints.Count;
 
         foreach (var slot in session.Slots.Entries)
-            Rows.Add(new MatrixRowVm(slot.Slot, slot.SerialNo));
+            Rows.Add(new MatrixRowVm(slot.Slot, slot.SerialNo, slot));
 
         if (_isLongTermStabilityMode)
             ApplyLongTermColumns();
@@ -359,7 +359,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
             _rowStatusBySlot.Clear();
             _rowBySlot = null;
             foreach (var slot in _session.Slots.Entries)
-                Rows.Add(new MatrixRowVm(slot.Slot, slot.SerialNo));
+                Rows.Add(new MatrixRowVm(slot.Slot, slot.SerialNo, slot));
             if (_isLongTermStabilityMode)
             {
                 _longTermMeasureMode = _session.Context.LongTermMeasureMode;

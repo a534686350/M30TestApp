@@ -101,12 +101,39 @@ public static class SlotLayoutHelper
         }
     }
 
+    /// <summary>从工位名解析工位号（"Slot12" → 12）；解析不出来返回 0。</summary>
+    public static int ParseSlotNo(string? slotName)
+    {
+        if (string.IsNullOrWhiteSpace(slotName)) return 0;
+        var digits = new string(slotName.Where(char.IsDigit).ToArray());
+        return int.TryParse(digits, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : 0;
+    }
+
+    /// <summary>连续区间生成（起始工位 + 数量），原有行为。</summary>
     public static List<SlotEntry> Generate(SlotLayoutOptions opt)
     {
         // 工位号 = 起始工位 + 序号，必须整体落在 1..SlotMax 内：
         // 起始工位 129 时最多只能生成 128 个工位（129-256）。
         var firstSlotNo = Math.Clamp(opt.StartIndex, 1, SlotMax);
         var count = Math.Clamp(opt.SlotCount, 1, SlotMax - firstSlotNo + 1);
+        return Build(opt, Enumerable.Range(firstSlotNo, count).ToList());
+    }
+
+    /// <summary>
+    /// 按**显式工位号列表**生成工位表，支持不连续（例如 1-8 与 10-16 混选）。
+    ///
+    /// 板卡 / 夹具 / 通道按「选定顺序」递增 —— 与连续生成时的行为完全一致，
+    /// 因为物理接线是按夹具位置排的；阀门则始终按工位号推导（<see cref="ValveForSlot"/>）。
+    /// </summary>
+    public static List<SlotEntry> GenerateForSlots(SlotLayoutOptions opt, IEnumerable<int> slotNos)
+    {
+        var list = slotNos.Where(n => n >= 1 && n <= SlotMax).Distinct().OrderBy(n => n).ToList();
+        return list.Count == 0 ? new List<SlotEntry>() : Build(opt, list);
+    }
+
+    private static List<SlotEntry> Build(SlotLayoutOptions opt, IReadOnlyList<int> slotNos)
+    {
+        var count = slotNos.Count;
         var list = new List<SlotEntry>(count);
 
         int board = opt.StartBoard;
@@ -119,7 +146,7 @@ public static class SlotLayoutHelper
 
         for (int i = 0; i < count; i++)
         {
-            var slotNo = firstSlotNo + i;
+            var slotNo = slotNos[i];
             string slotName = $"Slot{slotNo}";
             string serialNo = opt.AutoNumber
                 ? $"{opt.BatchNo}#{serial}"
@@ -151,6 +178,63 @@ public static class SlotLayoutHelper
         }
 
         return list;
+    }
+
+    // ─── 测试工位选择（支持不连续） ───────────────────────────────────────
+
+    /// <summary>
+    /// 解析工位选择文本。支持 <c>1-8,10-16</c>、单点 <c>3</c>，
+    /// 逗号 / 中文逗号 / 顿号 / 分号 / 空格都能当分隔符；非法片段忽略，结果去重升序。
+    /// </summary>
+    public static List<int> ParseSlotSelection(string? text)
+    {
+        var set = new SortedSet<int>();
+        if (string.IsNullOrWhiteSpace(text)) return new List<int>();
+
+        var normalized = text
+            .Replace('，', ',').Replace('、', ',').Replace('；', ',').Replace(';', ',');
+        foreach (var raw in normalized.Split(new[] { ',', ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var part = raw.Trim();
+            if (part.Length == 0) continue;
+
+            var dash = part.IndexOf('-');
+            if (dash > 0)
+            {
+                var a = part[..dash].Trim();
+                var b = part[(dash + 1)..].Trim();
+                if (!int.TryParse(a, NumberStyles.Integer, CultureInfo.InvariantCulture, out var from)) continue;
+                if (!int.TryParse(b, NumberStyles.Integer, CultureInfo.InvariantCulture, out var to)) continue;
+                if (from > to) (from, to) = (to, from);
+                for (var n = Math.Max(1, from); n <= Math.Min(SlotMax, to); n++) set.Add(n);
+            }
+            else if (int.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out var single)
+                     && single >= 1 && single <= SlotMax)
+            {
+                set.Add(single);
+            }
+        }
+        return set.ToList();
+    }
+
+    /// <summary>把工位号列表压成紧凑区间文本：<c>1-8,10-16</c>。</summary>
+    public static string FormatSlotSelection(IEnumerable<int> slotNos)
+    {
+        var list = slotNos.Where(n => n >= 1 && n <= SlotMax).Distinct().OrderBy(n => n).ToList();
+        if (list.Count == 0) return "";
+
+        var parts = new List<string>();
+        var start = list[0];
+        var prev = list[0];
+        for (var i = 1; i <= list.Count; i++)
+        {
+            var cur = i < list.Count ? list[i] : int.MinValue;
+            if (cur == prev + 1) { prev = cur; continue; }
+            parts.Add(start == prev ? start.ToString(CultureInfo.InvariantCulture)
+                                    : $"{start}-{prev}");
+            start = prev = cur;
+        }
+        return string.Join(",", parts);
     }
 
     public static void ApplyPreservedSerials(IList<SlotEntry> slots, IReadOnlyDictionary<string, string> preserved)

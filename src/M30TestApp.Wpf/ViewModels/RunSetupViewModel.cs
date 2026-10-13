@@ -1104,14 +1104,15 @@ public sealed class RunSetupViewModel : ViewModelBase
 
     private static List<SlotEntry> ApplyLongTermStabilityChannels(List<SlotEntry> slots, int startSlotNo)
     {
-        var count = Math.Min(slots.Count, LongTermStabilitySlotMax - startSlotNo + 1);
-        var result = new List<SlotEntry>(count);
-        for (var i = 0; i < count; i++)
+        // 用每个工位**自己的**工位号推导通道，而不是 startSlotNo + 序号 ——
+        // 这样工位可以不连续（例如 1-8、10-16），连续时结果与旧实现完全一致。
+        var result = new List<SlotEntry>(slots.Count);
+        foreach (var slot in slots)
         {
-            var slotNo = startSlotNo + i;
-            result.Add(slots[i] with
+            var slotNo = SlotLayoutHelper.ParseSlotNo(slot.Slot);
+            if (slotNo < 1 || slotNo > LongTermStabilitySlotMax) continue;
+            result.Add(slot with
             {
-                Slot = $"Slot{slotNo}",
                 Board = (((slotNo - 1) / 20) + 1).ToString(),
                 BoardSlotNo = (((slotNo - 1) % 20) + 1).ToString(),
                 Channel = LongTermStabilitySlotMap.ChannelForSlot(slotNo).ToString(),
@@ -1128,16 +1129,17 @@ public sealed class RunSetupViewModel : ViewModelBase
     /// </summary>
     private static List<SlotEntry> ApplyDmmAutoTestChannels(List<SlotEntry> slots, int startSlotNo)
     {
-        var count = Math.Min(slots.Count, DmmAutoSlotMap.MaxSlotCount - startSlotNo + 1);
-        var result = new List<SlotEntry>(count);
-        for (var i = 0; i < count; i++)
+        // 同上：按每个工位自己的工位号推导 973 台号 / 电压通道 / 电源开关通道，
+        // 不连续工位也能落到正确的仪器通道上（错一格就是读到别人的数据）。
+        var result = new List<SlotEntry>(slots.Count);
+        foreach (var slot in slots)
         {
-            var slotNo = startSlotNo + i;
+            var slotNo = SlotLayoutHelper.ParseSlotNo(slot.Slot);
+            if (slotNo < 1 || slotNo > DmmAutoSlotMap.MaxSlotCount) continue;
             var unit = DmmAutoSlotMap.UnitIndexForSlot(slotNo);
             var local = DmmAutoSlotMap.LocalIndexForSlot(slotNo);
-            result.Add(slots[i] with
+            result.Add(slot with
             {
-                Slot = $"Slot{slotNo}",
                 Valve = "",
                 ValveAddr = "",
                 Board = "DMM",
