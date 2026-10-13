@@ -65,6 +65,8 @@
     <SolidColorBrush x:Key="LedWarnBrush"     Color="#FFF3C24E"/>
     <SolidColorBrush x:Key="LedErrorBrush"    Color="#FFFF7B7F"/>
     <SolidColorBrush x:Key="BannerAlarmBrush" Color="#FF3A2024"/>
+    <SolidColorBrush x:Key="ScrollThumbBrush"      Color="#FF4C5866"/>
+    <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#FF62707F"/>
     <SolidColorBrush x:Key="DividerBrush"     Color="#FF3D4A58"/>
 
     <!-- 标题横幅专用文字色 -->
@@ -575,6 +577,10 @@
         <Setter Property="HorizontalGridLinesBrush" Value="#FF1F2833"/>
         <Setter Property="VerticalGridLinesBrush" Value="Transparent"/>
         <Setter Property="RowBackground" Value="{DynamicResource SurfaceBrush}"/>
+        <!-- 必须显式设文字色：DataGridTextColumn 生成的 TextBlock 会把 Foreground 绑到
+             DataGridCell 的 Foreground，而 Cell 继承自窗口；窗口没设 → 落到 WPF 默认黑色。
+             浅色主题下看不出问题，深色主题就是「黑字贴深底」看不清。 -->
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="AlternatingRowBackground" Value="{DynamicResource RowAltBrush}"/>
         <Setter Property="RowHeight" Value="30"/>
         <Setter Property="ColumnHeaderHeight" Value="34"/>
@@ -612,6 +618,7 @@
 
 
     <Style TargetType="DataGridCell">
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="Padding" Value="6,3"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Template">
@@ -852,6 +859,16 @@
     </Style>
 
     <!-- ────────── 进度条：方形段码感 ────────── -->
+    <!-- 提示气泡：系统默认是浅色，深色下很扎眼 -->
+    <Style TargetType="ToolTip">
+        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="8,5"/>
+        <Setter Property="FontSize" Value="11.5"/>
+    </Style>
+
     <Style TargetType="ProgressBar">
         <Setter Property="Background" Value="{DynamicResource HeaderBgBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
@@ -874,7 +891,51 @@
     <!-- ────────── 滚动条：细方轨 ──────────
          注意：必须按 Orientation 分别设置。横向滚动条的"长度"就是它的 Width，
          若对横向条也设 Width/MinWidth=8，整条会塌成 8px 的小疙瘩、无法点击。 -->
+    <!-- 滚动条：必须自带模板。原来只设了尺寸，用的还是系统默认模板 ——
+         深色主题下整条是浅色的，在矩阵右侧露出一道白。 -->
     <Style TargetType="ScrollBar">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Width" Value="10"/>
+        <Setter Property="MinWidth" Value="10"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Grid Background="Transparent">
+                        <Track x:Name="PART_Track" IsDirectionReversed="True">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageUpCommand" Focusable="False"
+                                              Opacity="0" Background="Transparent" BorderThickness="0"/>
+                            </Track.DecreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb MinHeight="24">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Border x:Name="Bd" CornerRadius="5" Margin="2,1"
+                                                    Background="{DynamicResource ScrollThumbBrush}"/>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background"
+                                                            Value="{DynamicResource ScrollThumbHoverBrush}"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageDownCommand" Focusable="False"
+                                              Opacity="0" Background="Transparent" BorderThickness="0"/>
+                            </Track.IncreaseRepeatButton>
+                        </Track>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Orientation" Value="Horizontal">
+                            <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
         <Style.Triggers>
             <Trigger Property="Orientation" Value="Vertical">
                 <Setter Property="Width" Value="10"/>
