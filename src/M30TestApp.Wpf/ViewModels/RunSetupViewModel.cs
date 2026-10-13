@@ -498,14 +498,19 @@ public sealed class RunSetupViewModel : ViewModelBase
         RebuildSlotQuickRanges();
     }
 
-    /// <summary>快捷分组按 8 个一组，铺到当前需要的数量为止。</summary>
+    /// <summary>
+    /// 快捷分组按钮：按区间**自适应步长**，最多 12 个。
+    ///
+    /// 固定 8 个一组的话，256 工位会铺出 32 个按钮、占两三行，把下面的预览表挤掉。
+    /// 96 以内用 8 个一组，192 以内 16 个一组，再大就 32 个一组。
+    /// </summary>
     private void RebuildSlotQuickRanges()
     {
         var upTo = Math.Min(SlotMaxAllowed, Math.Max(_slotCount, _slotToggleCount));
-        var groups = Math.Max(2, (int)Math.Ceiling(upTo / 8.0));
-        var want = Enumerable.Range(0, groups)
-            .Select(g => $"{g * 8 + 1}-{Math.Min((g + 1) * 8, SlotMaxAllowed)}")
-            .ToList();
+        var step = upTo <= 96 ? 8 : upTo <= 192 ? 16 : 32;
+        var want = new List<string>();
+        for (var start = 1; start <= upTo; start += step)
+            want.Add($"{start}-{Math.Min(start + step - 1, SlotMaxAllowed)}");
         if (want.Count == SlotQuickRanges.Count && want[^1] == SlotQuickRanges[^1]) return;
         SlotQuickRanges.Clear();
         foreach (var r in want) SlotQuickRanges.Add(r);

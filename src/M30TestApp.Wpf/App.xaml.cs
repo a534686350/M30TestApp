@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using M30TestApp.Core;
 using M30TestApp.Core.Common;
@@ -133,4 +134,3 @@ public partial class App : Application
         win.Show();
     }
 }
-

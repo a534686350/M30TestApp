@@ -8,7 +8,7 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance vm:RunSetupViewModel}"
         Title="选择运行方案"
-        Width="980" Height="640"
+        Width="1000" Height="700" MinHeight="600" MinWidth="880"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResize"
         Background="{DynamicResource SurfaceBrush}">
@@ -447,7 +447,7 @@
                                         <DataTemplate>
                                             <!-- 分组按钮由 VM 按 8 个一组动态生成，跟着工位数量走 -->
                                             <Button Content="{Binding}" Style="{StaticResource GhostButton}"
-                                                    Padding="9,2" Margin="0,0,6,4"
+                                                    Padding="8,1" Margin="0,0,5,3"
                                                     Command="{Binding DataContext.QuickSlotRangeCommand,
                                                               RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CommandParameter="{Binding}"
@@ -459,7 +459,7 @@
 
                             <!-- 勾选格：数量跟「所需工位」走（选了 80 就有 1..80）。
                                  超过一屏高时自己滚动，不再把下面的表格挤掉。 -->
-                            <ScrollViewer MaxHeight="116" VerticalScrollBarVisibility="Auto"
+                            <ScrollViewer MaxHeight="78" VerticalScrollBarVisibility="Auto"
                                           HorizontalScrollBarVisibility="Disabled" Margin="0,2,0,0">
                                 <ItemsControl ItemsSource="{Binding SlotToggles}"
                                               Background="Transparent"
@@ -471,7 +471,7 @@
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <CheckBox Content="{Binding Text}" MinWidth="38" Margin="0,0,8,4"
+                                            <CheckBox Content="{Binding Text}" MinWidth="34" Margin="0,0,5,2"
                                                       FontSize="12"
                                                       Foreground="{DynamicResource TextBrush}"
                                                       IsChecked="{Binding IsSelected, Mode=TwoWay}"
