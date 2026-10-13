@@ -1,0 +1,31 @@
+[Unit]
+Description=M30 站点汇总服务（总控制台 / 只读看板）
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/m30hub
+ExecStart=/usr/bin/python3 /opt/m30hub/station_hub.py
+Restart=always
+RestartSec=3
+
+# 控制台监听端口
+Environment=M30_HUB_PORT=80
+Environment=M30_HUB_DB=/opt/m30hub/stations.db
+# 控制台登录（浏览器会弹一次登录框；留空则不校验）
+Environment=M30_HUB_USER=m30
+Environment=M30_HUB_PASS=__PASSWORD__
+# 站点上报令牌（上位机要用同一个值；留空则不校验）
+Environment=M30_HUB_TOKEN=__TOKEN__
+# 超过这个秒数没心跳就显示为离线
+Environment=M30_HUB_OFFLINE=30
+
+# 收紧权限：只给一个可写目录
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/opt/m30hub
+
+[Install]
+WantedBy=multi-user.target
