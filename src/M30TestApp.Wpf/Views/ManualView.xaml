@@ -212,29 +212,31 @@
                                     Command="{Binding SafeResetCommand}"/>
                         </StackPanel>
                     </Grid>
-                </StackPanel>
-            </Border>
-<Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,2,0,10"/>
+                    <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,2,0,10"/>
                     <StackPanel Orientation="Horizontal">
                         <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBlock Text="读取数据" Style="{StaticResource GroupTitle}"/>
                     </StackPanel>
                     <Grid Margin="0,6,0,0">
+                        <!-- 3 列 × 2 行：5 项并排塞不进采集控制卡片（第三列只有 ~830px），
+                             挤到单位标签只剩一个字母。分行后每项 270px 有余。 -->
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
-<Grid Grid.Column="0" Margin="0,0,10,0">
+                    <Grid Grid.Row="0" Grid.Column="0" Margin="0,0,10,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Content="📡 读 Usig" Style="{StaticResource ReadButton}"
+                            <Button Grid.Column="0" Content="读 Usig" Style="{StaticResource ReadButton}"
                                     HorizontalAlignment="Stretch"
                                     Command="{Binding ReadUsigCommand}" Margin="0,0,8,0" VerticalAlignment="Center"/>
                             <Grid Grid.Column="1">
@@ -248,12 +250,12 @@
                             </Grid>
                         </Grid>
 
-<Grid Grid.Column="1" Margin="0,0,10,0">
+                    <Grid Grid.Row="0" Grid.Column="1" Margin="0,0,10,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Content="🌡 读 UT" Style="{StaticResource ReadButton}"
+                            <Button Grid.Column="0" Content="读 UT" Style="{StaticResource ReadButton}"
                                     HorizontalAlignment="Stretch"
                                     Command="{Binding ReadUtCommand}" Margin="0,0,8,0" VerticalAlignment="Center"/>
                             <Grid Grid.Column="1">
@@ -267,12 +269,12 @@
                             </Grid>
                         </Grid>
 
-<Grid Grid.Column="2" Margin="0,0,10,0">
+                    <Grid Grid.Row="0" Grid.Column="2" Margin="0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Content="🌡 读温度变送器 (T)" Style="{StaticResource ReadButton}"
+                            <Button Grid.Column="0" Content="读温度变送器 (T)" Style="{StaticResource ReadButton}"
                                     HorizontalAlignment="Stretch"
                                     Command="{Binding ReadTCommand}" Margin="0,0,8,0" VerticalAlignment="Center"/>
                             <Grid Grid.Column="1">
@@ -286,12 +288,12 @@
                             </Grid>
                         </Grid>
 
-<Grid Grid.Column="3" Margin="0,0,10,0">
+                    <Grid Grid.Row="1" Grid.Column="0" Margin="0,8,10,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Content="🔬 读 40uA" Style="{StaticResource ReadButton}"
+                            <Button Grid.Column="0" Content="读 40uA" Style="{StaticResource ReadButton}"
                                     HorizontalAlignment="Stretch"
                                     Command="{Binding Read40uACommand}" Margin="0,0,8,0" VerticalAlignment="Center"/>
                             <Grid Grid.Column="1">
@@ -305,12 +307,12 @@
                             </Grid>
                         </Grid>
 
-<Grid Grid.Column="4">
+                    <Grid Grid.Row="1" Grid.Column="1" Margin="0,8,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Content="⚡ 采集电流" Style="{StaticResource ReadButton}"
+                            <Button Grid.Column="0" Content="采集电流" Style="{StaticResource ReadButton}"
                                     HorizontalAlignment="Stretch"
                                     Command="{Binding ReadCurrentCommand}" Margin="0,0,8,0" VerticalAlignment="Center"/>
                             <Grid Grid.Column="1">
@@ -324,6 +326,8 @@
                             </Grid>
                         </Grid>
                     </Grid>
+                </StackPanel>
+                    </Border>
         </Grid>
 
 
