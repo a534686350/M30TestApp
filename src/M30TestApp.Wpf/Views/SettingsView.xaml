@@ -186,7 +186,7 @@
                                 Binding="{Binding Number, UpdateSourceTrigger=PropertyChanged}"/>
 <DataGridTextColumn Header="完整地址" Binding="{Binding AddressPreview}"
                                 Width="*" IsReadOnly="True"
-                                Foreground="{StaticResource MutedBrush}"/>
+                                Foreground="{DynamicResource MutedBrush}"/>
                                     <DataGridTextColumn Header="波特率"
                                                         Binding="{Binding Baud, UpdateSourceTrigger=PropertyChanged}"
                                                         Width="90"/>
@@ -199,7 +199,7 @@
                         <Border Style="{StaticResource Card}" Margin="0,0,0,10" Padding="14,12">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                    <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBlock Text="万用表通道分配（DAQ973A）" FontWeight="SemiBold" FontSize="13"/>
                                 </StackPanel>
@@ -241,7 +241,7 @@
                                     </StackPanel>
                                     <StackPanel Grid.Column="9" VerticalAlignment="Bottom" Margin="0,6,0,0">
                                         <TextBlock Text="{Binding DeviceConfig.DmmChannelHint}"
-                                                   Foreground="{StaticResource AccentBrush}" FontSize="12"
+                                                   Foreground="{DynamicResource AccentBrush}" FontSize="12"
                                                    TextWrapping="Wrap"/>
                                     </StackPanel>
                                 </Grid>
@@ -296,7 +296,7 @@
 
                         <!-- Version + Check update -->
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,20">
-                            <Border Background="{StaticResource HeaderBgBrush}" CornerRadius="12"
+                            <Border Background="{DynamicResource HeaderBgBrush}" CornerRadius="12"
                                     Padding="12,5" Margin="4,0">
                                 <TextBlock FontSize="12">
                                     <Run Text="v"/><Run Text="{Binding AppVersion, Mode=OneWay}"/>

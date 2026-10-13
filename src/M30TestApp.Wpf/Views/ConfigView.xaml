@@ -68,7 +68,7 @@
             </Grid>
         </DataTemplate>
         <Style x:Key="SlotFieldLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
             <Setter Property="FontSize" Value="10"/>
             <Setter Property="Margin" Value="0,0,0,3"/>
             <Setter Property="HorizontalAlignment" Value="Left"/>
@@ -80,13 +80,13 @@
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
         </Style>
         <Style x:Key="SlotPanel" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource BgBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource BgBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="12"/>
         </Style>
         <Style x:Key="SlotPanelTitle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Margin" Value="0,0,0,9"/>
@@ -126,7 +126,7 @@
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
                                     <StackPanel Orientation="Horizontal">
-                                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                        <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                                         <TextBlock Text="基础信息" Style="{StaticResource SectionTitle}" VerticalAlignment="Center"/>
                                     </StackPanel>
@@ -186,7 +186,7 @@
                                 <TextBox Text="{Binding LeakCheckPressuresText, UpdateSourceTrigger=PropertyChanged}"
                                          ToolTip="逗号分隔；留空则自动：表压/差压=满量程，绝压=5与满量程"/>
                                 <TextBlock Text="{Binding LeakCheckPressuresHint}"
-                                           Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,2,0,0"/>
+                                           Foreground="{DynamicResource MutedBrush}" FontSize="11" Margin="0,2,0,0"/>
 
                                 <TextBlock Text="漏率阈值（当前型号）" Style="{StaticResource FieldLabel}" Margin="0,8,0,4"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
@@ -197,7 +197,7 @@
                                          IsEnabled="{Binding UseDefaultLeakCheckPrecision, Converter={StaticResource InverseBoolConverter}}"
                                          ToolTip="留空则使用当前型号默认精度"/>
                                 <TextBlock Text="{Binding LeakCheckPrecisionDisplay}"
-                                           Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,2,0,0"/>
+                                           Foreground="{DynamicResource MutedBrush}" FontSize="11" Margin="0,2,0,0"/>
                                 <TextBlock Text="启用设备" Style="{StaticResource GroupTitle}" Margin="0,8,0,0"/>
                                 <UniformGrid Columns="3">
                                     <CheckBox Content="烘箱"      IsChecked="True"/>
@@ -237,7 +237,7 @@
                             </Grid.RowDefinitions>
                             <DockPanel>
                                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Top">
-                                    <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                    <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBlock Text="压力点表" Style="{StaticResource SectionTitle}"/>
                                 </StackPanel>
@@ -280,7 +280,7 @@
                             </DockPanel>
                             <DockPanel Grid.Row="1" Margin="0,10,0,0">
                                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Top">
-                                    <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                    <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBlock Text="温度点表" Style="{StaticResource SectionTitle}"/>
                                 </StackPanel>
@@ -312,17 +312,17 @@
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal">
-                                    <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                    <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBlock Text="当前型号指标" Style="{StaticResource SectionTitle}"/>
                                 </StackPanel>
                                 <TextBlock Text="切换传感器型号后这里显示该型号自己的判定指标和限值。"
-                                           Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                           Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,10"/>
 
                                 <ItemsControl ItemsSource="{Binding Metrics}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Background="{StaticResource HeaderBgBrush}" CornerRadius="6"
+                                            <Border Background="{DynamicResource HeaderBgBrush}" CornerRadius="6"
                                                     Padding="8,6" Margin="0,0,0,6">
                                                 <StackPanel>
                                                     <Grid>
@@ -334,10 +334,10 @@
                                                         <CheckBox IsChecked="{Binding Enabled}" VerticalAlignment="Center"/>
                                                         <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold"
                                                                    FontSize="12" Margin="6,0,8,0" TextTrimming="CharacterEllipsis"/>
-                                                        <Border Grid.Column="2" Background="{StaticResource SurfaceBrush}" CornerRadius="3"
+                                                        <Border Grid.Column="2" Background="{DynamicResource SurfaceBrush}" CornerRadius="3"
                                                                 Padding="6,1">
                                                             <TextBlock Text="{Binding Code}" FontSize="11"
-                                                                       Foreground="{StaticResource MutedBrush}"/>
+                                                                       Foreground="{DynamicResource MutedBrush}"/>
                                                         </Border>
                                                     </Grid>
                                                     <Grid Margin="0,6,0,0">
@@ -348,12 +348,12 @@
                                                             <ColumnDefinition Width="*"/>
                                                         </Grid.ColumnDefinitions>
                                                         <TextBlock Text="限值" VerticalAlignment="Center"
-                                                                   Foreground="{StaticResource MutedBrush}" FontSize="11"
+                                                                   Foreground="{DynamicResource MutedBrush}" FontSize="11"
                                                                    Margin="0,0,8,0"/>
                                                         <TextBox Grid.Column="1" Text="{Binding Min, UpdateSourceTrigger=PropertyChanged}"
                                                                  MinWidth="56" ToolTip="Min"/>
                                                         <TextBlock Grid.Column="2" Text="~" HorizontalAlignment="Center"
-                                                                   VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
+                                                                   VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}"/>
                                                         <TextBox Grid.Column="3" Text="{Binding Max, UpdateSourceTrigger=PropertyChanged}"
                                                                  MinWidth="56" ToolTip="Max"/>
                                                     </Grid>
@@ -376,12 +376,12 @@
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="8">
                             <StackPanel Orientation="Horizontal">
-                                <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                            VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <TextBlock Text="性能指标限值（Min ~ Max）" Style="{StaticResource SectionTitle}"/>
                             </StackPanel>
                             <TextBlock Text="留空表示不限。超出范围的单元格在 Excel 报告中将标黄。"
-                                       Foreground="{StaticResource MutedBrush}" Margin="0,0,0,12" FontSize="12"/>
+                                       Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,12" FontSize="12"/>
 
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -484,7 +484,7 @@
                                 VerticalAlignment="Top">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal">
-                                    <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                    <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBlock Text="串口设备 Serial Devices" Style="{StaticResource SectionTitle}"/>
                                 </StackPanel>
@@ -526,7 +526,7 @@
                         <Border Style="{StaticResource Card}" Grid.Column="1" VerticalAlignment="Top">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal">
-                                    <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                    <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBlock Text="压力控制器 Pressure Controller" Style="{StaticResource SectionTitle}"/>
                                 </StackPanel>
@@ -548,7 +548,7 @@
                     <Border Style="{StaticResource Card}" VerticalAlignment="Top">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal">
-                                <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                            VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <TextBlock Text="温度采集 / 切换单元 Temp. Acquisition/Switch Unit" Style="{StaticResource SectionTitle}"/>
                             </StackPanel>
@@ -573,7 +573,7 @@
                             </Grid>
 
                             <StackPanel Orientation="Horizontal">
-                                <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                            VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <TextBlock Text="切换卡通道 Switch Card Channels" Style="{StaticResource SectionTitle}" Margin="0,18,0,0"/>
                             </StackPanel>
@@ -599,7 +599,7 @@
                         <Border Style="{StaticResource Card}" Margin="0,0,8,0" VerticalAlignment="Top">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal">
-                                    <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                    <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBlock Text="气路设置 / 阀门配置" Style="{StaticResource SectionTitle}"/>
                                 </StackPanel>
@@ -614,7 +614,7 @@
                         <Border Style="{StaticResource Card}" Grid.Column="1">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal">
-                                    <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                    <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBlock Text="温度采集设置 Temperature Sensor Settings" Style="{StaticResource SectionTitle}"/>
                                 </StackPanel>
@@ -625,7 +625,7 @@
                                 </ItemsControl>
 
                                 <StackPanel Orientation="Horizontal">
-                                    <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                    <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBlock Text="时间参数设置 Delay Time Settings" Style="{StaticResource SectionTitle}" Margin="0,16,0,8"/>
                                 </StackPanel>
@@ -647,7 +647,7 @@
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal">
-                                <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                            VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <TextBlock Text="编辑压力控制器型号 / 指令" Style="{StaticResource SectionTitle}"/>
                             </StackPanel>
@@ -711,7 +711,7 @@
                             <StackPanel>
                                 <TextBlock Text="DAQ973A 台数" FontWeight="SemiBold" FontSize="14"/>
                                 <TextBlock Text="{Binding DeviceConfig.DmmUnitHint}"
-                                           Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="0,3,0,0"/>
+                                           Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="0,3,0,0"/>
                             </StackPanel>
                             <ComboBox Grid.Column="1" Width="120" VerticalAlignment="Center"
                                       SelectedValue="{Binding DeviceConfig.DmmUnitCount}" SelectedValuePath="Tag">
@@ -768,7 +768,7 @@
                                 Binding="{Binding Number, UpdateSourceTrigger=PropertyChanged}"/>
 <DataGridTextColumn Header="完整地址" Binding="{Binding AddressPreview}"
                                 Width="*" IsReadOnly="True"
-                                Foreground="{StaticResource MutedBrush}"/>
+                                Foreground="{DynamicResource MutedBrush}"/>
                                 <DataGridTextColumn Header="波特率"
                                                     Binding="{Binding Baud, UpdateSourceTrigger=PropertyChanged}"
                                                     Width="90"/>
@@ -781,7 +781,7 @@
                     <Border Style="{StaticResource Card}" Grid.Row="2" Margin="0,10,0,0" Padding="14,12">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                            VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <TextBlock Text="万用表通道分配（DAQ973A）" FontWeight="SemiBold" FontSize="13"/>
                             </StackPanel>
@@ -819,7 +819,7 @@
                                 </StackPanel>
                                 <StackPanel Grid.Column="5" VerticalAlignment="Bottom" Margin="0,0,0,6">
                                     <TextBlock Text="{Binding DeviceConfig.DmmChannelHint}"
-                                               Foreground="{StaticResource AccentBrush}" FontSize="12"
+                                               Foreground="{DynamicResource AccentBrush}" FontSize="12"
                                                TextWrapping="Wrap"/>
                                 </StackPanel>
                             </Grid>
@@ -827,7 +827,7 @@
                     </Border>
 
                     <TextBlock Grid.Row="3" Margin="4,10,0,0" TextWrapping="Wrap" FontSize="12"
-                               Foreground="{StaticResource MutedBrush}"
+                               Foreground="{DynamicResource MutedBrush}"
                                Text="改完点右下角「保存」写入 Setting.ini 并重建设备，不用重启。通道分配按「每台 973 一套」生效，多台 973 用相同的通道组。"/>
                 </Grid>
             </TabItem>
@@ -840,7 +840,7 @@
                     <DockPanel>
                         <Border DockPanel.Dock="Top" Style="{StaticResource PanelTitleBar}">
                             <StackPanel Orientation="Horizontal">
-                                <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                            VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <TextBlock Text="设备指令模板 (Command.ini)" Style="{StaticResource PanelTitleText}"/>
                             </StackPanel>
@@ -875,7 +875,7 @@
                             <TextBlock Grid.Column="2"
                                        Text="{Binding SelectedModelCommand.DisplayName}"
                                        VerticalAlignment="Bottom"
-                                       Foreground="{StaticResource MutedBrush}"
+                                       Foreground="{DynamicResource MutedBrush}"
                                        FontSize="12"
                                        Margin="12,0,0,4"/>
                         </Grid>
@@ -918,8 +918,8 @@
                     <!-- ══ 主区：扫码录入条 + 工位明细表格 ══ -->
                     <DockPanel Grid.Column="0">
                         <Border DockPanel.Dock="Top" Margin="0,0,0,10" Padding="12,9"
-                                Background="{StaticResource AccentLightBrush}"
-                                BorderBrush="{StaticResource AccentBrush}"
+                                Background="{DynamicResource AccentLightBrush}"
+                                BorderBrush="{DynamicResource AccentBrush}"
                                 BorderThickness="1">
                             <DockPanel>
                                 <StackPanel Orientation="Vertical" DockPanel.Dock="Left"
@@ -927,15 +927,15 @@
                                     <TextBlock Text="扫码录入" FontWeight="Bold" FontSize="13"/>
                                     <StackPanel Orientation="Horizontal" Margin="1,5,0,0">
                                         <TextBlock Text="下一工位" FontSize="9.5"
-                                                   Foreground="{StaticResource MutedBrush}"
+                                                   Foreground="{DynamicResource MutedBrush}"
                                                    VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                        <Border Background="{StaticResource SurfaceBrush}"
-                                                BorderBrush="{StaticResource AccentBrush}"
+                                        <Border Background="{DynamicResource SurfaceBrush}"
+                                                BorderBrush="{DynamicResource AccentBrush}"
                                                 BorderThickness="1"
                                                 Padding="9,3">
                                             <TextBlock x:Name="ScanSlotLabel" Text="-"
                                                        FontWeight="Bold" FontSize="13"
-                                                       Foreground="{StaticResource AccentBrush}"/>
+                                                       Foreground="{DynamicResource AccentBrush}"/>
                                         </Border>
                                     </StackPanel>
                                 </StackPanel>
@@ -951,9 +951,9 @@
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="2,6,0,0">
                                         <TextBlock x:Name="ScanProgressLabel" Text=""
-                                                   Foreground="{StaticResource TextBrush}" FontSize="11.5"/>
+                                                   Foreground="{DynamicResource TextBrush}" FontSize="11.5"/>
                                         <TextBlock x:Name="ScanStatusText" Text=""
-                                                   Foreground="{StaticResource SuccessBrush}"
+                                                   Foreground="{DynamicResource SuccessBrush}"
                                                    FontWeight="SemiBold" FontSize="11.5"
                                                    Margin="12,0,0,0"/>
                                     </StackPanel>
@@ -973,15 +973,15 @@
                         <Border Style="{StaticResource Card}" Padding="0">
                             <DockPanel>
                                 <Border DockPanel.Dock="Top"
-                                        Background="{StaticResource HeaderBgBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}"
+                                        Background="{DynamicResource HeaderBgBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="0,0,0,1"
                                         Padding="12,7">
                                     <DockPanel>
                                         <TextBlock Text="工位明细" FontWeight="SemiBold"
-                                                   Foreground="{StaticResource TextBrush}"/>
+                                                   Foreground="{DynamicResource TextBrush}"/>
                                         <TextBlock DockPanel.Dock="Right"
-                                                   Foreground="{StaticResource MutedBrush}"
+                                                   Foreground="{DynamicResource MutedBrush}"
                                                    FontSize="11">
                                             <Run Text="当前 "/>
                                             <Run Text="{Binding PreviewCount, Mode=OneWay}"/>
@@ -1052,12 +1052,12 @@
                             <Border Style="{StaticResource Card}" Padding="13">
                                 <StackPanel>
                                     <StackPanel Orientation="Horizontal">
-                                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                        <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                                         <TextBlock Text="工位对应表" Style="{StaticResource SectionTitle}"/>
                                     </StackPanel>
                                     <TextBlock Text="按布局参数生成工位、板卡、夹具和通道的对应关系"
-                                               Foreground="{StaticResource MutedBrush}"
+                                               Foreground="{DynamicResource MutedBrush}"
                                                FontSize="11" TextWrapping="Wrap"
                                                Margin="0,2,0,12"/>
                                     <Button Content="导入 CSV" Style="{StaticResource GhostButton}"
@@ -1079,7 +1079,7 @@
                             <Border Style="{StaticResource Card}" Padding="13" Margin="0,10,0,0">
                                 <StackPanel>
                                     <StackPanel Orientation="Horizontal">
-                                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                        <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                                         <TextBlock Text="布局参数" Style="{StaticResource SectionTitle}"/>
                                     </StackPanel>
@@ -1090,11 +1090,11 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel>
                                             <TextBlock Text="工位数量（修改后按参数重新生成）"
-                                                       Foreground="{StaticResource MutedBrush}" FontSize="10.5"/>
+                                                       Foreground="{DynamicResource MutedBrush}" FontSize="10.5"/>
                                             <TextBox Style="{StaticResource ConfigInputBox}" MinHeight="30" Margin="0,5,0,0" HorizontalContentAlignment="Center" Text="{Binding SlotCount, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>
                                         <TextBlock Grid.Column="1" VerticalAlignment="Bottom"
-                                                   Foreground="{StaticResource MutedBrush}" FontSize="10.5"
+                                                   Foreground="{DynamicResource MutedBrush}" FontSize="10.5"
                                                    Margin="6,0,0,7" TextAlignment="Right">
                                             <Run Text="{Binding PreviewCount, Mode=OneWay}"/><Run Text="/256"/>
                                         </TextBlock>
@@ -1104,16 +1104,16 @@
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="高级布局" FontWeight="SemiBold"
-                                                           Foreground="{StaticResource TextBrush}"/>
+                                                           Foreground="{DynamicResource TextBrush}"/>
                                                 <TextBlock Text="板卡/夹具/阀位/通道"
-                                                           Foreground="{StaticResource MutedBrush}"
+                                                           Foreground="{DynamicResource MutedBrush}"
                                                            FontSize="10" Margin="8,1,0,0"
                                                            VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Expander.Header>
                                         <StackPanel Margin="0,8,0,0">
                                             <TextBlock Text="用于自动生成工位映射"
-                                                       Foreground="{StaticResource MutedBrush}"
+                                                       Foreground="{DynamicResource MutedBrush}"
                                                        FontSize="10" Margin="0,0,0,10"/>
 
                                             <Border Style="{StaticResource SlotPanel}">
@@ -1125,7 +1125,7 @@
                                                             <ColumnDefinition Width="78"/>
                                                         </Grid.ColumnDefinitions>
                                                         <TextBlock Text="起始编号" VerticalAlignment="Center"
-                                                                   Foreground="{StaticResource MutedBrush}" FontSize="11"/>
+                                                                   Foreground="{DynamicResource MutedBrush}" FontSize="11"/>
                                                         <TextBox Grid.Column="1" Style="{StaticResource SlotNumBox}"
                                                                  Text="{Binding StartIndex, UpdateSourceTrigger=PropertyChanged}"/>
                                                     </Grid>
@@ -1163,7 +1163,7 @@
                                                                    Text="每块板卡按固定工位数顺序映射"
                                                                    TextWrapping="Wrap"
                                                                    VerticalAlignment="Center"
-                                                                   Foreground="{StaticResource MutedBrush}"
+                                                                   Foreground="{DynamicResource MutedBrush}"
                                                                    FontSize="10"/>
                                                     </Grid>
                                                 </StackPanel>
@@ -1206,13 +1206,13 @@
                                             </Border>
 
                                             <Border Margin="0,10,0,0"
-                                                    Background="{StaticResource AccentLightBrush}"
-                                                    BorderBrush="{StaticResource AccentBrush}"
+                                                    Background="{DynamicResource AccentLightBrush}"
+                                                    BorderBrush="{DynamicResource AccentBrush}"
                                                     BorderThickness="1"
                                                     Padding="9,6">
                                                 <TextBlock Text="{Binding BoardMappingSummary}"
                                                            FontSize="11" TextWrapping="Wrap"
-                                                           Foreground="{StaticResource TextBrush}"/>
+                                                           Foreground="{DynamicResource TextBrush}"/>
                                             </Border>
                                         </StackPanel>
                                     </Expander>
@@ -1223,7 +1223,7 @@
                             <Border Style="{StaticResource Card}" Padding="13" Margin="0,10,0,0">
                                 <StackPanel>
                                     <StackPanel Orientation="Horizontal">
-                                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                        <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                                         <TextBlock Text="批次编号" Style="{StaticResource SectionTitle}"/>
                                     </StackPanel>
@@ -1267,7 +1267,7 @@
                         <DockPanel>
                             <Border DockPanel.Dock="Top" Style="{StaticResource PanelTitleBar}">
                                 <StackPanel Orientation="Horizontal">
-                                    <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                    <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBlock Text="当前 TestTaskPoint" Style="{StaticResource PanelTitleText}"/>
                                 </StackPanel>
@@ -1281,8 +1281,8 @@
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{Binding Index}" Foreground="{StaticResource MutedBrush}"/>
-                                            <Border Grid.Column="1" Background="{StaticResource HeaderBgBrush}"
+                                            <TextBlock Text="{Binding Index}" Foreground="{DynamicResource MutedBrush}"/>
+                                            <Border Grid.Column="1" Background="{DynamicResource HeaderBgBrush}"
                                                     CornerRadius="3" Padding="6,1" Margin="0,0,8,0">
                                                 <TextBlock Text="{Binding Module}" FontSize="11"/>
                                             </Border>
@@ -1298,7 +1298,7 @@
                     <Border Style="{StaticResource Card}" Grid.Column="1" Margin="10,0,10,0">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal">
-                                <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                            VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <TextBlock Text="编辑" Style="{StaticResource SectionTitle}"/>
                             </StackPanel>
@@ -1316,7 +1316,7 @@
 
                             <CheckBox Content="解锁 TaskPoint 编辑" Margin="0,0,0,4"/>
                             <TextBlock Text="（避免误改流程的安全锁）"
-                                       Foreground="{StaticResource MutedBrush}" FontSize="11"/>
+                                       Foreground="{DynamicResource MutedBrush}" FontSize="11"/>
                         </StackPanel>
                     </Border>
 
@@ -1325,7 +1325,7 @@
                         <DockPanel>
                             <Border DockPanel.Dock="Top" Style="{StaticResource PanelTitleBar}">
                                 <StackPanel Orientation="Horizontal">
-                                    <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                    <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBlock Text="候选 Action（内置）" Style="{StaticResource PanelTitleText}"/>
                                 </StackPanel>
@@ -1343,12 +1343,12 @@
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal">
-                            <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                            <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                        VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <TextBlock Text="指标项" Style="{StaticResource SectionTitle}"/>
                         </StackPanel>
                         <TextBlock Text="勾选参与合格判定的指标；Min/Max 为当前型号的指标限值，留空表示不限。"
-                                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                                   Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
 
                         <ItemsControl ItemsSource="{Binding Metrics}">
                             <ItemsControl.ItemsPanel>
@@ -1356,19 +1356,19 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Background="{StaticResource HeaderBgBrush}" CornerRadius="4"
+                                    <Border Background="{DynamicResource HeaderBgBrush}" CornerRadius="4"
                                             Padding="12,8" Margin="0,0,10,10">
                                         <StackPanel>
                                             <StackPanel Orientation="Horizontal">
                                                 <CheckBox IsChecked="{Binding Enabled}" VerticalAlignment="Center"/>
                                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Margin="6,0,8,0"/>
-                                                <Border Background="{StaticResource SurfaceBrush}" CornerRadius="3"
+                                                <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="3"
                                                         Padding="6,1">
                                                     <TextBlock Text="{Binding Code}" FontSize="11"
-                                                               Foreground="{StaticResource MutedBrush}"/>
+                                                               Foreground="{DynamicResource MutedBrush}"/>
                                                 </Border>
                                             </StackPanel>
-                                            <TextBlock Text="{Binding Description}" Foreground="{StaticResource MutedBrush}"
+                                            <TextBlock Text="{Binding Description}" Foreground="{DynamicResource MutedBrush}"
                                                        TextWrapping="Wrap" Margin="0,4,0,0" FontSize="11"/>
                                             <Grid Margin="0,8,0,0">
                                                 <Grid.ColumnDefinitions>
@@ -1378,12 +1378,12 @@
                                                     <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="限值" VerticalAlignment="Center"
-                                                           Foreground="{StaticResource MutedBrush}" FontSize="11"
+                                                           Foreground="{DynamicResource MutedBrush}" FontSize="11"
                                                            Margin="0,0,8,0"/>
                                                 <TextBox Grid.Column="1" Text="{Binding Min, UpdateSourceTrigger=PropertyChanged}"
                                                          MinWidth="54" ToolTip="Min"/>
                                                 <TextBlock Grid.Column="2" Text="~" HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
+                                                           VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}"/>
                                                 <TextBox Grid.Column="3" Text="{Binding Max, UpdateSourceTrigger=PropertyChanged}"
                                                          MinWidth="54" ToolTip="Max"/>
                                             </Grid>
@@ -1404,8 +1404,8 @@
                     <StackPanel Margin="0,4,0,0">
                         <Border Style="{StaticResource Card}" Margin="0,0,0,8">
                             <StackPanel HorizontalAlignment="Left">
-                                <TextBlock Text="当前版本" Foreground="{StaticResource MutedBrush}" FontSize="12"/>
-                                <TextBlock Text="{Binding AppVersion}" Foreground="{StaticResource AccentBrush}"
+                                <TextBlock Text="当前版本" Foreground="{DynamicResource MutedBrush}" FontSize="12"/>
+                                <TextBlock Text="{Binding AppVersion}" Foreground="{DynamicResource AccentBrush}"
                                            FontWeight="Bold" FontSize="28" Margin="0,4,0,0"/>
                             </StackPanel>
                         </Border>
@@ -1413,12 +1413,12 @@
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal">
-                                    <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                    <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBlock Text="更新 Update" Style="{StaticResource SectionTitle}"/>
                                 </StackPanel>
                                 <TextBlock Text="检查更新优先走 GitHub、失败自动回退 Gitee；发现新版本会提示下载安装，不强制升级。"
-                                           Foreground="{StaticResource MutedBrush}" FontSize="12"
+                                           Foreground="{DynamicResource MutedBrush}" FontSize="12"
                                            TextWrapping="Wrap" Margin="0,0,0,12"/>
 
                                 <WrapPanel>
@@ -1433,11 +1433,11 @@
                                             Visibility="{Binding Settings.RollbackVersionText, Converter={x:Static local:NonEmptyToVisibleConverter.Instance}}"/>
                                 </WrapPanel>
 
-                                <Border Background="{StaticResource HeaderBgBrush}" Padding="12,10" Margin="0,12,0,0"
+                                <Border Background="{DynamicResource HeaderBgBrush}" Padding="12,10" Margin="0,12,0,0"
                                         Visibility="{Binding Settings.UpdateStatus, Converter={x:Static local:NonEmptyToVisibleConverter.Instance}}">
                                     <StackPanel>
                                         <TextBlock Text="{Binding Settings.UpdateStatus}" FontSize="12"
-                                                   Foreground="{StaticResource AccentBrush}" TextWrapping="Wrap"/>
+                                                   Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap"/>
                                         <ProgressBar Minimum="0" Maximum="100"
                                                      Value="{Binding Settings.UpdateProgress}"
                                                      IsIndeterminate="{Binding Settings.IsUpdateIndeterminate}"
@@ -1463,7 +1463,7 @@
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal">
-                                <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                            VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <TextBlock Text="路径" Style="{StaticResource SectionTitle}"/>
                             </StackPanel>
@@ -1485,7 +1485,7 @@
                     <Border Style="{StaticResource Card}" Grid.Column="1" Margin="10,0,0,0">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal">
-                                <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                                <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                            VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <TextBlock Text="行为" Style="{StaticResource SectionTitle}"/>
                             </StackPanel>
@@ -1514,7 +1514,7 @@
                 Effect="{DynamicResource CardShadow}">
             <DockPanel>
                 <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center"
-                           Foreground="{StaticResource MutedBrush}"
+                           Foreground="{DynamicResource MutedBrush}"
                            Text="保存将写入 Command.ini、Setting.ini、方案 ini 与工位对应表.csv"/>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Content="重载" Style="{StaticResource GhostButton}" Padding="14,4"

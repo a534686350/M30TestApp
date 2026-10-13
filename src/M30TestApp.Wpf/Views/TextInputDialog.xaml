@@ -5,12 +5,12 @@
         ResizeMode="NoResize"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource SurfaceBrush}">
+        Background="{DynamicResource SurfaceBrush}">
     <StackPanel Margin="18">
         <TextBlock x:Name="PromptText" TextWrapping="Wrap"
-                   Foreground="{StaticResource TextBrush}" Margin="0,0,0,10"/>
+                   Foreground="{DynamicResource TextBrush}" Margin="0,0,0,10"/>
         <TextBox x:Name="InputBox" Padding="6,5" KeyDown="OnKeyDown"/>
-        <TextBlock x:Name="HintText" Foreground="{StaticResource MutedBrush}" FontSize="11.5"
+        <TextBlock x:Name="HintText" Foreground="{DynamicResource MutedBrush}" FontSize="11.5"
                    Margin="0,8,0,0" TextWrapping="Wrap"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
             <Button Content="取消" Width="84" Margin="0,0,8,0" IsCancel="True"/>

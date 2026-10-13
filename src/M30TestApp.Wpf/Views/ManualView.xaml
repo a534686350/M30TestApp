@@ -9,7 +9,7 @@
 
     <UserControl.Resources>
         <Style x:Key="Lbl" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="Margin" Value="0,0,0,2"/>
         </Style>
@@ -20,7 +20,7 @@
         </Style>
         <Style x:Key="OutBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="IsReadOnly" Value="True"/>
-            <Setter Property="Background"  Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="Background"  Value="{DynamicResource SurfaceBrush}"/>
             <Setter Property="FontFamily"  Value="Consolas"/>
             <Setter Property="Width"       Value="100"/>
             <Setter Property="HorizontalAlignment" Value="Left"/>
@@ -75,7 +75,7 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Orientation="Horizontal">
-                            <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                            <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                        VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <TextBlock Text="数据采集卡串口设置" Style="{StaticResource GroupTitle}"/>
                         </StackPanel>
@@ -118,7 +118,7 @@
                                 Content="{Binding CardSerialButtonText}" Style="{StaticResource ActionButton}"
                                 Command="{Binding OpenCardSerialCommand}"/>
                     </Grid>
-                    <TextBlock Text="{Binding CardSerialStatusText}" Foreground="{StaticResource MutedBrush}" Margin="0,6,0,0"/>
+                    <TextBlock Text="{Binding CardSerialStatusText}" Foreground="{DynamicResource MutedBrush}" Margin="0,6,0,0"/>
                 </StackPanel>
             </Border>
 
@@ -126,7 +126,7 @@
             <Border Style="{StaticResource Card}" Grid.Column="1" Margin="0,0,8,8">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal">
-                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                        <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBlock Text="烘箱串口设置" Style="{StaticResource GroupTitle}"/>
                     </StackPanel>
@@ -173,7 +173,7 @@
                                 Content="{Binding OvenSerialButtonText}" Style="{StaticResource ActionButton}"
                                 Command="{Binding OpenOvenSerialCommand}"/>
                     </Grid>
-                    <TextBlock Text="{Binding OvenSerialStatusText}" Foreground="{StaticResource MutedBrush}" Margin="0,6,0,0"/>
+                    <TextBlock Text="{Binding OvenSerialStatusText}" Foreground="{DynamicResource MutedBrush}" Margin="0,6,0,0"/>
                 </StackPanel>
             </Border>
 
@@ -181,7 +181,7 @@
             <Border Style="{StaticResource Card}" Grid.Column="2" Margin="0,0,0,8">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal">
-                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                        <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBlock Text="采集控制" Style="{StaticResource GroupTitle}"/>
                     </StackPanel>
@@ -212,9 +212,9 @@
                                     Command="{Binding SafeResetCommand}"/>
                         </StackPanel>
                     </Grid>
-                    <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,2,0,10"/>
+                    <Rectangle Height="1" Fill="{DynamicResource DividerBrush}" Margin="0,2,0,10"/>
                     <StackPanel Orientation="Horizontal">
-                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                        <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBlock Text="读取数据" Style="{StaticResource GroupTitle}"/>
                     </StackPanel>
@@ -246,7 +246,7 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBox Grid.Column="0" Style="{StaticResource OutBox}" Text="{Binding ReadUsig}"/>
                                 <TextBlock Grid.Column="1" Text="mV" Margin="6,0,0,0" VerticalAlignment="Center"
-                                           Foreground="{StaticResource MutedBrush}"/>
+                                           Foreground="{DynamicResource MutedBrush}"/>
                             </Grid>
                         </Grid>
 
@@ -265,7 +265,7 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBox Grid.Column="0" Style="{StaticResource OutBox}" Text="{Binding ReadUT}"/>
                                 <TextBlock Grid.Column="1" Text="mV" Margin="6,0,0,0" VerticalAlignment="Center"
-                                           Foreground="{StaticResource MutedBrush}"/>
+                                           Foreground="{DynamicResource MutedBrush}"/>
                             </Grid>
                         </Grid>
 
@@ -284,7 +284,7 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBox Grid.Column="0" Style="{StaticResource OutBox}" Text="{Binding ReadT}"/>
                                 <TextBlock Grid.Column="1" Text="mV" Margin="6,0,0,0" VerticalAlignment="Center"
-                                           Foreground="{StaticResource MutedBrush}"/>
+                                           Foreground="{DynamicResource MutedBrush}"/>
                             </Grid>
                         </Grid>
 
@@ -303,7 +303,7 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBox Grid.Column="0" Style="{StaticResource OutBox}" Text="{Binding Read40uA}"/>
                                 <TextBlock Grid.Column="1" Text="uA" Margin="6,0,0,0" VerticalAlignment="Center"
-                                           Foreground="{StaticResource MutedBrush}"/>
+                                           Foreground="{DynamicResource MutedBrush}"/>
                             </Grid>
                         </Grid>
 
@@ -322,7 +322,7 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBox Grid.Column="0" Style="{StaticResource OutBox}" Text="{Binding ReadCurrentText}"/>
                                 <TextBlock Grid.Column="1" Text="uA" Margin="6,0,0,0" VerticalAlignment="Center"
-                                           Foreground="{StaticResource MutedBrush}"/>
+                                           Foreground="{DynamicResource MutedBrush}"/>
                             </Grid>
                         </Grid>
                     </Grid>
@@ -346,7 +346,7 @@
             <Border Style="{StaticResource Card}" Grid.Column="0" Margin="0,0,8,0">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal">
-                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                        <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBlock Text="压力控制" Style="{StaticResource GroupTitle}"/>
                     </StackPanel>
@@ -426,9 +426,9 @@
                     </Grid>
 
                     <!-- 手动 SCPI -->
-                    <Border Background="{StaticResource HeaderBgBrush}" CornerRadius="4" Padding="8" Margin="0,8,0,0">
+                    <Border Background="{DynamicResource HeaderBgBrush}" CornerRadius="4" Padding="8" Margin="0,8,0,0">
                         <StackPanel>
-                            <TextBlock Text="手动 SCPI" Foreground="{StaticResource MutedBrush}" FontSize="11"
+                            <TextBlock Text="手动 SCPI" Foreground="{DynamicResource MutedBrush}" FontSize="11"
                                        Margin="0,0,0,4"/>
                             <TextBox Text="{Binding ManualScpi, UpdateSourceTrigger=PropertyChanged}"
                                      FontFamily="Consolas"/>
@@ -473,18 +473,18 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Background="{StaticResource SurfaceBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                <Border Background="{DynamicResource SurfaceBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                                         CornerRadius="4" Margin="3" Padding="6,6">
                                     <StackPanel HorizontalAlignment="Center">
                                         <TextBlock Text="{Binding Label}" HorizontalAlignment="Center"
-                                                   FontSize="11" Foreground="{StaticResource MutedBrush}"/>
+                                                   FontSize="11" Foreground="{DynamicResource MutedBrush}"/>
                                         <ToggleButton IsChecked="{Binding IsOn}" Width="42" Height="22" Margin="0,4,0,0">
                                             <ToggleButton.Style>
                                                 <Style TargetType="ToggleButton">
-                                                    <Setter Property="Background" Value="{StaticResource HeaderBgBrush}"/>
-                                                    <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
-                                                    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                                    <Setter Property="Background" Value="{DynamicResource HeaderBgBrush}"/>
+                                                    <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
                                                     <Setter Property="BorderThickness" Value="1"/>
                                                     <Setter Property="Content" Value="关"/>
                                                     <Setter Property="Template">
@@ -502,9 +502,9 @@
                                                     </Setter>
                                                     <Style.Triggers>
                                                         <Trigger Property="IsChecked" Value="True">
-                                                            <Setter Property="Background" Value="{StaticResource SuccessBrush}"/>
+                                                            <Setter Property="Background" Value="{DynamicResource SuccessBrush}"/>
                                                             <Setter Property="Foreground" Value="White"/>
-                                                            <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}"/>
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}"/>
                                                             <Setter Property="Content" Value="开"/>
                                                         </Trigger>
                                                     </Style.Triggers>
@@ -520,7 +520,7 @@
                     <Separator Margin="0,10"/>
 
                     <StackPanel Orientation="Horizontal">
-                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                        <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBlock Text="烘箱温度控制" Style="{StaticResource GroupTitle}"/>
                     </StackPanel>
@@ -556,7 +556,7 @@
             <Border Style="{StaticResource Card}" Grid.Column="2" Grid.ColumnSpan="2" Margin="0">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal">
-                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                        <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBlock Text="批量采集" Style="{StaticResource GroupTitle}"/>
                     </StackPanel>
@@ -598,7 +598,7 @@
                             <TextBlock Text="采集间隔" Style="{StaticResource Lbl}"/>
                             <TextBox Text="{Binding CollectionInterval, UpdateSourceTrigger=PropertyChanged}" Width="80"/>
                         </StackPanel>
-                        <TextBlock Grid.Column="1" Text="ms" VerticalAlignment="Bottom" Margin="0,0,0,4" Foreground="{StaticResource MutedBrush}"/>
+                        <TextBlock Grid.Column="1" Text="ms" VerticalAlignment="Bottom" Margin="0,0,0,4" Foreground="{DynamicResource MutedBrush}"/>
                     </Grid>
                     <Grid Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
@@ -614,10 +614,10 @@
                                 Command="{Binding ExportBatchResultsCommand}" Margin="0,0,0,0"/>
                     </Grid>
                     <DataGrid ItemsSource="{Binding BatchResults}" AutoGenerateColumns="False"
-                              BorderThickness="0" Background="{StaticResource SurfaceBrush}"
+                              BorderThickness="0" Background="{DynamicResource SurfaceBrush}"
                               GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                               CanUserAddRows="False" CanUserDeleteRows="False"
-                              RowBackground="Transparent" AlternatingRowBackground="{StaticResource HeaderBgBrush}"
+                              RowBackground="Transparent" AlternatingRowBackground="{DynamicResource HeaderBgBrush}"
                               Padding="0" MaxHeight="120"
                               ClipboardCopyMode="IncludeHeader">
                         <DataGrid.Columns>
@@ -634,7 +634,7 @@
                     <DockPanel Margin="0,0,0,8">
                         <TextBlock Text="1KHz频率测试" Style="{StaticResource GroupTitle}" Margin="0,0,8,0"/>
                         <TextBlock DockPanel.Dock="Right" Text="{Binding FrequencyStatus}"
-                                   Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                                   Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"/>
                     </DockPanel>
                     <Grid Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
@@ -663,17 +663,17 @@
                                     Margin="0"/>
                         </StackPanel>
                         <TextBlock Grid.Column="3" Text="{Binding FrequencySampleCount, StringFormat=点数：{0}}"
-                                   Foreground="{StaticResource MutedBrush}" VerticalAlignment="Bottom"
+                                   Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Bottom"
                                    Margin="8,0,0,6"/>
                     </Grid>
                     <TextBlock Text="{Binding FrequencyAutoSavePath, StringFormat=自动保存：{0}}"
-                               Foreground="{StaticResource MutedBrush}" FontSize="11"
+                               Foreground="{DynamicResource MutedBrush}" FontSize="11"
                                TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
                     <DataGrid ItemsSource="{Binding FrequencyResults}" AutoGenerateColumns="False"
-                              BorderThickness="0" Background="{StaticResource SurfaceBrush}"
+                              BorderThickness="0" Background="{DynamicResource SurfaceBrush}"
                               GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                               CanUserAddRows="False" CanUserDeleteRows="False"
-                              RowBackground="Transparent" AlternatingRowBackground="{StaticResource HeaderBgBrush}"
+                              RowBackground="Transparent" AlternatingRowBackground="{DynamicResource HeaderBgBrush}"
                               Padding="0" MaxHeight="160"
                               ClipboardCopyMode="IncludeHeader">
                         <DataGrid.Columns>
@@ -701,18 +701,18 @@
 
             <Border Style="{StaticResource Card}" Grid.Column="0" Margin="0,0,5,0" Padding="0">
                 <DockPanel>
-                    <Border DockPanel.Dock="Top" Background="{StaticResource HeaderBgBrush}"
-                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                    <Border DockPanel.Dock="Top" Background="{DynamicResource HeaderBgBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
                             Padding="12,6">
                         <DockPanel>
                             <TextBlock Text="数据I/O  (TX / RX 原始报文)" FontWeight="SemiBold" VerticalAlignment="Center"/>
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
                                 <CheckBox Content="TX"   IsChecked="{Binding IoShowTx}"     Margin="6,0" VerticalAlignment="Center"
-                                          Foreground="{StaticResource AccentBrush}"/>
+                                          Foreground="{DynamicResource AccentBrush}"/>
                                 <CheckBox Content="RX"   IsChecked="{Binding IoShowRx}"     Margin="6,0" VerticalAlignment="Center"
-                                          Foreground="{StaticResource SuccessBrush}"/>
+                                          Foreground="{DynamicResource SuccessBrush}"/>
                                 <CheckBox Content="Info" IsChecked="{Binding IoShowInfo}"   Margin="6,0" VerticalAlignment="Center"
-                                          Foreground="{StaticResource MutedBrush}"/>
+                                          Foreground="{DynamicResource MutedBrush}"/>
                                 <CheckBox Content="自动滚动" IsChecked="{Binding IoAutoScroll}" Margin="12,0,6,0" VerticalAlignment="Center"/>
                                 <Button Content="🗑 清空显示" Style="{StaticResource GhostButton}" Padding="8,3"
                                         Command="{Binding ClearDataIoCommand}"/>
@@ -721,7 +721,7 @@
                     </Border>
                     <TextBox x:Name="DataIoTextBox" Text="{Binding DataIo.Text, Mode=OneWay}"
                              BorderThickness="0" FontFamily="Consolas" FontSize="12"
-                             Background="{StaticResource SurfaceBrush}"
+                             Background="{DynamicResource SurfaceBrush}"
                              IsReadOnly="True" AcceptsReturn="True" AcceptsTab="True"
                              TextWrapping="NoWrap"
                              VerticalScrollBarVisibility="Auto"
@@ -732,13 +732,13 @@
 
             <Border Style="{StaticResource Card}" Grid.Column="1" Margin="5,0,0,0" Padding="0">
                 <DockPanel>
-                    <Border DockPanel.Dock="Top" Background="{StaticResource HeaderBgBrush}"
-                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                    <Border DockPanel.Dock="Top" Background="{DynamicResource HeaderBgBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
                             Padding="12,6">
                         <DockPanel>
                             <TextBlock Text="历史记录  (操作动作)" FontWeight="SemiBold" VerticalAlignment="Center"/>
                             <TextBlock DockPanel.Dock="Right" Text="{Binding StatusText}"
-                                       Foreground="{StaticResource MutedBrush}" HorizontalAlignment="Right"
+                                       Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Right"
                                        Margin="0,0,12,0" VerticalAlignment="Center"/>
                             <Button DockPanel.Dock="Right" Content="🗑 清空显示" Style="{StaticResource GhostButton}" Padding="8,3"
                                     HorizontalAlignment="Right"
@@ -747,7 +747,7 @@
                     </Border>
                     <TextBox x:Name="HistoryTextBox" Text="{Binding History.Text, Mode=OneWay}"
                              BorderThickness="0" FontFamily="Consolas" FontSize="12"
-                             Background="{StaticResource SurfaceBrush}"
+                             Background="{DynamicResource SurfaceBrush}"
                              IsReadOnly="True" AcceptsReturn="True" AcceptsTab="True"
                              TextWrapping="NoWrap"
                              VerticalScrollBarVisibility="Auto"

@@ -5,7 +5,7 @@
         Width="320" Height="160" SizeToContent="Manual"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource SurfaceBrush}">
+        Background="{DynamicResource SurfaceBrush}">
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -14,7 +14,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <TextBlock Text="请输入要生成的工位数量 (1 - 256)"
-                   Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"/>
+                   Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,8"/>
         <TextBox x:Name="CountBox" Grid.Row="1" Text="32"
                  KeyDown="OnCountKeyDown" TextAlignment="Right" Padding="6,4"/>
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">

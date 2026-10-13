@@ -13,11 +13,11 @@
                 <Border DockPanel.Dock="Top" Style="{StaticResource PanelTitleBar}">
                     <DockPanel LastChildFill="False">
                         <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
-                            <Rectangle Width="3" Height="12" Fill="{StaticResource AccentBrush}"
+                            <Rectangle Width="3" Height="12" Fill="{DynamicResource AccentBrush}"
                                        VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <TextBlock Text="运行日志" Style="{StaticResource PanelTitleText}"/>
                             <TextBlock Text="{Binding CountText}" Margin="10,0,0,0" FontSize="11"
-                                       Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                                       Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"/>
                         </StackPanel>
                         <Button DockPanel.Dock="Right" Content="清空" Style="{StaticResource GhostButton}"
                                 Padding="10,1" Command="{Binding ClearCommand}"/>
@@ -25,12 +25,12 @@
                 </Border>
 
                 <!-- 工具条：关键字过滤 + 快捷打开目录（原来整页只有一个「清空」，太单薄） -->
-                <Border DockPanel.Dock="Top" Background="{StaticResource PanelBodyBrush}"
-                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                <Border DockPanel.Dock="Top" Background="{DynamicResource PanelBodyBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
                         Padding="10,6">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="过滤" VerticalAlignment="Center" Margin="0,0,8,0"
-                                   Foreground="{StaticResource MutedBrush}" FontSize="12"/>
+                                   Foreground="{DynamicResource MutedBrush}" FontSize="12"/>
                         <TextBox Width="260" Padding="8,3" VerticalAlignment="Center"
                                  Text="{Binding Filter, UpdateSourceTrigger=PropertyChanged, Delay=250}"
                                  ToolTip="关键字过滤（匹配时间 / 级别 / 来源 / 正文），留空显示全部"/>
@@ -43,7 +43,7 @@
 
                 <TextBox x:Name="LogTextBox" Text="{Binding Buffer.Text, Mode=OneWay}" BorderThickness="0"
                          FontFamily="Consolas" FontSize="12"
-                         Background="{StaticResource SurfaceBrush}"
+                         Background="{DynamicResource SurfaceBrush}"
                          IsReadOnly="True" AcceptsReturn="True" AcceptsTab="True"
                          TextWrapping="NoWrap"
                          VerticalScrollBarVisibility="Auto"

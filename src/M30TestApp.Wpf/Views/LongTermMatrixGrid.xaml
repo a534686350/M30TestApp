@@ -9,8 +9,8 @@
         <Style x:Key="LongTermColumnHeaderStyle" TargetType="DataGridColumnHeader">
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
             <Setter Property="Padding" Value="4,2"/>
-            <Setter Property="Background" Value="{StaticResource HeaderBgBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource HeaderBgBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="0,0,1,1"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -40,8 +40,8 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <Border Grid.Column="0"
-                    Background="{StaticResource HeaderBgBrush}"
-                    BorderBrush="{StaticResource BorderBrush}"
+                    Background="{DynamicResource HeaderBgBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="0,0,1,1"/>
             <ScrollViewer Grid.Column="1"
                           x:Name="TempHeaderScroll"

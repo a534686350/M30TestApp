@@ -87,7 +87,7 @@
                               IsEditable="True"/>
                 </StackPanel>
 
-                <Rectangle Grid.Column="4" Width="1" Fill="{StaticResource BorderBrush}"
+                <Rectangle Grid.Column="4" Width="1" Fill="{DynamicResource BorderBrush}"
                            Margin="0,0,12,0" VerticalAlignment="Stretch"/>
 
                 <!-- ② 控压参数组 -->
@@ -100,7 +100,7 @@
                     <TextBox Text="{Binding HoldSeconds, UpdateSourceTrigger=PropertyChanged}"/>
                 </StackPanel>
 
-                <Rectangle Grid.Column="7" Width="1" Fill="{StaticResource BorderBrush}"
+                <Rectangle Grid.Column="7" Width="1" Fill="{DynamicResource BorderBrush}"
                            Margin="0,0,12,0" VerticalAlignment="Stretch"/>
 
                 <!-- ③ 工位范围组 -->
@@ -119,7 +119,7 @@
                 <StackPanel Grid.Column="9" VerticalAlignment="Bottom">
                     <TextBlock Text="{Binding SensorName}" FontWeight="SemiBold"
                                TextTrimming="CharacterEllipsis"/>
-                    <TextBlock Text="{Binding Status}" Foreground="{StaticResource MutedBrush}"
+                    <TextBlock Text="{Binding Status}" Foreground="{DynamicResource MutedBrush}"
                                FontSize="12" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
 
@@ -144,7 +144,7 @@
             <Border Style="{StaticResource Card}" Margin="0,0,10,0">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal">
-                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                        <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBlock Text="压力控制器" Style="{StaticResource SectionTitle}"/>
                     </StackPanel>
@@ -174,12 +174,12 @@
                     </Grid>
 
                     <StackPanel Orientation="Horizontal">
-                        <Rectangle Width="3" Height="13" Fill="{StaticResource AccentBrush}"
+                        <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBlock Text="判定指标" Style="{StaticResource SectionTitle}"/>
                     </StackPanel>
                     <TextBlock Text="测试前录入，留空表示不限。"
-                               Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                               Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
 
                     <TextBlock Text="Span Min / Max" Style="{StaticResource FieldLabel}"/>
                     <Grid>
@@ -231,13 +231,13 @@
 
         <Border Grid.Row="2" Style="{StaticResource Card}" Padding="0" Margin="0,10,0,0">
             <DockPanel>
-                <Border DockPanel.Dock="Top" Background="{StaticResource HeaderBgBrush}"
-                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                <Border DockPanel.Dock="Top" Background="{DynamicResource HeaderBgBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
                         Padding="12,6">
                     <DockPanel>
                         <TextBlock Text="测试日志" FontWeight="SemiBold" VerticalAlignment="Center"/>
                         <TextBlock DockPanel.Dock="Right" Text="{Binding Status}"
-                                   Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                                   Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"/>
                     </DockPanel>
                 </Border>
                 <TextBox x:Name="QuickLogTextBox"
@@ -245,7 +245,7 @@
                          BorderThickness="0"
                          FontFamily="Consolas"
                          FontSize="12"
-                         Background="{StaticResource SurfaceBrush}"
+                         Background="{DynamicResource SurfaceBrush}"
                          IsReadOnly="True"
                          AcceptsReturn="True"
                          AcceptsTab="True"
@@ -258,6 +258,6 @@
         </Border>
 
         <TextBlock Grid.Row="3" Text="快速测试只控制压力并采集 Usig；不执行烘箱、UT、Usource、Isource 和完整流程。"
-                   Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="4,8,0,0"/>
+                   Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="4,8,0,0"/>
     </Grid>
 </UserControl>

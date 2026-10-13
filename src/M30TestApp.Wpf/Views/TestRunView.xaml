@@ -15,7 +15,7 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <conv:InverseBooleanToVisibilityConverter x:Key="BoolToVisInv"/>
         <Style x:Key="KpiChip" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="CornerRadius" Value="6"/>
@@ -25,7 +25,7 @@
             <Setter Property="Effect" Value="{StaticResource CardShadow}"/>
         </Style>
         <Style x:Key="KpiLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
             <Setter Property="FontSize" Value="10.5"/>
             <Setter Property="Margin" Value="0,0,6,0"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
@@ -61,7 +61,7 @@
 <Border Style="{StaticResource KpiChip}" Grid.Column="0">
                 <StackPanel Orientation="Horizontal">
                     <Rectangle Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
-                               Fill="{StaticResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                               Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
                     <TextBlock Text="工位总数" Style="{StaticResource KpiLabel}"/>
                     <TextBlock Text="{Binding TotalSlots}" Style="{StaticResource KpiValue}"/>
                 </StackPanel>
@@ -69,41 +69,41 @@
 <Border Style="{StaticResource KpiChip}" Grid.Column="1">
                 <StackPanel Orientation="Horizontal">
                     <Rectangle Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
-                               Fill="{StaticResource SuccessBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                               Fill="{DynamicResource SuccessBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
                     <TextBlock Text="合格" Style="{StaticResource KpiLabel}"/>
-                    <TextBlock Text="{Binding OkCount}" Style="{StaticResource KpiValue}" Foreground="{StaticResource SuccessBrush}"/>
+                    <TextBlock Text="{Binding OkCount}" Style="{StaticResource KpiValue}" Foreground="{DynamicResource SuccessBrush}"/>
                 </StackPanel>
             </Border>
 <Border Style="{StaticResource KpiChip}" Grid.Column="2">
                 <StackPanel Orientation="Horizontal">
                     <Rectangle Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
-                               Fill="{StaticResource WarnBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                               Fill="{DynamicResource WarnBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
                     <TextBlock Text="警告" Style="{StaticResource KpiLabel}"/>
-                    <TextBlock Text="{Binding WarnCount}" Style="{StaticResource KpiValue}" Foreground="{StaticResource WarnBrush}"/>
+                    <TextBlock Text="{Binding WarnCount}" Style="{StaticResource KpiValue}" Foreground="{DynamicResource WarnBrush}"/>
                 </StackPanel>
             </Border>
 <Border Style="{StaticResource KpiChip}" Grid.Column="3">
                 <StackPanel Orientation="Horizontal">
                     <Rectangle Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
-                               Fill="{StaticResource ErrorBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                               Fill="{DynamicResource ErrorBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
                     <TextBlock Text="异常" Style="{StaticResource KpiLabel}"/>
-                    <TextBlock Text="{Binding ErrCount}" Style="{StaticResource KpiValue}" Foreground="{StaticResource ErrorBrush}"/>
+                    <TextBlock Text="{Binding ErrCount}" Style="{StaticResource KpiValue}" Foreground="{DynamicResource ErrorBrush}"/>
                 </StackPanel>
             </Border>
 <Border Style="{StaticResource KpiChip}" Grid.Column="4">
                 <StackPanel Orientation="Horizontal">
                     <Rectangle Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
-                               Fill="{StaticResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                               Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
                     <TextBlock Text="温度点" Style="{StaticResource KpiLabel}"/>
-                    <TextBlock Text="{Binding CurrentT}" Style="{StaticResource KpiValue}" Foreground="{StaticResource AccentBrush}"/>
+                    <TextBlock Text="{Binding CurrentT}" Style="{StaticResource KpiValue}" Foreground="{DynamicResource AccentBrush}"/>
                 </StackPanel>
             </Border>
 <Border Style="{StaticResource KpiChip}" Grid.Column="5" Margin="0">
                 <StackPanel Orientation="Horizontal">
                     <Rectangle Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
-                               Fill="{StaticResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                               Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
                     <TextBlock Text="压力点" Style="{StaticResource KpiLabel}"/>
-                    <TextBlock Text="{Binding CurrentP}" Style="{StaticResource KpiValue}" Foreground="{StaticResource AccentBrush}"/>
+                    <TextBlock Text="{Binding CurrentP}" Style="{StaticResource KpiValue}" Foreground="{DynamicResource AccentBrush}"/>
                 </StackPanel>
             </Border>
         </Grid>
@@ -120,22 +120,22 @@
                 <!-- 测试类型与当前工步已在顶部命令条显示，这里不再重复，只保留本页特有信息。 -->
                 <StackPanel Orientation="Vertical">
                     <WrapPanel>
-                        <TextBlock Text="测试方案：" Foreground="{StaticResource MutedBrush}"/>
+                        <TextBlock Text="测试方案：" Foreground="{DynamicResource MutedBrush}"/>
                         <TextBlock Text="{Binding PlanName}" FontWeight="SemiBold" Margin="4,0,16,0"/>
-                        <TextBlock Text="状态：" Foreground="{StaticResource MutedBrush}"/>
+                        <TextBlock Text="状态：" Foreground="{DynamicResource MutedBrush}"/>
                         <TextBlock Text="{Binding Status}" FontWeight="SemiBold" Margin="4,0,16,0"/>
-                        <TextBlock Text="耗时：" Foreground="{StaticResource MutedBrush}"/>
+                        <TextBlock Text="耗时：" Foreground="{DynamicResource MutedBrush}"/>
                         <TextBlock Text="{Binding Elapsed}" FontFamily="Consolas" FontWeight="SemiBold" Margin="4,0"/>
                     </WrapPanel>
-                    <TextBlock Text="{Binding LastError}" Foreground="{StaticResource ErrorBrush}" Margin="0,4,0,0"
+                    <TextBlock Text="{Binding LastError}" Foreground="{DynamicResource ErrorBrush}" Margin="0,4,0,0"
                                TextWrapping="Wrap"/>
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0">
                     <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressPercentValue, Mode=OneWay}"
-                                 Width="220" Height="8" Foreground="{StaticResource AccentBrush}"
-                                 Background="{StaticResource HeaderBgBrush}" BorderThickness="0"/>
-                    <TextBlock Margin="10,0,0,0" Foreground="{StaticResource MutedBrush}" FontFamily="Consolas">
+                                 Width="220" Height="8" Foreground="{DynamicResource AccentBrush}"
+                                 Background="{DynamicResource HeaderBgBrush}" BorderThickness="0"/>
+                    <TextBlock Margin="10,0,0,0" Foreground="{DynamicResource MutedBrush}" FontFamily="Consolas">
                         <Run Text="{Binding ProgressIndex}"/> / <Run Text="{Binding ProgressTotal}"/>
                     </TextBlock>
                 </StackPanel>
@@ -160,7 +160,7 @@
                 <DockPanel>
                     <Border DockPanel.Dock="Top" Style="{StaticResource PanelTitleBar}">
                         <StackPanel Orientation="Horizontal">
-                            <Rectangle Width="3" Height="12" Fill="{StaticResource AccentBrush}"
+                            <Rectangle Width="3" Height="12" Fill="{DynamicResource AccentBrush}"
                                        VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <TextBlock Text="{Binding MatrixTitle}" Style="{StaticResource PanelTitleText}"/>
                         </StackPanel>
@@ -183,7 +183,7 @@
                 <Border DockPanel.Dock="Top" Style="{StaticResource PanelTitleBar}">
                     <DockPanel LastChildFill="False">
                         <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
-                            <Rectangle Width="3" Height="12" Fill="{StaticResource AccentBrush}"
+                            <Rectangle Width="3" Height="12" Fill="{DynamicResource AccentBrush}"
                                        VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <TextBlock Text="实时日志" Style="{StaticResource PanelTitleText}"/>
                         </StackPanel>
@@ -193,7 +193,7 @@
                 </Border>
                 <TextBox x:Name="LogTextBox" Text="{Binding Log.Text, Mode=OneWay}" BorderThickness="0"
                          FontFamily="Consolas" FontSize="12"
-                         Background="{StaticResource SurfaceBrush}"
+                         Background="{DynamicResource SurfaceBrush}"
                          IsReadOnly="True" AcceptsReturn="True" AcceptsTab="True"
                          TextWrapping="NoWrap"
                          VerticalScrollBarVisibility="Auto"
