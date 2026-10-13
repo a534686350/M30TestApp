@@ -162,7 +162,7 @@
                                  Content="{DynamicResource Nav.Slots}"
                                  Command="{Binding ShowSlotsCommand}"
                                  IsChecked="{Binding IsTabSlots, Mode=OneWay}"
-                                 ToolTip="工位表 · 测试范围 · 扫码录入"/>
+                                 ToolTip="工位表 · 输入工位数量即生成（不扫码）"/>
                     <RadioButton Style="{StaticResource NavTab}"
                                  Content="{DynamicResource Nav.Log}"
                                  Command="{Binding ShowLogCommand}"

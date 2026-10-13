@@ -496,7 +496,7 @@
                                     <StackPanel Margin="0,0,8,0">
                                         <TextBlock Text="数据采集卡 Data Acquisition Card" Style="{StaticResource GroupTitle}"/>
                                         <TextBlock Text="串口号 Port Number" Style="{StaticResource FieldLabel}"/>
-                                        <ComboBox ItemsSource="{Binding ComPorts}" Text="{Binding DaqPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
+                                        <ComboBox ItemsSource="{Binding ComPorts}" SelectedItem="{Binding DaqPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Text="{Binding DaqPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
                                         <TextBlock Text="波特率 Baud" Style="{StaticResource FieldLabel}" Margin="0,8,0,4"/>
                                         <ComboBox ItemsSource="{Binding BaudRates}" SelectedItem="{Binding DaqBaud}"/>
                                         <TextBlock Text="数据位 Data Bits" Style="{StaticResource FieldLabel}" Margin="0,8,0,4"/>
@@ -509,7 +509,7 @@
                                     <StackPanel Grid.Column="1">
                                         <TextBlock Text="烘箱 Oven Chamber" Style="{StaticResource GroupTitle}"/>
                                         <TextBlock Text="串口号 Port Number" Style="{StaticResource FieldLabel}"/>
-                                        <ComboBox ItemsSource="{Binding ComPorts}" Text="{Binding OvenPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
+                                        <ComboBox ItemsSource="{Binding ComPorts}" SelectedItem="{Binding OvenPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Text="{Binding OvenPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
                                         <TextBlock Text="波特率 Baud" Style="{StaticResource FieldLabel}" Margin="0,8,0,4"/>
                                         <ComboBox ItemsSource="{Binding BaudRates}" SelectedItem="{Binding OvenBaud}"/>
                                         <TextBlock Text="数据位 Data Bits" Style="{StaticResource FieldLabel}" Margin="0,8,0,4"/>
@@ -531,11 +531,11 @@
                                     <TextBlock Text="压力控制器 Pressure Controller" Style="{StaticResource SectionTitle}"/>
                                 </StackPanel>
                                 <TextBlock Text="GPIB地址 Address" Style="{StaticResource FieldLabel}"/>
-                                <ComboBox ItemsSource="{Binding GpibAddresses}" Text="{Binding PressureGpibAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
+                                <ComboBox ItemsSource="{Binding GpibAddresses}" SelectedItem="{Binding PressureGpibAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Text="{Binding PressureGpibAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
                                 <TextBlock Text="GPIB端口号 Port Num" Style="{StaticResource FieldLabel}" Margin="0,8,0,4"/>
-                                <ComboBox ItemsSource="{Binding Ports}" Text="{Binding PressureGpibPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
+                                <ComboBox ItemsSource="{Binding Ports}" SelectedItem="{Binding PressureGpibPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Text="{Binding PressureGpibPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
                                 <TextBlock Text="压力控制器型号 Type" Style="{StaticResource FieldLabel}" Margin="0,8,0,4"/>
-                                <ComboBox ItemsSource="{Binding PressureModels}" Text="{Binding PressureModelName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
+                                <ComboBox ItemsSource="{Binding PressureModels}" SelectedItem="{Binding PressureModelName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Text="{Binding PressureModelName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
                             </StackPanel>
                         </Border>
                     </Grid>
@@ -560,15 +560,15 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Margin="0,0,8,0">
                                     <TextBlock Text="数字万用表型号 DMM Model" Style="{StaticResource FieldLabel}"/>
-                                    <ComboBox ItemsSource="{Binding DmmModels}" Text="{Binding DmmModelName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
+                                    <ComboBox ItemsSource="{Binding DmmModels}" SelectedItem="{Binding DmmModelName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Text="{Binding DmmModelName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Margin="0,0,8,0">
                                     <TextBlock Text="GPIB地址 Address" Style="{StaticResource FieldLabel}"/>
-                                    <ComboBox ItemsSource="{Binding GpibAddresses}" Text="{Binding TempGpibAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
+                                    <ComboBox ItemsSource="{Binding GpibAddresses}" SelectedItem="{Binding TempGpibAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Text="{Binding TempGpibAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
                                     <TextBlock Text="GPIB端口号 Port Num" Style="{StaticResource FieldLabel}"/>
-                                    <ComboBox ItemsSource="{Binding Ports}" Text="{Binding TempGpibPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
+                                    <ComboBox ItemsSource="{Binding Ports}" SelectedItem="{Binding TempGpibPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Text="{Binding TempGpibPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
                                 </StackPanel>
                             </Grid>
 
@@ -659,6 +659,7 @@
                                 <StackPanel Margin="0,0,12,0">
                                     <TextBlock Text="型号" Style="{StaticResource FieldLabel}"/>
                                     <ComboBox ItemsSource="{Binding PressureModels}" MinWidth="180"
+                                              SelectedItem="{Binding PressureModelName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                               Text="{Binding PressureModelName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True"/>
                                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                                         <Button Content="＋ 新增型号" Style="{StaticResource GhostButton}"
@@ -958,8 +959,10 @@
                                                    Margin="12,0,0,0"/>
                                     </StackPanel>
                                 </StackPanel>
+                                <!-- 限宽居中；必须给 MinWidth —— 只写 HorizontalAlignment=Center
+                                     时 TextBox 空内容会塌缩成一个几十像素的小白块。 -->
                                 <TextBox x:Name="BarcodeInput"
-                                         MaxWidth="460" HorizontalAlignment="Center"
+                                         MinWidth="300" MaxWidth="460" HorizontalAlignment="Center"
                                          VerticalContentAlignment="Center"
                                          Padding="12,8"
                                          FontSize="14" FontWeight="SemiBold"
@@ -994,13 +997,14 @@
                                           AutoGenerateColumns="False"
                                           EnableRowVirtualization="True"
                                           EnableColumnVirtualization="True"
-                                          HeadersVisibility="All"
-                                          RowHeaderWidth="44"
+                                          HeadersVisibility="Column"
+                                          RowHeaderWidth="0"
                                           FrozenColumnCount="1"
                                           LoadingRow="OnSlotGridLoadingRow"
                                           ScrollViewer.HorizontalScrollBarVisibility="Auto"
                                           ScrollViewer.VerticalScrollBarVisibility="Auto"
                                           SelectionChanged="OnSlotGridSelectionChanged">
+
                                     <DataGrid.RowStyle>
                                         <Style TargetType="DataGridRow">
                                             <!-- 默认绿底 = 已录入；序列号空 = 未录入透明；当前待扫行 = 琥珀高亮 -->
@@ -1048,7 +1052,8 @@
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
                         <StackPanel>
-                            <!-- 工位对应表 -->
+                            <!-- 工位表操作：刷新 / 导入导出 / 独立编辑。三个按钮一行排开，
+                                 原来竖着堆三行 + 两行说明文字，把整列压得很挤。 -->
                             <Border Style="{StaticResource Card}" Padding="13">
                                 <StackPanel>
                                     <StackPanel Orientation="Horizontal">
@@ -1056,54 +1061,73 @@
                                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                                         <TextBlock Text="工位对应表" Style="{StaticResource SectionTitle}"/>
                                     </StackPanel>
-                                    <TextBlock Text="按布局参数生成工位、板卡、夹具和通道的对应关系"
+                                    <TextBlock Text="按布局参数生成工位 / 板卡 / 夹具 / 通道的对应关系"
                                                Foreground="{DynamicResource MutedBrush}"
                                                FontSize="11" TextWrapping="Wrap"
-                                               Margin="0,2,0,12"/>
-                                    <Button Content="导入 CSV" Style="{StaticResource GhostButton}"
+                                               Margin="0,2,0,10"/>
+                                    <Button Content="刷新工位表" Style="{StaticResource PrimaryButton}"
                                             Padding="10,6" HorizontalContentAlignment="Center"
-                                            Command="{Binding ImportSlotsCommand}"/>
-                                    <Button Content="导出 CSV" Style="{StaticResource GhostButton}"
-                                            Padding="10,6" Margin="0,8,0,0" HorizontalContentAlignment="Center"
-                                            Command="{Binding ExportSlotsCommand}"/>
+                                            Command="{Binding RegenerateSlotsCommand}"
+                                            ToolTip="按当前参数重新生成；已手工改过的序列号会尽量保留"/>
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="8"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Content="导入 CSV" Style="{StaticResource GhostButton}"
+                                                Padding="8,6" HorizontalContentAlignment="Center"
+                                                Command="{Binding ImportSlotsCommand}"/>
+                                        <Button Grid.Column="2" Content="导出 CSV" Style="{StaticResource GhostButton}"
+                                                Padding="8,6" HorizontalContentAlignment="Center"
+                                                Command="{Binding ExportSlotsCommand}"/>
+                                    </Grid>
                                     <Button x:Name="OpenSlotsWindowButton"
                                             Content="独立编辑"
-                                            Style="{StaticResource PrimaryButton}"
+                                            Style="{StaticResource GhostButton}"
                                             Padding="10,6" Margin="0,8,0,0" HorizontalContentAlignment="Center"
                                             Click="OpenSlotsWindow_Click"
                                             ToolTip="隐藏主界面，在独立窗口中编辑工位表"/>
                                 </StackPanel>
                             </Border>
 
-                            <!-- 布局参数 -->
+                            <!-- 工位数量：这一列唯一的主控项，单独成卡并放大输入框 ——
+                                 原来它挤在「布局参数」卡里，只有 30px 高的小框，很不显眼。 -->
                             <Border Style="{StaticResource Card}" Padding="13" Margin="0,10,0,0">
                                 <StackPanel>
                                     <StackPanel Orientation="Horizontal">
                                         <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
                                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                        <TextBlock Text="布局参数" Style="{StaticResource SectionTitle}"/>
+                                        <TextBlock Text="工位数量" Style="{StaticResource SectionTitle}"/>
                                     </StackPanel>
-                                    <Grid Margin="0,10,0,0">
+                                    <Grid Margin="0,2,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="76"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <StackPanel>
-                                            <TextBlock Text="工位数量（修改后按参数重新生成）"
-                                                       Foreground="{DynamicResource MutedBrush}" FontSize="10.5"/>
-                                            <TextBox Style="{StaticResource ConfigInputBox}" MinHeight="30" Margin="0,5,0,0" HorizontalContentAlignment="Center" Text="{Binding SlotCount, UpdateSourceTrigger=PropertyChanged}"/>
-                                        </StackPanel>
-                                        <TextBlock Grid.Column="1" VerticalAlignment="Bottom"
-                                                   Foreground="{DynamicResource MutedBrush}" FontSize="10.5"
-                                                   Margin="6,0,0,7" TextAlignment="Right">
+                                        <TextBlock Text="修改后立即按当前参数重新生成"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource MutedBrush}" FontSize="10.5"/>
+                                        <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource MutedBrush}" FontSize="10.5">
                                             <Run Text="{Binding PreviewCount, Mode=OneWay}"/><Run Text="/256"/>
                                         </TextBlock>
                                     </Grid>
+                                    <TextBox Style="{StaticResource ConfigInputBox}" MinHeight="34" Margin="0,7,0,0"
+                                             FontSize="17" FontWeight="Bold" HorizontalContentAlignment="Center"
+                                             Text="{Binding SlotCount, UpdateSourceTrigger=PropertyChanged}"/>
+                                </StackPanel>
+                            </Border>
 
-                                    <Expander Margin="0,12,0,0" IsExpanded="False">
+                            <!-- 布局参数（高级）：板卡 / 夹具 / 阀位 / 通道，默认折叠 -->
+                            <Border Style="{StaticResource Card}" Padding="13" Margin="0,10,0,0">
+                                <StackPanel>
+                                    <Expander IsExpanded="False">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="高级布局" FontWeight="SemiBold"
+                                                <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
+                                                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                <TextBlock Text="布局参数（高级）" FontWeight="SemiBold"
                                                            Foreground="{DynamicResource TextBrush}"/>
                                                 <TextBlock Text="板卡/夹具/阀位/通道"
                                                            Foreground="{DynamicResource MutedBrush}"
@@ -1111,11 +1135,7 @@
                                                            VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Expander.Header>
-                                        <StackPanel Margin="0,8,0,0">
-                                            <TextBlock Text="用于自动生成工位映射"
-                                                       Foreground="{DynamicResource MutedBrush}"
-                                                       FontSize="10" Margin="0,0,0,10"/>
-
+                                        <StackPanel Margin="0,10,0,0">
                                             <Border Style="{StaticResource SlotPanel}">
                                                 <StackPanel>
                                                     <TextBlock Text="工位范围" Style="{StaticResource SlotPanelTitle}"/>
@@ -1227,8 +1247,16 @@
                                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                                         <TextBlock Text="批次编号" Style="{StaticResource SectionTitle}"/>
                                     </StackPanel>
-                                    <TextBlock Text="批次号" Style="{StaticResource SlotFieldLabel}" Margin="0,10,0,0"/>
-                                    <TextBox Style="{StaticResource ConfigInputBox}" Text="{Binding BatchNo, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="批次号" Style="{StaticResource SlotFieldLabel}"
+                                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBox Grid.Column="1" Style="{StaticResource ConfigInputBox}"
+                                                 Text="{Binding BatchNo, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </Grid>
                                     <Grid Margin="0,8,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
@@ -1236,13 +1264,11 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="起始 ID" Style="{StaticResource SlotFieldLabel}"
                                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                        <TextBox Grid.Column="1" Style="{StaticResource ConfigInputBox}" Text="{Binding StartSerial, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBox Grid.Column="1" Style="{StaticResource ConfigInputBox}"
+                                                 Text="{Binding StartSerial, UpdateSourceTrigger=PropertyChanged}"/>
                                     </Grid>
                                     <CheckBox Content="自动编号" IsChecked="{Binding AutoNumber}"
                                               Margin="0,10,0,0"/>
-                                    <Button Content="刷新工位表" Style="{StaticResource PrimaryButton}"
-                                            Padding="10,7" Margin="0,12,0,0" HorizontalContentAlignment="Center"
-                                            Command="{Binding RegenerateSlotsCommand}"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

@@ -6,30 +6,30 @@
          工控上位机 · 深色主题（浅色体系 v2 的深色 counterpart）
          钢灰底 + 钢蓝强调 + 语义 LED；全扁平直角、高密度
          ════════════════════════════════════════════════════════════ -->
-    <Color x:Key="BgColor">#FF11161C</Color>
-    <Color x:Key="BgGradientStart">#FF11161C</Color>
-    <Color x:Key="BgGradientEnd">#FF11161C</Color>
-    <Color x:Key="SurfaceColor">#FF191F27</Color>
-    <Color x:Key="BorderColor">#FF313C48</Color>
-    <Color x:Key="TextColor">#FFE4EAF1</Color>
-    <Color x:Key="MutedColor">#FF8A96A3</Color>
-    <Color x:Key="AccentColor">#FF3E9BE0</Color>
-    <Color x:Key="AccentColorHover">#FF63B4F0</Color>
-    <Color x:Key="AccentLight">#FF12293D</Color>
-    <Color x:Key="SuccessColor">#FF2FBF63</Color>
-    <Color x:Key="WarnColor">#FFE0A226</Color>
-    <Color x:Key="ErrorColor">#FFF0555A</Color>
-    <Color x:Key="HeaderBgColor">#FF212832</Color>
-    <Color x:Key="RowAltColor">#FF151A21</Color>
-    <Color x:Key="SidebarBg">#FF151A21</Color>
-    <Color x:Key="NavHoverBg">#FF232C37</Color>
-    <Color x:Key="MenuBarColor">#FF161C24</Color>
-    <Color x:Key="ToolbarColor">#FF1B212A</Color>
-    <Color x:Key="StatusBarColor">#FF161C24</Color>
-    <Color x:Key="PageHeaderColor">#FF171D25</Color>
-    <Color x:Key="SidebarHeaderColor">#FF1B212A</Color>
-    <Color x:Key="DeviceStripColor">#FF1A2029</Color>
-    <Color x:Key="RunStatusColor">#FF12293D</Color>
+    <Color x:Key="BgColor">#FF1B222B</Color>
+    <Color x:Key="BgGradientStart">#FF1B222B</Color>
+    <Color x:Key="BgGradientEnd">#FF1B222B</Color>
+    <Color x:Key="SurfaceColor">#FF232C36</Color>
+    <Color x:Key="BorderColor">#FF3D4A58</Color>
+    <Color x:Key="TextColor">#FFEDF2F8</Color>
+    <Color x:Key="MutedColor">#FFA9B6C4</Color>
+    <Color x:Key="AccentColor">#FF4BA6E8</Color>
+    <Color x:Key="AccentColorHover">#FF6BBCF5</Color>
+    <Color x:Key="AccentLight">#FF1A3A55</Color>
+    <Color x:Key="SuccessColor">#FF35C96D</Color>
+    <Color x:Key="WarnColor">#FFEDB03A</Color>
+    <Color x:Key="ErrorColor">#FFFA6266</Color>
+    <Color x:Key="HeaderBgColor">#FF2C3744</Color>
+    <Color x:Key="RowAltColor">#FF1F262F</Color>
+    <Color x:Key="SidebarBg">#FF1F262F</Color>
+    <Color x:Key="NavHoverBg">#FF2C3744</Color>
+    <Color x:Key="MenuBarColor">#FF1F262F</Color>
+    <Color x:Key="ToolbarColor">#FF242D38</Color>
+    <Color x:Key="StatusBarColor">#FF1F262F</Color>
+    <Color x:Key="PageHeaderColor">#FF212932</Color>
+    <Color x:Key="SidebarHeaderColor">#FF242D38</Color>
+    <Color x:Key="DeviceStripColor">#FF242D38</Color>
+    <Color x:Key="RunStatusColor">#FF1A3A55</Color>
 
     <SolidColorBrush x:Key="BgBrush"          Color="{StaticResource BgColor}"/>
     <SolidColorBrush x:Key="SurfaceBrush"     Color="{StaticResource SurfaceColor}"/>
@@ -55,30 +55,30 @@
     <SolidColorBrush x:Key="RunStatusBrush"   Color="{StaticResource RunStatusColor}"/>
 
     <!-- 新增：新外壳专用（横幅/页签/面板头/LED） -->
-    <SolidColorBrush x:Key="TabStripBrush"    Color="#FF151A21"/>
-    <SolidColorBrush x:Key="TabActiveBrush"   Color="#FF212934"/>
-    <SolidColorBrush x:Key="BannerChipBrush"  Color="#FF1B232D"/>
-    <SolidColorBrush x:Key="PanelHeaderBrush" Color="#FF212832"/>
-    <SolidColorBrush x:Key="PanelBodyBrush"   Color="#FF151A21"/>
-    <SolidColorBrush x:Key="LedOnBrush"       Color="#FF2FBF63"/>
-    <SolidColorBrush x:Key="LedOffBrush"      Color="#FF5A6672"/>
-    <SolidColorBrush x:Key="LedWarnBrush"     Color="#FFE0A226"/>
-    <SolidColorBrush x:Key="LedErrorBrush"    Color="#FFF0555A"/>
-    <SolidColorBrush x:Key="BannerAlarmBrush" Color="#FF2A1A1C"/>
-    <SolidColorBrush x:Key="DividerBrush"     Color="#FF313C48"/>
+    <SolidColorBrush x:Key="TabStripBrush"    Color="#FF1F262F"/>
+    <SolidColorBrush x:Key="TabActiveBrush"   Color="#FF2C3744"/>
+    <SolidColorBrush x:Key="BannerChipBrush"  Color="#FF27313D"/>
+    <SolidColorBrush x:Key="PanelHeaderBrush" Color="#FF2C3744"/>
+    <SolidColorBrush x:Key="PanelBodyBrush"   Color="#FF1F262F"/>
+    <SolidColorBrush x:Key="LedOnBrush"       Color="#FF35C96D"/>
+    <SolidColorBrush x:Key="LedOffBrush"      Color="#FF6E7B88"/>
+    <SolidColorBrush x:Key="LedWarnBrush"     Color="#FFEDB03A"/>
+    <SolidColorBrush x:Key="LedErrorBrush"    Color="#FFFA6266"/>
+    <SolidColorBrush x:Key="BannerAlarmBrush" Color="#FF3A2024"/>
+    <SolidColorBrush x:Key="DividerBrush"     Color="#FF3D4A58"/>
 
     <!-- 标题横幅专用文字色 -->
-    <SolidColorBrush x:Key="TitleFgBrush"  Color="#FFE9F0F7"/>
-    <SolidColorBrush x:Key="TitleSubBrush" Color="#FF8FA6BC"/>
+    <SolidColorBrush x:Key="TitleFgBrush"  Color="#FFF2F6FA"/>
+    <SolidColorBrush x:Key="TitleSubBrush" Color="#FFA8BED4"/>
     <!-- 工位表已扫码行高亮 -->
-    <SolidColorBrush x:Key="ScannedRowBrush" Color="#FF12301F"/>
-    <SolidColorBrush x:Key="NextRowBrush" Color="#FF3A2C0E"/>
+    <SolidColorBrush x:Key="ScannedRowBrush" Color="#FF1E4A33"/>
+    <SolidColorBrush x:Key="NextRowBrush" Color="#FF4E3C14"/>
 
     <SolidColorBrush x:Key="BgGradientBrush" Color="{StaticResource BgColor}"/>
     <!-- 标题栏：钢质纵向渐变横幅 -->
     <LinearGradientBrush x:Key="TopBarBrush" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#FF232C38" Offset="0"/>
-        <GradientStop Color="#FF161C24" Offset="1"/>
+        <GradientStop Color="#FF2C3846" Offset="0"/>
+        <GradientStop Color="#FF1F262F" Offset="1"/>
     </LinearGradientBrush>
     <DropShadowEffect x:Key="CardShadow" BlurRadius="0" ShadowDepth="0" Opacity="0"/>
     <DropShadowEffect x:Key="CardShadowHover" BlurRadius="0" ShadowDepth="0" Opacity="0"/>
@@ -168,6 +168,12 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!-- 兜底：没有显式 Style 的按钮（对话框的「确定 / 取消」、卡片里的「刷新」等）
+         也要跟着主题走。不写这条会用系统默认样式 —— 深色主题下这些按钮会露出浅色底。 -->
+    <Style TargetType="Button" BasedOn="{StaticResource GhostButton}">
+        <Setter Property="Padding" Value="11,5"/>
     </Style>
 
     <!-- ────────── 卡片面板：直角 1px 描边，无阴影 ────────── -->
@@ -593,6 +599,18 @@
         <Setter Property="HorizontalContentAlignment" Value="Center"/>
     </Style>
 
+    <!-- 行号栏（RowHeader）：不写这条会用系统默认的白底，深色主题下表格左边露出一条白边 -->
+    <Style TargetType="DataGridRowHeader">
+        <Setter Property="Background" Value="{DynamicResource HeaderBgBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
+        <Setter Property="FontSize" Value="10.5"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="0,0,1,1"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+
+
     <Style TargetType="DataGridCell">
         <Setter Property="Padding" Value="6,3"/>
         <Setter Property="BorderThickness" Value="0"/>
@@ -620,7 +638,7 @@
     </Style>
 
     <Style TargetType="TextBox">
-        <Setter Property="Background" Value="#FF0A0D11"/>
+        <Setter Property="Background" Value="#FF171E26"/>
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
@@ -653,9 +671,116 @@
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding" Value="7,4"/>
         <Setter Property="MinHeight" Value="28"/>
         <Setter Property="FontSize" Value="{StaticResource FontSizeNormal}"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="24"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- 非编辑态：显示当前选中项 -->
+                                <ContentPresenter x:Name="ContentSite"
+                                                  Grid.Column="0"
+                                                  Margin="{TemplateBinding Padding}"
+                                                  HorizontalAlignment="Left" VerticalAlignment="Center"
+                                                  IsHitTestVisible="False"
+                                                  Content="{TemplateBinding SelectionBoxItem}"
+                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                  ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                                                  TextElement.Foreground="{TemplateBinding Foreground}"/>
+
+                                <!-- 可编辑态：内嵌输入框（设备型号 / 方案名等可输入下拉要用） -->
+                                <!-- 可编辑态：必须把 ComboBox.Text 绑进来。只用 PVT 的
+                                     FallbackValue 那套靠 ComboBox 内部回填，模板一换就丢
+                                     —— 现场表现是「可输入的下拉框里文字整个不显示」。 -->
+                                <TextBox x:Name="PART_EditableTextBox"
+                                         Grid.Column="0"
+                                         Margin="{TemplateBinding Padding}"
+                                         VerticalAlignment="Center"
+                                         Background="Transparent" BorderThickness="0"
+                                         Foreground="{TemplateBinding Foreground}"
+                                         CaretBrush="{TemplateBinding Foreground}"
+                                         Visibility="Hidden"
+                                         IsReadOnly="{TemplateBinding IsReadOnly}"/>
+
+                                <Path x:Name="Arrow" Grid.Column="1"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                      Data="M 0 0 L 4 4 L 8 0 Z"
+                                      Fill="{TemplateBinding Foreground}"/>
+                            </Grid>
+                        </Border>
+
+                        <Popup x:Name="PART_Popup"
+                               AllowsTransparency="True" Placement="Bottom"
+                               IsOpen="{TemplateBinding IsDropDownOpen}"
+                               PopupAnimation="Slide" Focusable="False">
+                            <Border MinWidth="{TemplateBinding ActualWidth}"
+                                    MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                    Background="{DynamicResource SurfaceBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1" CornerRadius="6" Margin="0,2,0,0">
+                                <ScrollViewer>
+                                    <ItemsPresenter/>
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEditable" Value="True">
+                            <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible"/>
+                            <Setter TargetName="ContentSite" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 下拉列表项：不写这条会用系统默认（深色主题下白底深字或高亮不可控） -->
+    <Style TargetType="ComboBoxItem">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        <Setter Property="Padding" Value="8,5"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentLightBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentLightBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- ────────── Tab：文件页签式，下沿强调条 ────────── -->

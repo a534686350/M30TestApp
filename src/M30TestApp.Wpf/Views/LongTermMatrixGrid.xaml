@@ -60,7 +60,7 @@
                   SelectionUnit="CellOrRowHeader"
                   ClipboardCopyMode="IncludeHeader"
                   HeadersVisibility="Column"
-                  RowHeaderWidth="28"
+                  RowHeaderWidth="0"
                   CanUserResizeColumns="True"
                   CanUserSortColumns="False"
                   CanUserReorderColumns="False"
@@ -75,6 +75,7 @@
                   ScrollViewer.VerticalScrollBarVisibility="Auto"
                   ColumnHeaderStyle="{StaticResource LongTermColumnHeaderStyle}"
                   LayoutUpdated="OnGridLayoutUpdated">
+
             <DataGrid.ContextMenu>
                 <ContextMenu>
                     <MenuItem Header="复制选中数据" Command="Copy"

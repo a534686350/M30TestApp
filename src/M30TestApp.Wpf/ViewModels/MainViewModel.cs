@@ -27,6 +27,9 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public LogViewModel Log { get; }
     public SettingsViewModel Settings { get; }
 
+    /// <summary>顶部「工位」页签的页面 VM（无扫码的简化工位页，与配置页共用同一份工位数据）。</summary>
+    public SlotsViewModel Slots { get; }
+
     private object _currentView;
     public object CurrentView
     {
@@ -204,7 +207,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public string PageSubtitle => SelectedNavKey switch
     {
         "Manual" => "设备点动 · 单次读数 · 状态刷新",
-        "Slots" => "工位表 · 测试范围 · 扫码录入",
+        "Slots" => "输入工位数量生成工位表；扫码录入请到「配置 → 工位」",
         "Log" => "全量运行日志 · 关键字过滤",
         "Settings" => "方案 / 工位 / 设备 / 指令",
         _ => "",
@@ -236,6 +239,9 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         // 在设置页改了地址，配置页的表格还是旧值。
         var deviceConfig = new DeviceConfigSet();
         Config = new ConfigViewModel(session, deviceConfig);
+        // 顶部「工位」页签：无扫码的简化页。**只是 Config 的一层包装**，不复制工位数据，
+        // 保证工位表只有一份（配置页 / 工位页 / 三种测试共用）。
+        Slots = new SlotsViewModel(Config);
         Log = new LogViewModel();
         Settings = new SettingsViewModel(session, deviceConfig);
 
@@ -263,12 +269,12 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         // 「设置」主页签 = 全部配置子页的容器（方案/接口设置/温度采集/气路与参数/压力指令/设备/指令/工位/测试流程/版本信息/系统设置）
         ShowConfigCommand   = new RelayCommand(_ => { CurrentView = Config; SelectedNavKey = "Settings"; });
         ShowConfigPlanCommand = new RelayCommand(_ => { Config.SelectedSection = "方案"; CurrentView = Config; SelectedNavKey = "Settings"; });
-        // 顶部「工位」页签与系统菜单的「工位配置」指向同一处：配置页的工位节。
-        // 区别只在高亮哪个页签（Slots / Settings），视图内容一致。
+        // 顶部「工位」页签 → 独立的简化工位页（无扫码录入）：只输入工位数量、看工位表。
+        // 系统菜单的「工位配置」→ 配置页的工位节（带扫码录入），供现场扫码场景使用。
+        // 两者共用同一份工位数据（Slots 页只是 Config 的包装）。
         ShowSlotsCommand = new RelayCommand(_ =>
         {
-            Config.SelectedSection = "工位";
-            CurrentView = Config;
+            CurrentView = Slots;
             SelectedNavKey = "Slots";
         });
         ShowConfigSlotsCommand = new RelayCommand(_ =>

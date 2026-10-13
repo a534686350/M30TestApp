@@ -18,8 +18,8 @@
               SelectionMode="Extended"
               SelectionUnit="CellOrRowHeader"
               ClipboardCopyMode="IncludeHeader"
-              HeadersVisibility="All"
-              RowHeaderWidth="28"
+              HeadersVisibility="Column"
+              RowHeaderWidth="0"
               CanUserResizeColumns="True"
               CanUserSortColumns="False"
               CanUserReorderColumns="False"
@@ -32,6 +32,7 @@
               ScrollViewer.PanningMode="Both"
               ScrollViewer.HorizontalScrollBarVisibility="Auto"
               ScrollViewer.VerticalScrollBarVisibility="Auto">
+
         <DataGrid.ContextMenu>
             <ContextMenu>
                 <MenuItem Header="复制选中数据" Command="Copy"

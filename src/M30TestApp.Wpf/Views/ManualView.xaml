@@ -95,6 +95,7 @@
                         <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,4,8">
                             <TextBlock Text="串口号" Style="{StaticResource Lbl}"/>
                             <ComboBox ItemsSource="{Binding ComPorts}"
+                                      SelectedItem="{Binding CardCom, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       Text="{Binding CardCom, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       IsEditable="True"/>
                         </StackPanel>
@@ -148,6 +149,7 @@
                             <TextBlock Text="串口号" Style="{StaticResource Lbl}"/>
                             <ComboBox Grid.Column="0" Margin="0,18,4,0"
                                       ItemsSource="{Binding ComPorts}"
+                                      SelectedItem="{Binding OvenCom, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       Text="{Binding OvenCom, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       IsEditable="True"/>
                             <Button Grid.Column="1" Margin="0,18,0,0" Padding="8,0"
@@ -358,12 +360,14 @@
                         <StackPanel Margin="0,0,4,0">
                             <TextBlock Text="端口" Style="{StaticResource Lbl}"/>
                             <ComboBox ItemsSource="{Binding PressurePorts}"
+                                      SelectedItem="{Binding PressurePort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       Text="{Binding PressurePort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       IsEditable="True"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="4,0,0,0">
                             <TextBlock Text="地址" Style="{StaticResource Lbl}"/>
                             <ComboBox ItemsSource="{Binding PressureAddrs}"
+                                      SelectedItem="{Binding PressureAddr, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       Text="{Binding PressureAddr, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       IsEditable="True"/>
                         </StackPanel>
@@ -371,6 +375,7 @@
 
                     <TextBlock Text="型号" Style="{StaticResource Lbl}"/>
                     <ComboBox ItemsSource="{Binding PressureModels}"
+                              SelectedItem="{Binding PressureModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                               Text="{Binding PressureModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                               IsEditable="True" Margin="0,0,0,6"/>
 

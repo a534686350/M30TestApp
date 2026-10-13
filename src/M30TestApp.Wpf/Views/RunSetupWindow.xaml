@@ -204,6 +204,7 @@
                                                 Click="OnAddReportDevice"/>
                                         <ComboBox IsEditable="True"
                                                   ItemsSource="{Binding ReportDeviceOptions}"
+                                                  SelectedItem="{Binding ReportDevice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                   Text="{Binding ReportDevice, UpdateSourceTrigger=PropertyChanged}"
                                                   ToolTip="候选来自往期报表 AO 列；没有的型号直接输入即可，本轮测试即时生效。留空则用 Setting.ini 中 [Device.Pressure] Model"/>
                                     </DockPanel>
