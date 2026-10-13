@@ -23,6 +23,35 @@ public sealed class Cell
     public double RawValue { get; set; } = double.NaN;
     public CellStatus Status { get; set; } = CellStatus.Empty;
     public DateTime UpdatedAt { get; set; }
+
+    private int _manualEdits;
+
+    /// <summary>是否被手工改写过（界面上直接编辑单元格）。报表可据此标注。</summary>
+    public bool IsManualEdited => _manualEdits > 0;
+
+    /// <summary>
+    /// 界面手工编辑入口：DataGrid 单元格 TwoWay 绑这个属性。
+    ///
+    /// **不能把这段逻辑塞进 <see cref="Value"/> 的 setter** —— 采集路径是先写
+    /// <see cref="RawValue"/>（全精度）再把格式化后的字符串写进 Value，
+    /// 在 Value setter 里反算 RawValue 会把采集到的原始精度覆盖掉。
+    /// </summary>
+    public string EditableValue
+    {
+        get => Value;
+        set
+        {
+            var text = (value ?? "").Trim();
+            if (text == Value) return;
+            Value = text;
+            // 手工填的是显示值，用输入本身当原始值；解析不出来就置 NaN，报表能看出这格不是有效数字
+            RawValue = double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
+                ? d
+                : double.NaN;
+            UpdatedAt = DateTime.Now;
+            _manualEdits++;
+        }
+    }
 }
 
 public readonly record struct CellUpdate(string Slot, Cell Cell);

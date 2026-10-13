@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -241,5 +242,50 @@ internal static class DataGridScrollHelper
                 return false;
         }
         return false;
+    }
+
+    // ─── 单元格编辑：回车提交并跳到下一个可编辑格（Excel 习惯） ───────────────
+
+    /// <summary>
+    /// 接管回车键：提交当前编辑，然后右移到下一个**可编辑**单元格；到行尾则跳下一行的第一列。
+    /// 只读列（工位 / 序列号）会被跳过，录入时不会卡在改不了的格子上。
+    /// 矩阵表格（自动测试 / 长期稳定性）共用这一份实现。
+    /// </summary>
+    internal static void EnableEnterToNextCell(DataGrid grid) =>
+        grid.PreviewKeyDown += (_, e) => HandleEnter(grid, e);
+
+    private static void HandleEnter(DataGrid grid, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || Keyboard.Modifiers != ModifierKeys.None) return;
+        e.Handled = true;   // 接管 DataGrid 默认的「提交并下移一行」
+
+        var cur = grid.CurrentCell;
+        if (cur.Column is null || cur.Item is null) return;
+
+        // 先提交当前格；输入未通过校验时不硬推进（交回 DataGrid 自己的处理）
+        if (!grid.CommitEdit(DataGridEditingUnit.Cell, true)) return;
+
+        var editable = new List<DataGridColumn>();
+        foreach (var c in grid.Columns)
+            if (!c.IsReadOnly) editable.Add(c);
+        if (editable.Count == 0) return;
+
+        var idx = editable.IndexOf(cur.Column);
+        var item = cur.Item;
+        var next = idx + 1;
+
+        if (idx < 0 || next >= editable.Count)
+        {
+            var items = grid.Items;
+            var rowIdx = items.IndexOf(item);
+            if (rowIdx < 0 || rowIdx + 1 >= items.Count) return;   // 已经是最后一格
+            item = items[rowIdx + 1];
+            next = 0;
+        }
+
+        var target = editable[next];
+        grid.CurrentCell = new DataGridCellInfo(item, target);
+        grid.ScrollIntoView(item, target);
+        grid.BeginEdit();   // 直接进编辑态，省一次 F2
     }
 }

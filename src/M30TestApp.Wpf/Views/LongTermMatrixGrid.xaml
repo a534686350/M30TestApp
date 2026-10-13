@@ -55,7 +55,7 @@
                   Grid.Row="1"
                   AutoGenerateColumns="False"
                   FrozenColumnCount="2"
-                  IsReadOnly="True"
+                  IsReadOnly="False"
                   SelectionMode="Extended"
                   SelectionUnit="CellOrRowHeader"
                   ClipboardCopyMode="IncludeHeader"

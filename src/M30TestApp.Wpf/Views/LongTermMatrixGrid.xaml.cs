@@ -24,6 +24,7 @@ public partial class LongTermMatrixGrid : UserControl
     public LongTermMatrixGrid()
     {
         InitializeComponent();
+        DataGridScrollHelper.EnableEnterToNextCell(Grid);
         BuildStaticColumns();
         DataGridScrollHelper.EnableDragAndWheelScroll(Grid);
         Loaded += OnLoaded;
@@ -171,9 +172,10 @@ public partial class LongTermMatrixGrid : UserControl
 
     private void AddDataColumn(LongTermMatrixColumnVm col)
     {
-        var binding = new Binding($"Cells[{col.Key}].Value")
+        // 双向绑 EditableValue：手工编辑要同时刷新 RawValue，报表才拿得到改后的值
+        var binding = new Binding($"Cells[{col.Key}].EditableValue")
         {
-            Mode = BindingMode.OneWay,
+            Mode = BindingMode.TwoWay,
             FallbackValue = "",
             TargetNullValue = "",
         };
@@ -192,6 +194,7 @@ public partial class LongTermMatrixGrid : UserControl
             Header = CreateSubHeader(header),
             Binding = new Binding(path) { Mode = BindingMode.OneWay },
             Width = width,
+            IsReadOnly = true,   // 工位 / 序列号：标识行，不给改，回车导航也会跳过
         };
 
     private static object CreateSubHeader(LongTermMatrixColumnVm col) =>

@@ -14,7 +14,7 @@
     <DataGrid x:Name="Grid"
               AutoGenerateColumns="False"
               FrozenColumnCount="2"
-              IsReadOnly="True"
+              IsReadOnly="False"
               SelectionMode="Extended"
               SelectionUnit="CellOrRowHeader"
               ClipboardCopyMode="IncludeHeader"

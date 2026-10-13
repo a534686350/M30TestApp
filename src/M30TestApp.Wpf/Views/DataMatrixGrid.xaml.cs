@@ -1,10 +1,12 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Media;
 using M30TestApp.Wpf.ViewModels;
 
@@ -27,6 +29,7 @@ public partial class DataMatrixGrid : UserControl
         InitializeComponent();
         BuildStaticColumns();
         DataGridScrollHelper.EnableDragAndWheelScroll(Grid);
+        DataGridScrollHelper.EnableEnterToNextCell(Grid);
 
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
@@ -81,17 +84,20 @@ public partial class DataMatrixGrid : UserControl
     private void BuildStaticColumns()
     {
         Grid.Columns.Clear();
+        // 工位 / 序列号不可编辑（它们标识这一行），只读列也会被回车导航自动跳过
         Grid.Columns.Add(new DataGridTextColumn
         {
             Header = "工位",
             Binding = new Binding("Slot") { Mode = BindingMode.OneWay },
             Width = 70,
+            IsReadOnly = true,
         });
         Grid.Columns.Add(new DataGridTextColumn
         {
             Header = "序列号",
             Binding = new Binding("SerialNo") { Mode = BindingMode.OneWay },
             Width = 150,
+            IsReadOnly = true,
         });
     }
 
@@ -113,9 +119,11 @@ public partial class DataMatrixGrid : UserControl
             Header = header,
             Width = new DataGridLength(1, DataGridLengthUnitType.Auto),
             MinWidth = 88,
-            Binding = new Binding($"Cells[{columnKey}].Value")
+            // 双向绑到 Cell.EditableValue（不是 Value）：手工编辑要同时刷新 RawValue，
+            // 否则界面改了、报表导出的还是采集时的旧原值。
+            Binding = new Binding($"Cells[{columnKey}].EditableValue")
             {
-                Mode = BindingMode.OneWay,
+                Mode = BindingMode.TwoWay,
                 FallbackValue = "",
                 TargetNullValue = "",
             },
