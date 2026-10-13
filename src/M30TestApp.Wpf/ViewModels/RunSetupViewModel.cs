@@ -398,6 +398,8 @@ public sealed class RunSetupViewModel : ViewModelBase
             if (_selectedSlots.Count > 0) ClearSlotSelectionCore();
             NotifySlotRangeChanged();
             NotifyBoardLayoutChanged();
+            // 勾选格要跟着「所需工位」长出来（选了 80 就得能看到 1..80）
+            BuildSlotToggles();
             Regenerate();
         }
     }
@@ -448,7 +450,9 @@ public sealed class RunSetupViewModel : ViewModelBase
         OnPropertyChanged(nameof(SlotSelectionText));
         OnPropertyChanged(nameof(SlotSelectionSummary));
         OnPropertyChanged(nameof(UseExplicitSlotSelection));
-        SyncSlotToggles();
+        // 用 BuildSlotToggles 而不是 SyncSlotToggles：文本框里写 "1-8,10-16" 时
+        // 16 号格子可能还没铺开，得让它补出来。
+        BuildSlotToggles();
         if (regenerate) Regenerate();
     }
 
@@ -462,16 +466,49 @@ public sealed class RunSetupViewModel : ViewModelBase
         SyncSlotToggles();
     }
 
+    /// <summary>首次进入页面时按当前「所需工位」把格子铺出来。</summary>
+    public void InitializeSlotToggles() => BuildSlotToggles();
+
     private int SlotMaxAllowed => Math.Min(SlotLayoutHelper.SlotMax, Math.Max(1, MaxSlotCountFromStart));
 
-    /// <summary>重建勾选格（1..min(上限, 48)）。</summary>
+    /// <summary>当前已铺开的勾选格个数（只增不减）。</summary>
+    private int _slotToggleCount;
+
+    /// <summary>快捷分组按钮的文案（按 8 个一组动态生成，跟着工位数量走）。</summary>
+    public ObservableCollection<string> SlotQuickRanges { get; } = new();
+
+    /// <summary>
+    /// 重建 / 追加勾选格。
+    ///
+    /// 覆盖范围跟**「所需工位」**走（选了 80 就要能看到 1..80），另外也覆盖已选工位里的最大值。
+    /// 数量**只增不减**：选完一批后 `SlotCount` 会被同步成选中个数，若按它重建，
+    /// 后面还没看的格子会凭空消失。
+    /// </summary>
     private void BuildSlotToggles()
     {
-        var n = Math.Min(SlotMaxAllowed, 48);
-        if (SlotToggles.Count == n) { SyncSlotToggles(); return; }
-        SlotToggles.Clear();
-        for (var i = 1; i <= n; i++)
-            SlotToggles.Add(new SlotToggleVm(i, _selectedSlots.Contains(i), OnSlotToggleChanged));
+        var needed = Math.Max(_slotCount, _selectedSlots.Count > 0 ? _selectedSlots.Max() : 0);
+        var want = Math.Min(SlotMaxAllowed, Math.Max(needed, 8));
+        if (want > _slotToggleCount)
+        {
+            for (var i = _slotToggleCount + 1; i <= want; i++)
+                SlotToggles.Add(new SlotToggleVm(i, _selectedSlots.Contains(i), OnSlotToggleChanged));
+            _slotToggleCount = want;
+        }
+        SyncSlotToggles();
+        RebuildSlotQuickRanges();
+    }
+
+    /// <summary>快捷分组按 8 个一组，铺到当前需要的数量为止。</summary>
+    private void RebuildSlotQuickRanges()
+    {
+        var upTo = Math.Min(SlotMaxAllowed, Math.Max(_slotCount, _slotToggleCount));
+        var groups = Math.Max(2, (int)Math.Ceiling(upTo / 8.0));
+        var want = Enumerable.Range(0, groups)
+            .Select(g => $"{g * 8 + 1}-{Math.Min((g + 1) * 8, SlotMaxAllowed)}")
+            .ToList();
+        if (want.Count == SlotQuickRanges.Count && want[^1] == SlotQuickRanges[^1]) return;
+        SlotQuickRanges.Clear();
+        foreach (var r in want) SlotQuickRanges.Add(r);
     }
 
     private void OnSlotToggleChanged(int no, bool on)
