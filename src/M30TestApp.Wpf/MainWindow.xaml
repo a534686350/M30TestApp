@@ -159,6 +159,11 @@
                                  IsChecked="{Binding IsTabManual, Mode=OneWay}"
                                  ToolTip="设备点动与单次读数"/>
                     <RadioButton Style="{StaticResource NavTab}"
+                                 Content="{DynamicResource Nav.Slots}"
+                                 Command="{Binding ShowSlotsCommand}"
+                                 IsChecked="{Binding IsTabSlots, Mode=OneWay}"
+                                 ToolTip="工位表 · 测试范围 · 扫码录入"/>
+                    <RadioButton Style="{StaticResource NavTab}"
                                  Content="{DynamicResource Nav.Log}"
                                  Command="{Binding ShowLogCommand}"
                                  IsChecked="{Binding IsTabLog, Mode=OneWay}"

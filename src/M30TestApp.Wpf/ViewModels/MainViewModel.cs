@@ -95,6 +95,9 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public RelayCommand ShowConfigCommand   { get; }
     public RelayCommand ShowConfigPlanCommand { get; }
     public RelayCommand ShowConfigSlotsCommand { get; }
+
+    /// <summary>顶部「工位」页签：一步进到配置页的工位节（工位表 + 测试范围 + 扫码录入）。</summary>
+    public RelayCommand ShowSlotsCommand { get; }
     public RelayCommand ShowLogCommand      { get; }
     public RelayCommand ShowSettingsCommand { get; }
     public RelayCommand OpenDataDirCommand  { get; }
@@ -166,6 +169,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public bool IsTabLongTerm => SelectedTabKey == "LongTerm";
     public bool IsTabQuick => SelectedTabKey == "Quick";
     public bool IsTabManual => SelectedNavKey == "Manual";
+    public bool IsTabSlots => SelectedNavKey == "Slots";
     public bool IsTabLog => SelectedNavKey == "Log";
     public bool IsTabSettings => SelectedNavKey == "Settings";
 
@@ -176,6 +180,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(IsTabLongTerm));
         OnPropertyChanged(nameof(IsTabQuick));
         OnPropertyChanged(nameof(IsTabManual));
+        OnPropertyChanged(nameof(IsTabSlots));
         OnPropertyChanged(nameof(IsTabLog));
         OnPropertyChanged(nameof(IsTabSettings));
     }
@@ -199,6 +204,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public string PageSubtitle => SelectedNavKey switch
     {
         "Manual" => "设备点动 · 单次读数 · 状态刷新",
+        "Slots" => "工位表 · 测试范围 · 扫码录入",
         "Log" => "全量运行日志 · 关键字过滤",
         "Settings" => "方案 / 工位 / 设备 / 指令",
         _ => "",
@@ -257,7 +263,20 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         // 「设置」主页签 = 全部配置子页的容器（方案/接口设置/温度采集/气路与参数/压力指令/设备/指令/工位/测试流程/版本信息/系统设置）
         ShowConfigCommand   = new RelayCommand(_ => { CurrentView = Config; SelectedNavKey = "Settings"; });
         ShowConfigPlanCommand = new RelayCommand(_ => { Config.SelectedSection = "方案"; CurrentView = Config; SelectedNavKey = "Settings"; });
-        ShowConfigSlotsCommand = new RelayCommand(_ => { Config.SelectedSection = "工位"; CurrentView = Config; SelectedNavKey = "Settings"; });
+        // 顶部「工位」页签与系统菜单的「工位配置」指向同一处：配置页的工位节。
+        // 区别只在高亮哪个页签（Slots / Settings），视图内容一致。
+        ShowSlotsCommand = new RelayCommand(_ =>
+        {
+            Config.SelectedSection = "工位";
+            CurrentView = Config;
+            SelectedNavKey = "Slots";
+        });
+        ShowConfigSlotsCommand = new RelayCommand(_ =>
+        {
+            Config.SelectedSection = "工位";
+            CurrentView = Config;
+            SelectedNavKey = "Settings";
+        });
         ShowLogCommand      = new RelayCommand(_ => { CurrentView = Log; SelectedNavKey = "Log"; });
         // 偏好设置（语言/主题/更新）保留独立页，从「系统」菜单进入
         ShowSettingsCommand = new RelayCommand(_ => { OpenSettings(); SelectedNavKey = "Settings"; });

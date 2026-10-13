@@ -959,7 +959,7 @@
                                     </StackPanel>
                                 </StackPanel>
                                 <TextBox x:Name="BarcodeInput"
-                                         HorizontalAlignment="Stretch"
+                                         MaxWidth="460" HorizontalAlignment="Center"
                                          VerticalContentAlignment="Center"
                                          Padding="12,8"
                                          FontSize="14" FontWeight="SemiBold"

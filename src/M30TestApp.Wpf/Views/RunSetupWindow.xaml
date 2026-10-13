@@ -496,7 +496,11 @@
                                         Command="{Binding QuickSlotRangeCommand}" CommandParameter="41-48"
                                         ToolTip="整组加选 / 取消"/>
                             </WrapPanel>
-                            <ItemsControl ItemsSource="{Binding SlotToggles}" Margin="0,8,0,0">
+                            <ItemsControl ItemsSource="{Binding SlotToggles}" Margin="0,8,0,0"
+                                          Background="Transparent"
+                                          PreviewMouseLeftButtonDown="OnSlotToggleMouseDown"
+                                          PreviewMouseMove="OnSlotToggleMouseMove"
+                                          PreviewMouseLeftButtonUp="OnSlotToggleMouseUp">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <WrapPanel/>

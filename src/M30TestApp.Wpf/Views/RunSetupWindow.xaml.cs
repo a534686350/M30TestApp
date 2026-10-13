@@ -3,6 +3,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using M30TestApp.Core.Config;
 using M30TestApp.Wpf.ViewModels;
@@ -11,6 +12,10 @@ namespace M30TestApp.Wpf.Views;
 
 public partial class RunSetupWindow : Window
 {
+    // 工位勾选格的「按住拖动连续勾选」状态
+    private bool _slotDragActive;
+    private bool _slotDragValue;
+
     private DateTime _lastApply = DateTime.MinValue;
     private int _scanSlotIndex;
     private bool _updatingScanSelection;
@@ -181,5 +186,39 @@ public partial class RunSetupWindow : Window
 
         RunBarcodeInput.Clear();
         RunBarcodeInput.Focus();
+    }
+
+    // ─── 工位勾选格：按住拖动连续勾选（手感接近 Excel 刷选） ────────────────
+
+    /// <summary>按下时以「该格的反值」为目标，拖动经过的格子统一设成它。</summary>
+    private void OnSlotToggleMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        var vm = FindSlotToggle(e.OriginalSource);
+        if (vm is null) return;
+        _slotDragActive = true;
+        _slotDragValue = !vm.IsSelected;
+        vm.IsSelected = _slotDragValue;
+        e.Handled = true;   // 拦掉 CheckBox 自己的切换，否则会连同拖动一起反复翻转
+    }
+
+    private void OnSlotToggleMouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_slotDragActive || e.LeftButton != MouseButtonState.Pressed) return;
+        var vm = FindSlotToggle(e.OriginalSource);
+        if (vm is not null && vm.IsSelected != _slotDragValue)
+            vm.IsSelected = _slotDragValue;
+    }
+
+    private void OnSlotToggleMouseUp(object sender, MouseButtonEventArgs e) => _slotDragActive = false;
+
+    private static SlotToggleVm? FindSlotToggle(object? source)
+    {
+        var d = source as DependencyObject;
+        while (d is not null)
+        {
+            if (d is FrameworkElement fe && fe.DataContext is SlotToggleVm vm) return vm;
+            d = VisualTreeHelper.GetParent(d);
+        }
+        return null;
     }
 }
