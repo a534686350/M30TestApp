@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using M30TestApp.Core;
 using M30TestApp.Core.Common;
 using M30TestApp.Core.Config;
+using M30TestApp.Core.Net;
 using M30TestApp.Core.Devices;
 using M30TestApp.Wpf.Mvvm;
 using M30TestApp.Wpf.Themes;
@@ -29,6 +30,9 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>顶部「工位」页签的页面 VM（无扫码的简化工位页，与配置页共用同一份工位数据）。</summary>
     public SlotsViewModel Slots { get; }
+
+    /// <summary>站点状态上报器（上报给总控制台；只读，不接收控制指令）。</summary>
+    public StationReporter Reporter { get; }
 
     private object _currentView;
     public object CurrentView
@@ -248,6 +252,12 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         // 「设置 → 版本信息」子页要用检查更新 / 回退命令（都住在 SettingsViewModel 里）
         Config.Settings = Settings;
 
+        // 站点状态上报（总控制台）。**只上报、不接收任何控制指令**；连不上只是重试，
+        // 绝不阻塞测试。设置页改完「站点标识」会调 Reporter.Apply 立即生效。
+        Reporter = new StationReporter(BuildStationSnapshot);
+        Settings.Reporter = Reporter;
+        Reporter.Apply(StationConfig.Load(session.Context.Settings));
+
         _currentView = TestRun;
 
         TestRun.PropertyChanged += OnRunPagePropertyChanged;
@@ -431,5 +441,45 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         foreach (var device in Devices)
             device.Dispose();
         Session.Dispose();
+    }
+    /// <summary>
+    /// 采集一份上报给总控制台的状态快照。
+    /// 必须**不抛异常**（拿不到就返回空快照）—— 上报失败绝不能影响测试。
+    /// </summary>
+    private StationSnapshot BuildStationSnapshot()
+    {
+        string state, step;
+        double progress = 0;
+        int total = 0, ok = 0, warn = 0, err = 0;
+
+        var modeNote = TestMode switch
+        {
+            "LongTerm" => "长期稳定性",
+            "Quick" => "快速测试",
+            _ => "自动测试",
+        };
+
+        if (TestMode == "Quick")
+        {
+            state = QuickTest.IsRunning ? "running" : "idle";
+            step = QuickTest.Status ?? "";
+        }
+        else
+        {
+            var run = ActiveRunVm;
+            var running = run.IsRunning;
+            state = !running ? "idle"
+                : (run.Status?.Contains("暂停", StringComparison.Ordinal) == true ? "paused" : "running");
+            step = run.CurrentStep ?? "";
+            progress = run.ProgressPercentValue / 100.0;
+            total = run.TotalSlots;
+            ok = (int)run.OkCount;
+            warn = (int)run.WarnCount;
+            err = (int)run.ErrCount;
+        }
+
+        // 位置参数：State, Plan, Step, Progress, Alarms, SlotTotal, SlotOk, SlotWarn, SlotErr, Note
+        return new StationSnapshot(state, Session.Plan.Name ?? "", step, progress,
+            err, total, ok, warn, err, modeNote);
     }
 }

@@ -13,6 +13,7 @@ using System.Windows;
 using M30TestApp.Core;
 using M30TestApp.Core.Common;
 using M30TestApp.Core.Config;
+using M30TestApp.Core.Net;
 using M30TestApp.Wpf.Mvvm;
 using M30TestApp.Wpf.Services;
 using M30TestApp.Wpf.Themes;
@@ -169,6 +170,105 @@ public sealed class SettingsViewModel : ViewModelBase
         SaveDevicesCommand = new RelayCommand(_ => SaveDeviceConfigs());
         ReloadDevicesCommand = new RelayCommand(_ => ReloadDeviceConfigs());
         DeviceConfig.Load(_session.Context.Settings);
+
+        _station = StationConfig.Load(session.Context.Settings);
+        SaveStationCommand = new RelayCommand(_ => SaveStation());
+    }
+
+    // ─── 站点标识（总控制台上报） ───────────────────────────────────────────
+    //
+    // 每台设备在界面上录一个唯一 ID 绑定自己，控制台靠它区分是哪一台。
+    // **只上报状态，不接收任何控制指令**；填不全或关掉开关都不影响测试。
+
+    private StationConfig _station;
+    private StationReporter? _reporter;
+
+    /// <summary>上报器（由 MainViewModel 注入；本页只负责改配置和显示状态）。</summary>
+    public StationReporter? Reporter
+    {
+        get => _reporter;
+        set
+        {
+            if (_reporter is not null) _reporter.StatusChanged -= OnReporterStatusChanged;
+            _reporter = value;
+            if (_reporter is not null) _reporter.StatusChanged += OnReporterStatusChanged;
+            OnPropertyChanged(nameof(StationStatusText));
+        }
+    }
+
+    /// <summary>上报器可能从后台线程回调，这里切回 UI 线程再通知。</summary>
+    private void OnReporterStatusChanged()
+    {
+        var app = System.Windows.Application.Current;
+        if (app is null) return;
+        app.Dispatcher.BeginInvoke(new Action(() => OnPropertyChanged(nameof(StationStatusText))));
+    }
+
+    public string StationId
+    {
+        get => _station.Id;
+        set { if (_station.Id == value) return; _station.Id = value; OnPropertyChanged(); OnPropertyChanged(nameof(StationSummary)); }
+    }
+
+    public string StationName
+    {
+        get => _station.Name;
+        set { if (_station.Name == value) return; _station.Name = value; OnPropertyChanged(); OnPropertyChanged(nameof(StationSummary)); }
+    }
+
+    public string StationHubUrl
+    {
+        get => _station.HubUrl;
+        set { if (_station.HubUrl == value) return; _station.HubUrl = value; OnPropertyChanged(); OnPropertyChanged(nameof(StationSummary)); }
+    }
+
+    public string StationToken
+    {
+        get => _station.Token;
+        set { if (_station.Token == value) return; _station.Token = value; OnPropertyChanged(); }
+    }
+
+    public bool StationEnabled
+    {
+        get => _station.Enabled;
+        set { if (_station.Enabled == value) return; _station.Enabled = value; OnPropertyChanged(); OnPropertyChanged(nameof(StationSummary)); }
+    }
+
+    public int StationIntervalSec
+    {
+        get => _station.IntervalSec;
+        set { var v = Math.Max(5, value); if (_station.IntervalSec == v) return; _station.IntervalSec = v; OnPropertyChanged(); }
+    }
+
+    /// <summary>一句话概括当前绑定情况（设置页顶部显示）。</summary>
+    public string StationSummary => _station.IsReady
+        ? $"本机已绑定为「{(_station.Name.Length > 0 ? _station.Name : _station.Id)}」，向 {_station.HubUrl} 上报"
+        : "本机尚未绑定总控制台（不影响测试）";
+
+    /// <summary>最近一次上报结果，直接取上报器的文字。</summary>
+    public string StationStatusText => _reporter?.StatusText ?? "未启用";
+
+    public RelayCommand SaveStationCommand { get; }
+
+    private void SaveStation()
+    {
+        try
+        {
+            _station.SaveTo(_session.Context.Settings);
+            _session.Context.Settings.Save(AppPaths.SettingIni);
+            _reporter?.Apply(_station);
+            UpdateStatus = _station.IsReady
+                ? $"站点标识已保存：{_station.Id} → {_station.HubUrl}"
+                : "站点标识已保存（未启用上报）。";
+            AppLog.Info("Settings", UpdateStatus);
+            OnPropertyChanged(nameof(StationSummary));
+            OnPropertyChanged(nameof(StationStatusText));
+        }
+        catch (Exception ex)
+        {
+            UpdateStatus = "保存站点标识失败：" + ex.Message;
+            AppLog.Error("Settings", UpdateStatus);
+        }
     }
 
     // ─── 设备配置读写 ───────────────────────────────────────────────────────

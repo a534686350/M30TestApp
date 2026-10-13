@@ -72,6 +72,10 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     public bool IsLongTermStabilityMode => _isLongTermStabilityMode;
     public int TotalSlots => Rows.Count;
 
+    /// <summary>是否正在跑（站点上报要判断状态）。首次运行前 RunAsync 会先弹"选择运行方案"，
+    /// 那时 _cts 已经建好但还没真正开始 —— 这里只作为"忙闲"的粗略判断。</summary>
+    public bool IsRunning => _cts is not null;
+
     private string _currentT = "—";
     public string CurrentT { get => _currentT; set => SetField(ref _currentT, value); }
     private string _currentP = "—";

@@ -131,5 +131,6 @@ public partial class App : Application
         var mainVm = new MainViewModel(session);
         var win = new MainWindow { DataContext = mainVm };
         win.Show();
+
     }
 }
