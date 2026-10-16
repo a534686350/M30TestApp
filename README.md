@@ -228,4 +228,14 @@ dotnet run --project src/M30TestApp.Wpf/M30TestApp.Wpf.csproj
       Gitee 已完成；**GitHub 未发**（本机网络到 github.com 被代理拒 502、SSH 无密钥），
       网络恢复后补：`git push origin main --follow-tags` + 设 `GH_TOKEN` 跑
       `build/publish-release.ps1 -SkipBuild`（脚本已改为单渠道失败不阻断另一渠道）
-- [x] ~~发布 v1.2.43：工位页修复~~（tag + Gitee Release + 下载页）
+- [x] ~~发布 v1.2.43：工位页修复~~（tag + Gitee Release + GitHub Release + 下载页）
+- [ ] **GitHub 补推 + tag 修正**：v1.2.43 的 GitHub Release 已发出、zip 正确，但本机
+      **git 协议到 github.com 被代理拒 502**（只有 `api.github.com` 通），`main` 与 tag 都没推上去。
+      后果：GitHub 上的 `v1.2.43` tag 被 Release API 按**旧 HEAD `c571841`** 建了，指向的不是本次 commit。
+      网络恢复后补（顺序不能颠倒）：
+      ```
+      git push origin main
+      git push origin :refs/tags/v1.2.43     # 删掉 API 自动建的那个
+      git push origin v1.2.43                # 重新推本地 annotated tag（→ 7f917a8）
+      ```
+      v1.2.42 及更早的 GitHub 补推同样待办（见上一条）。
