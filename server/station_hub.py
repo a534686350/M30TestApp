@@ -35,6 +35,8 @@ M30 站点汇总服务（总控制台）
 """
 
 import base64
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -43,7 +45,7 @@ import threading
 import time
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 PORT = int(os.environ.get("M30_HUB_PORT", "80"))
 DB_PATH = os.environ.get("M30_HUB_DB", "/opt/m30hub/stations.db")
@@ -54,6 +56,42 @@ OFFLINE_SECONDS = int(os.environ.get("M30_HUB_OFFLINE", "30"))
 KEEP_HEARTBEATS = int(os.environ.get("M30_HUB_KEEP", "5000"))
 
 _lock = threading.Lock()
+
+# ── 浏览器会话 ──────────────────────────────────────────────────────────
+# 原来用 HTTP Basic 认证，浏览器会弹一个不可定制的原生对话框（样式丑、
+# HTTP 站点还会附带「连接不是私密连接」的警告）。改成自带登录页 + 签名 Cookie。
+# Basic 头仍然接受，方便 curl / 脚本（curl -u admin:pass）。
+SESSION_COOKIE = "m30hub_sess"
+SESSION_TTL = int(os.environ.get("M30_HUB_SESSION_TTL", str(12 * 3600)))  # 默认 12 小时
+SESSION_SECRET = (os.environ.get("M30_HUB_SECRET", "")
+                  or CONSOLE_PASS or "m30hub-insecure-fallback")
+
+
+def _sign(payload: str) -> str:
+    return hmac.new(SESSION_SECRET.encode("utf-8"), payload.encode("utf-8"),
+                    hashlib.sha256).hexdigest()
+
+
+def make_session(user: str) -> str:
+    """签发会话令牌：user|过期时间戳|HMAC 签名。"""
+    exp = int(time.time()) + SESSION_TTL
+    payload = f"{user}|{exp}"
+    return f"{payload}|{_sign(payload)}"
+
+
+def session_ok(token: str) -> bool:
+    if not token:
+        return False
+    parts = token.split("|")
+    if len(parts) != 3:
+        return False
+    user, exp, sig = parts
+    if not hmac.compare_digest(_sign(f"{user}|{exp}"), sig):
+        return False
+    try:
+        return int(exp) > time.time()
+    except ValueError:
+        return False
 
 STATE_LABEL = {
     "running": ("运行中", "ok"),
@@ -636,6 +674,44 @@ tbody tr:hover{background:var(--soft)}
 .copybox{font-family:Consolas,monospace;font-size:12.5px;padding:6px 10px;
          border:1px solid var(--line);border-radius:6px;background:var(--soft);
          color:var(--fg);flex:1;min-width:240px}
+
+/* ── 登录页 ── */
+body.login-page{display:grid;place-items:center;min-height:100vh;padding:24px;
+  background:
+    radial-gradient(1000px 520px at 12% -10%, rgba(26,115,232,.17), transparent 60%),
+    radial-gradient(820px 460px at 100% 110%, rgba(124,92,255,.15), transparent 55%),
+    var(--bg)}
+html[data-theme="dark"] body.login-page{background:
+    radial-gradient(1000px 520px at 12% -10%, rgba(96,165,250,.15), transparent 60%),
+    radial-gradient(820px 460px at 100% 110%, rgba(124,92,255,.14), transparent 55%),
+    var(--bg)}
+.login-card{width:100%;max-width:374px;background:var(--card);border:1px solid var(--line);
+  border-radius:20px;padding:34px 30px 24px;box-shadow:var(--sh-lg)}
+.login-card .mark{width:46px;height:46px;border-radius:14px;
+  background:linear-gradient(135deg,var(--accent),#7c5cff);
+  display:grid;place-items:center;color:#fff;font-size:15px;font-weight:800;
+  letter-spacing:.5px;box-shadow:0 8px 20px rgba(26,115,232,.32);margin:0 auto 16px}
+.login-card h1{font-size:21px;margin:0;text-align:center;font-weight:700;letter-spacing:.2px}
+.login-card .sub{margin:6px 0 24px;text-align:center;color:var(--dim);font-size:12.8px}
+.fld{display:block;margin-bottom:14px}
+.fld > span{display:block;font-size:12.5px;color:var(--dim);margin-bottom:6px}
+.fld input{width:100%;padding:11px 13px;font-size:14px;font-family:inherit;
+  color:var(--fg);background:var(--soft);border:1px solid var(--line);
+  border-radius:11px;outline:none;transition:border-color .15s,box-shadow .15s,background .15s}
+.fld input:focus{border-color:var(--accent);background:var(--card);
+  box-shadow:0 0 0 3.5px rgba(26,115,232,.16)}
+.login-card .err{background:var(--err-bg);color:var(--err);border-radius:10px;
+  padding:9px 12px;font-size:12.8px;margin-bottom:14px}
+.login-card .submit{width:100%;padding:12px;border:0;border-radius:11px;cursor:pointer;
+  font-family:inherit;font-size:14.5px;font-weight:700;color:#fff;letter-spacing:.3px;
+  background:linear-gradient(135deg,var(--accent),#5b8def);
+  box-shadow:0 6px 16px rgba(26,115,232,.30);transition:transform .15s,box-shadow .15s,filter .15s}
+.login-card .submit:hover{transform:translateY(-1px);filter:brightness(1.06);
+  box-shadow:0 9px 22px rgba(26,115,232,.36)}
+.login-card .submit:active{transform:translateY(0)}
+.login-foot{margin-top:20px;padding-top:16px;border-top:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-between;font-size:12.3px}
+.login-foot .hint{color:var(--dim)}
 """
 
 THEME_JS = """
@@ -696,6 +772,50 @@ def nav_tabs(active: str) -> str:
         on = ' class="on"' if key == active else ""
         links.append(f'<a href="{href}"{on}>{label}</a>')
     return '<nav class="nav">' + "".join(links) + "</nav>"
+
+
+def logout_button() -> str:
+    return '<a class="ghost" href="/logout" title="清除本机会话">退出</a>'
+
+
+def header_tools() -> str:
+    """顶栏右侧工具区：退出（仅启用鉴权时显示）+ 深浅色切换。"""
+    return (logout_button() if CONSOLE_USER else "") + theme_button()
+
+
+# ── 登录页 ──────────────────────────────────────────────────────────────
+
+def render_login(error: str = "", next_url: str = "/") -> str:
+    """自带登录页，替代浏览器原生的 Basic Auth 对话框。"""
+    err_html = f'<div class="err">⚠️ {escape(error)}</div>' if error else ""
+    body = f"""
+<div class="login-card">
+  <div class="mark">M30</div>
+  <h1>总控制台</h1>
+  <p class="sub">M30 测试上位机 · 设备状态汇总</p>
+  <form method="post" action="/login">
+    <input type="hidden" name="next" value="{escape(next_url, quote=True)}">
+    {err_html}
+    <label class="fld"><span>用户名</span>
+      <input name="user" autocomplete="username" autofocus required></label>
+    <label class="fld"><span>密码</span>
+      <input name="pass" type="password" autocomplete="current-password" required></label>
+    <button class="submit" type="submit">登 录</button>
+  </form>
+  <div class="login-foot">
+    <span class="hint">M30 Test Console</span>
+    <a href="/download">程序下载 →</a>
+  </div>
+</div>"""
+    return (
+        '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<title>登录 · M30 总控制台</title>'
+        '<script>(function(){try{var t=localStorage.getItem("m30theme");'
+        'if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>'
+        '<style>' + CSS + '</style></head><body class="login-page">' + body
+        + '</body></html>'
+    )
 
 
 # ── 看板 ────────────────────────────────────────────────────────────────
@@ -789,7 +909,7 @@ def render_board(rows) -> str:
         + nav_tabs("board")
         + '<span class="sp"></span>'
         + f'<span class="meta">刷新于 {time.strftime("%H:%M:%S")}</span>'
-        + theme_button()
+        + header_tools()
         + '</header>'
     )
     return page(header, body, "setTimeout(function(){location.reload();},5000);")
@@ -870,7 +990,7 @@ def render_download(releases) -> str:
         + '<span class="sp"></span>'
         + (f'<span class="meta">最新 v{escape(latest["version"])}</span>' if latest else "")
         + f'<span class="meta">{len(releases)} 个版本</span>'
-        + theme_button()
+        + header_tools()
         + '</header>'
     )
     return page(header, body, DOWNLOAD_JS)
@@ -1043,7 +1163,7 @@ def render_detail(r, fragment=False) -> str:
         + nav_tabs("board")
         + '<span class="sp"></span>'
         + '<a class="btn" href="/">← 返回看板</a>'
-        + theme_button()
+        + header_tools()
         + '</header>'
     )
 
@@ -1164,25 +1284,55 @@ class Handler(BaseHTTPRequestHandler):
             "Content-Disposition": f'attachment; filename="{filename}"',
         })
 
+    def _cookie(self, name: str) -> str:
+        for part in (self.headers.get("Cookie") or "").split(";"):
+            k, _, v = part.strip().partition("=")
+            if k == name:
+                return v
+        return ""
+
     def _authed(self) -> bool:
+        """未配置用户名时全放开；否则接受会话 Cookie 或 Basic 头（脚本用）。"""
         if not CONSOLE_USER:
             return True
+        # 1) 浏览器会话 Cookie（登录页签发的）
+        if session_ok(self._cookie(SESSION_COOKIE)):
+            return True
+        # 2) Basic 头：curl -u / 旧脚本仍可用
         head = self.headers.get("Authorization", "")
-        if not head.startswith("Basic "):
-            return False
-        try:
-            raw = base64.b64decode(head[6:]).decode("utf-8")
-        except Exception:
-            return False
-        return raw == f"{CONSOLE_USER}:{CONSOLE_PASS}"
+        if head.startswith("Basic "):
+            try:
+                raw = base64.b64decode(head[6:]).decode("utf-8")
+            except Exception:
+                return False
+            return hmac.compare_digest(raw, f"{CONSOLE_USER}:{CONSOLE_PASS}")
+        return False
+
+    def _wants_html(self) -> bool:
+        """浏览器访问（Accept 带 text/html）走跳转，脚本走 401。"""
+        return "text/html" in (self.headers.get("Accept") or "")
+
+    def _redirect(self, location: str, extra=None):
+        headers = {"Location": location}
+        headers.update(extra or {})
+        self._send(302, "", "text/plain; charset=utf-8", headers)
 
     def _deny(self):
-        self._send(401, "需要登录", "text/plain; charset=utf-8",
-                   {"WWW-Authenticate": 'Basic realm="M30 Hub"'})
+        """未登录：页面跳自带登录页，接口返回 401。"""
+        if self._wants_html():
+            nxt = self.path if self.path.startswith("/") else "/"
+            self._redirect("/login?next=" + quote(nxt, safe=""))
+        else:
+            self._json(401, {"ok": False, "error": "unauthorized"})
 
     # ── 路由 ────────────────────────────────────────────────────────────
     def do_POST(self):
         path = urlparse(self.path).path
+
+        if path == "/login":
+            self._handle_login()
+            return
+
         if path != "/api/report":
             self._json(404, {"ok": False, "error": "not found"})
             return
@@ -1197,6 +1347,31 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:  # 上报方的问题不该影响服务
             self._json(400, {"ok": False, "error": str(exc)})
 
+    def _handle_login(self):
+        n = int(self.headers.get("Content-Length") or 0)
+        form = parse_qs(self.rfile.read(n).decode("utf-8", "replace"))
+        user = (form.get("user") or [""])[0]
+        pwd = (form.get("pass") or [""])[0]
+        nxt = (form.get("next") or ["/"])[0]
+        # 只允许站内相对路径，挡掉 //evil.com 这类开放重定向
+        if not nxt.startswith("/") or nxt.startswith("//"):
+            nxt = "/"
+
+        if not CONSOLE_USER:      # 未启用鉴权，直接放行
+            self._redirect(nxt)
+            return
+
+        ok = (hmac.compare_digest(user, CONSOLE_USER)
+              and hmac.compare_digest(pwd, CONSOLE_PASS))
+        if ok:
+            self._redirect(nxt, {
+                "Set-Cookie": (f"{SESSION_COOKIE}={make_session(user)}; Path=/; "
+                               f"Max-Age={SESSION_TTL}; HttpOnly; SameSite=Lax"),
+            })
+        else:
+            self._send(200, render_login("用户名或密码不正确", nxt),
+                       "text/html; charset=utf-8")
+
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
@@ -1204,6 +1379,23 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/health":
             self._json(200, {"ok": True})
+            return
+
+        # ── 登录 / 退出 ─────────────────────────────────────────────────
+        if path == "/login":
+            if self._authed():
+                self._redirect("/")
+                return
+            nxt = (query.get("next") or ["/"])[0]
+            if not nxt.startswith("/") or nxt.startswith("//"):
+                nxt = "/"
+            self._send(200, render_login("", nxt), "text/html; charset=utf-8")
+            return
+
+        if path == "/logout":
+            self._redirect("/login", {
+                "Set-Cookie": f"{SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax",
+            })
             return
 
         # /api/station/<id>/<file>
