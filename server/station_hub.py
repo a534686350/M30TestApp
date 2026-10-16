@@ -459,77 +459,156 @@ def find_release_file(fname: str):
 
 CSS = """
 :root{
-  --bg:#f2f5f9; --card:#ffffff; --line:#dce3ec; --fg:#1b2431; --dim:#64748b;
-  --ok:#12874a; --warn:#a9701a; --err:#c0342f; --idle:#7b8798; --accent:#1a72c4;
-  --ok-bg:#e6f6ec; --warn-bg:#fdf3e0; --err-bg:#fdeceb; --idle-bg:#eef1f5;
-  --head:#ffffff; --soft:#f7f9fc;
+  --bg:#f2f5f9; --card:#ffffff; --line:#e3e9f2; --fg:#0f172a; --dim:#64748b;
+  --ok:#0e9f6e; --warn:#c27803; --err:#dc2626; --idle:#94a3b8; --accent:#1a73e8;
+  --ok-bg:#e7f7f0; --warn-bg:#fdf5e4; --err-bg:#fdecec; --idle-bg:#eff3f8;
+  --head:#ffffff; --soft:#f8fafc;
+  --bd:rgba(15,23,42,.06);
+  --sh:0 1px 2px rgba(15,23,42,.04), 0 4px 14px rgba(15,23,42,.06);
+  --sh-lg:0 6px 12px rgba(15,23,42,.08), 0 18px 36px rgba(15,23,42,.10);
+  --r:14px;
 }
 html[data-theme="dark"]{
-  --bg:#1b222b; --card:#232c36; --line:#3d4a58; --fg:#e9eef5; --dim:#b7c3d1;
-  --ok:#4ad786; --warn:#f3c24e; --err:#ff7b7f; --idle:#7f8c9b; --accent:#4ba6e8;
-  --ok-bg:#1d3328; --warn-bg:#3a3122; --err-bg:#3b2426; --idle-bg:#2a333e;
-  --head:#232c36; --soft:#202832;
+  --bg:#0e141c; --card:#18202c; --line:#2a3644; --fg:#e8eef7; --dim:#93a3b8;
+  --ok:#34d399; --warn:#fbbf24; --err:#f87171; --idle:#64748b; --accent:#60a5fa;
+  --ok-bg:#10291f; --warn-bg:#322512; --err-bg:#3a1d1d; --idle-bg:#222c3a;
+  --head:#151d28; --soft:#1d2634;
+  --bd:rgba(255,255,255,.07);
+  --sh:0 1px 2px rgba(0,0,0,.35), 0 4px 14px rgba(0,0,0,.28);
+  --sh-lg:0 6px 12px rgba(0,0,0,.42), 0 18px 36px rgba(0,0,0,.38);
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);
-     font:14px/1.5 "Microsoft YaHei",system-ui,-apple-system,sans-serif}
+     font:14px/1.55 "Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
+     -webkit-font-smoothing:antialiased}
 a{color:var(--accent);text-decoration:none}
-header{display:flex;align-items:center;gap:12px;padding:13px 20px;
+header{display:flex;align-items:center;gap:12px;padding:11px 22px;
        background:var(--head);border-bottom:1px solid var(--line);
-       position:sticky;top:0;z-index:5;flex-wrap:wrap}
-header h1{font-size:17px;margin:0;font-weight:600}
+       position:sticky;top:0;z-index:5;flex-wrap:wrap;
+       box-shadow:0 1px 3px var(--bd)}
+header h1{font-size:16.5px;margin:0;font-weight:700;letter-spacing:.2px}
 header .meta{color:var(--dim);font-size:12.5px}
 header .sp{flex:1}
-.ghost{border:1px solid var(--line);background:transparent;color:var(--fg);
-       border-radius:6px;padding:5px 12px;font-size:12.5px;cursor:pointer;font-family:inherit}
+.brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:16px;
+       letter-spacing:.2px;margin-right:6px}
+.brand .mark{width:30px;height:30px;border-radius:9px;
+  background:linear-gradient(135deg,var(--accent),#7c5cff);
+  display:grid;place-items:center;color:#fff;font-size:11.5px;font-weight:800;
+  letter-spacing:0;box-shadow:0 3px 9px rgba(26,115,232,.32)}
+.nav{display:flex;gap:3px;background:var(--soft);border:1px solid var(--line);
+     border-radius:11px;padding:3px}
+.nav a{padding:5px 14px;border-radius:8px;font-size:13px;color:var(--dim);
+       transition:.15s;white-space:nowrap}
+.nav a:hover{color:var(--fg)}
+.nav a.on{background:var(--card);color:var(--accent);font-weight:600;
+          box-shadow:0 1px 3px var(--bd)}
+.ghost{border:1px solid var(--line);background:var(--card);color:var(--fg);
+       border-radius:9px;padding:6px 13px;font-size:12.5px;cursor:pointer;
+       font-family:inherit;transition:.15s}
 .ghost:hover{border-color:var(--accent);color:var(--accent)}
-.grid{display:grid;gap:14px;padding:18px 20px;
-      grid-template-columns:repeat(auto-fill,minmax(340px,1fr))}
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
-.grid .card{border-left:4px solid var(--idle)}
-.grid .card.is-online{border-left-color:var(--ok)}
-.grid .card.is-warn{border-left-color:var(--warn)}
-.grid .card.is-err{border-left-color:var(--err)}
-.grid .card.is-offline{opacity:.6}
-.row1{display:flex;align-items:center;gap:8px}
-.name{font-size:15.5px;font-weight:600}
-.sid{color:var(--dim);font-size:12px}
-.pill{margin-left:auto;font-size:12px;padding:2px 9px;border-radius:99px;
-      border:1px solid currentColor;white-space:nowrap}
-.p-ok{color:var(--ok)} .p-warn{color:var(--warn)} .p-err{color:var(--err)}
-.p-idle{color:var(--idle)} .p-off{color:var(--idle)}
-.line{margin-top:10px;display:grid;grid-template-columns:72px 1fr;gap:4px 8px;font-size:13px}
+
+/* ── 概览统计条 ── */
+.stats{display:grid;gap:13px;padding:20px 22px 0;
+       grid-template-columns:repeat(auto-fit,minmax(156px,1fr))}
+.stat{position:relative;background:var(--card);border:1px solid var(--line);
+      border-radius:var(--r);padding:15px 17px;box-shadow:var(--sh);
+      overflow:hidden;transition:box-shadow .18s,transform .18s}
+.stat:hover{box-shadow:var(--sh-lg);transform:translateY(-1px)}
+.stat::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+              background:var(--accent)}
+.stat.s-ok::before{background:var(--ok)}
+.stat.s-warn::before{background:var(--warn)}
+.stat.s-err::before{background:var(--err)}
+.stat .n{font-size:27px;font-weight:800;line-height:1.05;letter-spacing:-.5px;
+         font-variant-numeric:tabular-nums}
+.stat .n.ok{color:var(--ok)} .stat .n.warn{color:var(--warn)} .stat .n.err{color:var(--err)}
+.stat .l{font-size:12.5px;color:var(--dim);margin-top:3px}
+.grid{display:grid;gap:16px;padding:20px 22px;
+      grid-template-columns:repeat(auto-fill,minmax(352px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+      padding:15px;box-shadow:var(--sh)}
+/* 设备卡片：纵向 flex + 顶部状态色条，按钮贴底 */
+.card.dev{padding:0;overflow:hidden;display:flex;flex-direction:column;
+          transition:box-shadow .18s ease,transform .18s ease}
+.card.dev:hover{box-shadow:var(--sh-lg);transform:translateY(-2px)}
+.card.dev .cap{height:3px;background:var(--idle);flex:none}
+.card.dev.is-online .cap{background:linear-gradient(90deg,var(--ok),#34d399)}
+.card.dev.is-warn .cap{background:linear-gradient(90deg,var(--warn),#f59e0b)}
+.card.dev.is-err .cap{background:linear-gradient(90deg,var(--err),#f87171)}
+.card.dev.is-offline{opacity:.62;filter:saturate(.7)}
+.dev-top{display:flex;align-items:center;gap:9px;padding:14px 16px 11px}
+.dev-top .nm{font-size:15.5px;font-weight:700;letter-spacing:.1px;
+             overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
+.dev-top .sp{flex:1}
+.dev-body{padding:0 16px}
+.dev-body .sid{display:inline-block;max-width:100%}
+.sid-gap{margin-top:10px}
+/* 在线呼吸灯 */
+.dot{width:8px;height:8px;border-radius:50%;background:var(--idle);flex:none;
+     position:relative}
+.dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)} .dot.err{background:var(--err)}
+.dot.live::after{content:'';position:absolute;inset:0;border-radius:50%;
+  background:inherit;animation:ping 1.9s cubic-bezier(0,0,.2,1) infinite}
+@keyframes ping{0%{transform:scale(1);opacity:.6}80%,100%{transform:scale(2.5);opacity:0}}
+.sid{color:var(--dim);font-size:11.5px;font-family:Consolas,"Courier New",monospace;
+     background:var(--idle-bg);padding:2px 7px;border-radius:5px;
+     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px}
+.pill{font-size:11.5px;padding:3px 10px;border-radius:99px;white-space:nowrap;
+      border:1px solid currentColor;font-weight:600;flex:none}
+.p-ok{color:var(--ok);background:var(--ok-bg)}
+.p-warn{color:var(--warn);background:var(--warn-bg)}
+.p-err{color:var(--err);background:var(--err-bg)}
+.p-idle,.p-off{color:var(--idle);background:var(--idle-bg)}
+.line{display:grid;grid-template-columns:66px 1fr;gap:5px 10px;font-size:12.8px}
 .line .k{color:var(--dim)}
-.bar{height:7px;border-radius:4px;background:var(--idle-bg);overflow:hidden;margin-top:10px}
-.bar > i{display:block;height:100%;background:var(--accent)}
-.chips{margin-top:10px;display:flex;gap:8px;font-size:12.5px;flex-wrap:wrap}
-.chips span{padding:1px 8px;border-radius:6px;background:var(--idle-bg);color:var(--dim)}
-.chips span.b-ok{background:var(--ok-bg);color:var(--ok)}
-.chips span.b-warn{background:var(--warn-bg);color:var(--warn)}
-.chips span.b-err{background:var(--err-bg);color:var(--err)}
-.acts{margin-top:12px;display:flex;gap:8px}
-.btn{display:inline-block;border:1px solid var(--line);border-radius:6px;padding:4px 12px;
-     font-size:12.5px;color:var(--fg);background:transparent;cursor:pointer;font-family:inherit}
-.btn:hover{border-color:var(--accent);color:var(--accent)}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-.btn.primary:hover{color:#fff;opacity:.9}
-.empty{padding:60px 20px;text-align:center;color:var(--dim)}
-footer{padding:10px 20px;color:var(--dim);font-size:12px}
-.wrap{padding:16px 20px;display:flex;flex-direction:column;gap:14px}
-.cols{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(330px,1fr))}
-.card h2{font-size:14px;margin:0 0 10px;font-weight:600;display:flex;align-items:center;gap:10px}
+.line .v{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar{height:6px;border-radius:99px;background:var(--idle-bg);overflow:hidden;margin:12px 0 0}
+.bar > i{display:block;height:100%;border-radius:99px;
+         background:linear-gradient(90deg,var(--accent),#5b9bf8);
+         transition:width .4s ease}
+.bar.warn > i{background:linear-gradient(90deg,var(--warn),#f5b544)}
+.bar.err > i{background:linear-gradient(90deg,var(--err),#f36b6b)}
+.chips{margin-top:12px;display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.chips .ch{text-align:center;padding:7px 3px;border-radius:9px;background:var(--idle-bg);
+           font-size:11.5px;color:var(--dim);line-height:1.35}
+.chips .ch b{display:block;font-size:15px;font-weight:700;color:var(--fg);
+             font-variant-numeric:tabular-nums;letter-spacing:-.3px}
+.chips .ch.b-ok{background:var(--ok-bg)} .chips .ch.b-ok b{color:var(--ok)}
+.chips .ch.b-warn{background:var(--warn-bg)} .chips .ch.b-warn b{color:var(--warn)}
+.chips .ch.b-err{background:var(--err-bg)} .chips .ch.b-err b{color:var(--err)}
+.acts{padding:13px 16px 15px;border-top:1px solid var(--line);
+      display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
+.btn{display:inline-block;border:1px solid var(--line);border-radius:9px;padding:6px 13px;
+     font-size:12.5px;color:var(--fg);background:var(--card);cursor:pointer;
+     font-family:inherit;transition:.15s;text-align:center}
+.btn:hover{border-color:var(--accent);color:var(--accent);background:var(--soft)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn.primary:hover{background:#1668d4;border-color:#1668d4;color:#fff}
+.empty{margin:46px auto;max-width:470px;padding:46px 30px;text-align:center;
+       color:var(--dim);background:var(--card);border:1px dashed var(--line);
+       border-radius:var(--r);font-size:13.5px;line-height:2}
+.empty .ico{font-size:34px;margin-bottom:8px;opacity:.45;line-height:1}
+.empty b{color:var(--fg);font-size:15px}
+footer{padding:16px 22px 26px;color:var(--dim);font-size:12px;text-align:center}
+.wrap{padding:18px 22px;display:flex;flex-direction:column;gap:15px}
+.dev-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:16px 22px 0}
+.dev-head h1{font-size:19px;margin:0;font-weight:700;letter-spacing:.2px}
+.dev-head .sp{flex:1}
+.dev-head + .wrap{padding-top:14px}
+.cols{display:grid;gap:15px;grid-template-columns:repeat(auto-fit,minmax(330px,1fr))}
+.card h2{font-size:13.5px;margin:0 0 11px;font-weight:700;display:flex;align-items:center;gap:9px}
 .card h2 .dim{color:var(--dim);font-weight:400;font-size:12.5px}
 .card h2 .sp{flex:1}
-.kv{display:grid;grid-template-columns:88px 1fr;gap:6px 10px;font-size:13px}
+.kv{display:grid;grid-template-columns:88px 1fr;gap:7px 10px;font-size:13px}
 .kv .k{color:var(--dim)}
 table{width:100%;border-collapse:collapse;font-size:12.5px}
-th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);white-space:nowrap}
 th{color:var(--dim);font-weight:600;background:var(--soft);position:sticky;top:0}
 tbody tr:hover{background:var(--soft)}
-.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;
+.tag{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;
      border:1px solid currentColor}
 .t-ok{color:var(--ok)} .t-warn{color:var(--warn)} .t-err{color:var(--err)} .t-idle{color:var(--idle)}
-.scroll{max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.scroll{max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:10px}
 .mono{font-family:Consolas,"Courier New",monospace}
 
 /* ── 下载页 ── */
@@ -603,7 +682,45 @@ def theme_button():
     return '<button class="ghost" id="themeBtn" onclick="m30ToggleTheme()">深色</button>'
 
 
+def brand(title: str = "总控制台") -> str:
+    """左上角品牌标识：渐变方块 + 标题。"""
+    return ('<div class="brand"><span class="mark">M30</span>'
+            f'<span>{escape(title)}</span></div>')
+
+
+def nav_tabs(active: str) -> str:
+    """顶部主导航。active 取 board / download，决定哪个高亮。"""
+    items = [("/", "设备看板", "board"), ("/download", "程序下载", "download")]
+    links = []
+    for href, label, key in items:
+        on = ' class="on"' if key == active else ""
+        links.append(f'<a href="{href}"{on}>{label}</a>')
+    return '<nav class="nav">' + "".join(links) + "</nav>"
+
+
 # ── 看板 ────────────────────────────────────────────────────────────────
+
+def _stats(rows) -> str:
+    """顶部概览：设备总数 / 在线 / 运行中 / 报警 / 异常工位。"""
+    total = len(rows)
+    online = sum(1 for r in rows if r["online"])
+    running = sum(1 for r in rows if r["online"] and str(r["state"]) == "running")
+    alarms = sum(int(r["alarms"] or 0) for r in rows if r["online"])
+    errs = sum(int(r["slot_err"] or 0) for r in rows if r["online"])
+
+    cards = [
+        (total, "设备总数", "", ""),
+        (online, "在线", "s-ok" if online else "", "ok" if online else ""),
+        (running, "运行中", "s-ok" if running else "", "ok" if running else ""),
+        (alarms, "报警", "s-err" if alarms else "", "err" if alarms else ""),
+        (errs, "异常工位", "s-warn" if errs else "", "warn" if errs else ""),
+    ]
+    out = []
+    for num, label, scls, ncls in cards:
+        out.append(f'<div class="stat {scls}"><div class="n {ncls}">{num}</div>'
+                   f'<div class="l">{label}</div></div>')
+    return '<div class="stats">' + "".join(out) + "</div>"
+
 
 def _card(r):
     state = r["state"] if r["online"] else "offline"
@@ -611,57 +728,69 @@ def _card(r):
     if r["online"] and (r["slot_err"] or r["alarms"]):
         kind = "err"
     cls = {"ok": "is-online", "warn": "is-warn", "err": "is-err"}.get(kind, "is-offline")
+    dot = {"ok": "ok", "warn": "warn", "err": "err"}.get(kind, "idle")
+    # 只有「在线且正常」才跑呼吸动画；报警 / 离线常亮，免得满屏闪
+    live = " live" if r["online"] and kind == "ok" else ""
+    barcls = {"warn": " warn", "err": " err"}.get(kind, "")
     pct = max(0.0, min(1.0, float(r["progress"] or 0))) * 100
     note = r["extra_obj"].get("note") or "-"
     sid = str(r["station_id"])
     q = escape(sid, quote=True)
 
     return f"""
- <div class="card {cls}">
-   <div class="row1">
-     <span class="name">{escape(str(r['name'] or sid))}</span>
-     <span class="sid">{escape(sid)}</span>
+ <div class="card dev {cls}">
+   <div class="cap"></div>
+   <div class="dev-top">
+     <span class="dot {dot}{live}"></span>
+     <span class="nm">{escape(str(r['name'] or sid))}</span>
+     <span class="sp"></span>
      <span class="pill p-{kind}">{label}</span>
    </div>
-   <div class="line">
-     <span class="k">测试方案</span><span>{escape(str(r['plan'] or '-'))}</span>
-     <span class="k">传感器</span><span>{escape(str(r.get('model') or '-'))}</span>
-     <span class="k">当前工步</span><span>{escape(str(r['step'] or '-'))}</span>
-     <span class="k">程序版本</span><span>{escape(str(r['version'] or '-'))}</span>
-     <span class="k">最后心跳</span><span>{r['ago']} 秒前</span>
-     <span class="k">备注</span><span>{escape(str(note))}</span>
-   </div>
-   <div class="bar"><i style="width:{pct:.1f}%"></i></div>
-   <div class="chips">
-     <span>工位 {r['slot_total'] or 0}</span>
-     <span class="b-ok">合格 {r['slot_ok'] or 0}</span>
-     <span class="b-warn">警告 {r['slot_warn'] or 0}</span>
-     <span class="b-err">异常 {r['slot_err'] or 0}</span>
-     <span>报警 {r['alarms'] or 0}</span>
+   <div class="dev-body">
+     <span class="sid">{escape(sid)}</span>
+     <div class="line sid-gap">
+       <span class="k">测试方案</span><span class="v">{escape(str(r['plan'] or '-'))}</span>
+       <span class="k">传感器</span><span class="v">{escape(str(r.get('model') or '-'))}</span>
+       <span class="k">当前工步</span><span class="v">{escape(str(r['step'] or '-'))}</span>
+       <span class="k">程序版本</span><span class="v">{escape(str(r['version'] or '-'))}</span>
+       <span class="k">最后心跳</span><span class="v">{r['ago']} 秒前</span>
+       <span class="k">备注</span><span class="v">{escape(str(note))}</span>
+     </div>
+     <div class="bar{barcls}"><i style="width:{pct:.1f}%"></i></div>
+     <div class="chips">
+       <span class="ch"><b>{r['slot_total'] or 0}</b>工位</span>
+       <span class="ch b-ok"><b>{r['slot_ok'] or 0}</b>合格</span>
+       <span class="ch b-warn"><b>{r['slot_warn'] or 0}</b>警告</span>
+       <span class="ch b-err"><b>{r['slot_err'] or 0}</b>异常</span>
+       <span class="ch"><b>{r['alarms'] or 0}</b>报警</span>
+     </div>
    </div>
    <div class="acts">
      <a class="btn primary" href="/station?id={q}">查看详情</a>
-     <a class="btn" href="/api/station/{q}/slots.csv">工位明细 CSV</a>
-     <a class="btn" href="/api/station/{q}/history.csv">心跳历史 CSV</a>
+     <a class="btn" href="/api/station/{q}/slots.csv">工位 CSV</a>
+     <a class="btn" href="/api/station/{q}/history.csv">心跳 CSV</a>
    </div>
  </div>"""
 
 
 def render_board(rows) -> str:
-    online = sum(1 for r in rows if r["online"])
     if not rows:
-        body = ('<div class="empty">还没有设备上报。<br>'
-                '在上位机「配置 → 系统设置 → 上报设备 ID」里填好站点 ID 与控制台地址后即可出现。</div>')
+        body = ('<div class="empty"><div class="ico">▤</div>'
+                '<b>还没有设备上报</b><br>'
+                '在上位机「配置 → 系统设置 → 上报设备 ID」里填好站点 ID 与控制台地址后，'
+                '设备会自动出现在这里。</div>')
     else:
-        body = '<div class="grid">' + "".join(_card(r) for r in rows) + "</div>"
+        body = (_stats(rows)
+                + '<div class="grid">' + "".join(_card(r) for r in rows) + "</div>")
 
     header = (
-        '<header><h1>M30 总控制台</h1>'
-        f'<span class="meta">{len(rows)} 台设备 · 在线 {online} 台</span>'
-        '<span class="sp"></span>'
-        '<a class="ghost" href="/download">程序下载</a>'
-        + theme_button() +
-        f'<span class="meta">刷新于 {time.strftime("%Y-%m-%d %H:%M:%S")}</span></header>'
+        '<header>'
+        + brand("总控制台")
+        + nav_tabs("board")
+        + '<span class="sp"></span>'
+        + f'<span class="meta">刷新于 {time.strftime("%H:%M:%S")}</span>'
+        + theme_button()
+        + '</header>'
     )
     return page(header, body, "setTimeout(function(){location.reload();},5000);")
 
@@ -735,11 +864,12 @@ def render_download(releases) -> str:
     body += "</div>"
 
     header = (
-        '<header><h1>程序下载</h1>'
-        f'<span class="meta">{len(releases)} 个版本</span>'
-        + (f'<span class="meta">当前最新 v{escape(latest["version"])}</span>' if latest else "")
+        '<header>'
+        + brand("程序下载")
+        + nav_tabs("download")
         + '<span class="sp"></span>'
-        + '<a class="ghost" href="/">返回控制台</a>'
+        + (f'<span class="meta">最新 v{escape(latest["version"])}</span>' if latest else "")
+        + f'<span class="meta">{len(releases)} 个版本</span>'
         + theme_button()
         + '</header>'
     )
@@ -904,21 +1034,34 @@ def render_detail(r, fragment=False) -> str:
     if r["online"] and (r["slot_err"] or r["alarms"]):
         kind = "err"
 
+    dot = {"ok": "ok", "warn": "warn", "err": "err"}.get(kind, "idle")
+    live = " live" if r["online"] and kind == "ok" else ""
+
     header = (
         '<header>'
-        '<a class="btn" href="/">← 返回看板</a>'
-        f'<h1>{escape(str(r["name"] or sid))}</h1>'
-        f'<span class="sid mono">{escape(sid)}</span>'
-        f'<span class="pill p-{kind}">{label}</span>'
-        '<span class="sp"></span>'
-        f'<a class="btn" href="/api/station/{q}/slots.csv">工位明细 CSV</a>'
-        f'<a class="btn" href="/api/station/{q}/history.csv">心跳历史 CSV</a>'
-        f'<a class="btn" href="/api/station/{q}/snapshot.json">快照 JSON</a>'
-        + theme_button() +
-        '</header>'
+        + brand("设备详情")
+        + nav_tabs("board")
+        + '<span class="sp"></span>'
+        + '<a class="btn" href="/">← 返回看板</a>'
+        + theme_button()
+        + '</header>'
     )
 
-    body = f'<div class="wrap" id="live">{frag}</div>'
+    # 设备标题区放在 #live 外面 —— 局部刷新只换 #live 里的内容，标题不会被冲掉
+    head_bar = (
+        '<div class="dev-head">'
+        f'<span class="dot {dot}{live}"></span>'
+        f'<h1>{escape(str(r["name"] or sid))}</h1>'
+        f'<span class="sid">{escape(sid)}</span>'
+        f'<span class="pill p-{kind}">{label}</span>'
+        '<span class="sp"></span>'
+        f'<a class="btn" href="/api/station/{q}/slots.csv">工位 CSV</a>'
+        f'<a class="btn" href="/api/station/{q}/history.csv">心跳 CSV</a>'
+        f'<a class="btn" href="/api/station/{q}/snapshot.json">快照 JSON</a>'
+        '</div>'
+    )
+
+    body = head_bar + f'<div class="wrap" id="live">{frag}</div>'
     script = """
 // 局部刷新：只换 #live 里的内容，不整页 reload（否则滚动位置和展开状态都会丢）
 setInterval(function(){
