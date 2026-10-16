@@ -44,8 +44,14 @@ if ([string]::IsNullOrWhiteSpace($ghToken)) {
 
 $giteeToken = $env:GITEE_TOKEN
 
+if ([string]::IsNullOrWhiteSpace($ghToken) -and [string]::IsNullOrWhiteSpace($giteeToken)) {
+    throw "Set GH_TOKEN (or GITHUB_TOKEN) and/or GITEE_TOKEN for release upload."
+}
 if ([string]::IsNullOrWhiteSpace($ghToken)) {
-    throw "Set GH_TOKEN (or GITHUB_TOKEN) for GitHub release upload."
+    Write-Warning "GH_TOKEN not set; skipping GitHub release."
+}
+if ([string]::IsNullOrWhiteSpace($giteeToken)) {
+    Write-Warning "GITEE_TOKEN not set; skipping Gitee release."
 }
 
 $releaseNotes = @"
@@ -107,6 +113,11 @@ function Invoke-GitHubRelease {
         [string]$Body,
         [string]$ZipFile
     )
+
+    if ([string]::IsNullOrWhiteSpace($ghToken)) {
+        Write-Warning "GH_TOKEN not set; skipping GitHub release."
+        return $null
+    }
 
     $headers = @{
         Authorization = "Bearer $ghToken"
@@ -291,9 +302,24 @@ $title = "M30TestApp V2 v$Version"
 Write-Host "Publishing $title ..."
 Write-Host "Zip: $zipPath"
 
-$ghRelease = Invoke-GitHubRelease -Tag $tag -Title $title -Body $releaseNotes -ZipFile $zipPath
+# GitHub 与 Gitee 互为备份：任一渠道网络不通时只警告，不阻断另一条。
+# 现场多数环境只有 Gitee 能通，所以 Gitee 失败才算整体失败。
+$ghRelease = $null
+try {
+    $ghRelease = Invoke-GitHubRelease -Tag $tag -Title $title -Body $releaseNotes -ZipFile $zipPath
+}
+catch {
+    Write-Warning "GitHub release failed (network or API): $($_.Exception.Message)"
+    Write-Warning "GitHub 渠道跳过，稍后网络恢复可用同一命令重跑补发（已存在的 release 会复用）。"
+}
+
 Invoke-GiteeRelease -Tag $tag -Title $title -Body $releaseNotes -ZipFile $zipPath
 
 Write-Host ""
 Write-Host "Done."
-Write-Host "GitHub: $($ghRelease.html_url)"
+if ($ghRelease -and $ghRelease.html_url) {
+    Write-Host "GitHub: $($ghRelease.html_url)"
+} else {
+    Write-Host "GitHub: 未发布（网络不通或未提供 GH_TOKEN）"
+}
+Write-Host "Gitee : https://gitee.com/hl515/m30-test-app/releases/tag/$tag"

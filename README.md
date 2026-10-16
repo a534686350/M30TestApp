@@ -185,7 +185,8 @@ dotnet run --project src/M30TestApp.Wpf/M30TestApp.Wpf.csproj
 - ✅ **「方案」提到顶部一级导航**：方案编辑（温度点 / 压力点 / 判定限值）现场用得最多，
       从配置中心里提出来，与「自动测试 / 长期稳定性测试 / 快速测试 / 手动调试 / 工位 / 日志 / 配置」
       并列在顶部页签条最左侧；高亮互斥——在配置中心切到别的节（如系统设置）时高亮自动还给「配置」
-- ⏳ 版本号已到 v1.2.42（**未发版**，线上 Release 仍为 v1.2.41）
+- ✅ **v1.2.42 已发版**（2026-10-16）：Gitee Release 已出（含自包含 zip），
+      总控制台下载页 http://54.206.27.158/download 已列出 v1.2.42 与 v1.2.41
 
 ### 常见错误
 
@@ -216,4 +217,7 @@ dotnet run --project src/M30TestApp.Wpf/M30TestApp.Wpf.csproj
 - [ ] 总控制台：加**设备删除**接口 + 页面按钮（当前清下线设备只能 SSH 进服务器改 SQLite）
 - [ ] 总控制台第二期：历史数据 / 报表归档（远程控制需另立「指令下发 → 上位机本地安全校验 → 回执」）
 - [ ] gitee 检查更新偶发 `403 Forbidden`（限流）——现场只有 gitee 能通时会「检查更新失败」
-- [ ] 发布 v1.2.42：打 tag → 出包 → 建 Gitee/GitHub Release 并上传 zip
+- [x] ~~发布 v1.2.42：打 tag → 出包 → 建 Gitee/GitHub Release 并上传 zip~~
+      Gitee 已完成；**GitHub 未发**（本机网络到 github.com 被代理拒 502、SSH 无密钥），
+      网络恢复后补：`git push origin main --follow-tags` + 设 `GH_TOKEN` 跑
+      `build/publish-release.ps1 -SkipBuild`（脚本已改为单渠道失败不阻断另一渠道）
