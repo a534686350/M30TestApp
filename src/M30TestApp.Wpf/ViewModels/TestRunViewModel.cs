@@ -76,6 +76,16 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     /// 那时 _cts 已经建好但还没真正开始 —— 这里只作为"忙闲"的粗略判断。</summary>
     public bool IsRunning => _cts is not null;
 
+    // ─── 启动续测（程序一打开就问，见 MainViewModel.PromptPendingResumeOnStartup） ───
+    //
+    // 启动时已经弹过「检测到未完成的测试」并拿到保温时长，走正常开始流程时不要再问第二遍。
+
+    /// <summary>由启动续测流程预置的保温时长（分钟）。</summary>
+    public int? PendingResumeSoakMinutes { get; set; }
+
+    /// <summary>true 时本次 Run 跳过「检测到未完成的测试」弹窗，直接按预置值续测。</summary>
+    public bool SkipResumePrompt { get; set; }
+
     private string _currentT = "—";
     public string CurrentT { get => _currentT; set => SetField(ref _currentT, value); }
     private string _currentP = "—";
@@ -84,6 +94,9 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     private DateTime? _startedAt;
     private string _elapsed = "00:00:00";
     public string Elapsed { get => _elapsed; set => SetField(ref _elapsed, value); }
+
+    /// <summary>本次运行开始时间（没在跑为 null）。总控制台详情页要显示"什么时候开的"。</summary>
+    public DateTime? StartedAt => _startedAt;
 
     public AsyncRelayCommand RunCommand { get; }
     public RelayCommand PauseCommand { get; }
@@ -536,7 +549,11 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         return ShowResumeCheckpointDialog(ck);
     }
 
-    private static (bool Cancel, bool? Resume, int? ResumeSoakMinutes) ShowResumeCheckpointDialog(TestCheckpoint ck)
+    /// <summary>
+    /// 「检测到未完成的测试」对话框。程序启动时和点开始测试时共用同一个 ——
+    /// 文案和行为必须一致，否则同一个断点在两处问出来的话不一样，现场会懵。
+    /// </summary>
+    public static (bool Cancel, bool? Resume, int? ResumeSoakMinutes) ShowResumeCheckpointDialog(TestCheckpoint ck)
     {
         var title = new TextBlock
         {
@@ -547,18 +564,43 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         };
         title.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
 
+        // 断点粒度是**温度点**：上次停在 T2 的 P3，续测从 T2 的 P0 重测，T2 下旧数据作废。
+        var tempNo = ck.TempIndex + 1;
+        var pressureText = ck.PressureIndex <= 0
+            ? "该温度点还没开始测压力点"
+            : $"已测到该温度点的第 {ck.PressureIndex} 个压力点";
+
         var summary = new TextBlock
         {
-            Text = $"方案：{ck.PlanName}\n温度点：T{ck.TempIndex + 1}\n压力点：P{ck.PressureIndex + 1}\n保存时间：{ck.SavedAt:yyyy-MM-dd HH:mm}",
+            Text = $"方案：{ck.PlanName}\n"
+                 + $"上次测到：温度点 T{tempNo}（{pressureText}）\n"
+                 + $"保存时间：{ck.SavedAt:yyyy-MM-dd HH:mm}",
             TextWrapping = TextWrapping.Wrap,
             FontSize = 12,
-            Margin = new Thickness(0, 0, 0, 12)
+            Margin = new Thickness(0, 0, 0, 10)
         };
         summary.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
 
+        var keptText = ck.TempIndex switch
+        {
+            <= 0 => "本次没有更早的温度点。",
+            1 => "T1 的数据保留。",
+            _ => $"T1 ~ T{ck.TempIndex} 的数据保留。",
+        };
+
+        var rule = new TextBlock
+        {
+            Text = $"续测规则：从温度点 T{tempNo} 的第一个压力点重新测，"
+                 + $"T{tempNo} 下已测的数据作废；{keptText}",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 12.5,
+            Margin = new Thickness(0, 0, 0, 14)
+        };
+        rule.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+
         var prompt = new TextBlock
         {
-            Text = "从未完成的温度点继续时，请输入本次继续保温时长：",
+            Text = $"请输入 T{tempNo} 重新测试前的保温时长：",
             FontSize = 13,
             Margin = new Thickness(0, 0, 0, 6)
         };
@@ -583,7 +625,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
 
         var hint = new TextBlock
         {
-            Text = "填 0 表示不再额外保温，直接从当前温度点的未完成压力点继续测试。",
+            Text = "填 0 表示不额外保温，直接重新测该温度点。",
             TextWrapping = TextWrapping.Wrap,
             FontSize = 12,
             Margin = new Thickness(0, 0, 0, 18)
@@ -607,7 +649,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         var panel = new StackPanel
         {
             Margin = new Thickness(22),
-            Children = { title, summary, prompt, inputRow, hint, buttons }
+            Children = { title, summary, rule, prompt, inputRow, hint, buttons }
         };
         panel.SetResourceReference(Panel.BackgroundProperty, "SurfaceBrush");
 
@@ -638,12 +680,191 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         return result;
     }
 
+    // ─── 测试完成提示窗 ─────────────────────────────────────────────────────
+    //
+    // 现场跑完一轮最关心三件事：跑完没有、什么时候开始的、一共用了多久。
+    // 状态栏那行小字不够醒目（人可能已经去干别的了），所以给一个带起止时间、
+    // 用时和工位统计的完成弹窗，并把数据目录直接摆出来。
+
+    /// <summary>把时长说成人话：40 秒 / 3 分 20 秒 / 2 小时 5 分。</summary>
+    private static string HumanDuration(TimeSpan d)
+    {
+        if (d.TotalHours >= 1) return $"{(int)d.TotalHours} 小时 {d.Minutes} 分 {d.Seconds} 秒";
+        if (d.TotalMinutes >= 1) return $"{d.Minutes} 分 {d.Seconds} 秒";
+        return $"{Math.Max(0, d.TotalSeconds):F0} 秒";
+    }
+
+    private static Border StatusChip(string text, string brushKey)
+    {
+        var tb = new TextBlock { Text = text, FontSize = 12.5, FontWeight = FontWeights.SemiBold };
+        tb.SetResourceReference(TextBlock.ForegroundProperty, brushKey);
+
+        var border = new Border
+        {
+            Child = tb,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(99),
+            Padding = new Thickness(10, 3, 10, 3),
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+        border.SetResourceReference(Border.BorderBrushProperty, brushKey);
+        return border;
+    }
+
+    /// <summary>测试跑完后的完成提示窗（自动测试 / 长期稳定性共用）。</summary>
+    internal void ShowRunFinishedDialog(DateTime startedAt, DateTime finishedAt)
+    {
+        var durationText = HumanDuration(finishedAt - startedAt);
+
+        var title = new TextBlock
+        {
+            Text = "✔ 测试完成",
+            FontSize = 19,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 3),
+        };
+        title.SetResourceReference(TextBlock.ForegroundProperty, "SuccessBrush");
+
+        var subtitle = new TextBlock
+        {
+            Text = _isLongTermStabilityMode ? "长期稳定性测试已跑完，设备已关闭。" : "自动测试已跑完，设备已关闭。",
+            FontSize = 12.5,
+            Margin = new Thickness(0, 0, 0, 14),
+        };
+        subtitle.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
+
+        var rows = new (string Key, string Value, bool Strong)[]
+        {
+            ("测试方案", PlanName ?? "-", false),
+            ("传感器型号", SensorType ?? "-", false),
+            ("启动时间", startedAt.ToString("yyyy-MM-dd HH:mm:ss"), false),
+            ("完成时间", finishedAt.ToString("yyyy-MM-dd HH:mm:ss"), false),
+            ("测试用时", durationText, true),
+            ("数据目录", AppPaths.DataDir, false),
+        };
+
+        var kv = new Grid { Margin = new Thickness(0, 0, 0, 14) };
+        kv.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(86) });
+        kv.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        for (var i = 0; i < rows.Length; i++) kv.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        for (var i = 0; i < rows.Length; i++)
+        {
+            var key = new TextBlock
+            {
+                Text = rows[i].Key,
+                FontSize = 12.5,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 2, 0, 2),
+            };
+            key.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
+            Grid.SetRow(key, i);
+            kv.Children.Add(key);
+
+            var value = new TextBlock
+            {
+                Text = rows[i].Value,
+                FontSize = rows[i].Strong ? 15.5 : 13,
+                FontWeight = rows[i].Strong ? FontWeights.SemiBold : FontWeights.Normal,
+                TextWrapping = TextWrapping.Wrap,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 2, 0, 2),
+            };
+            value.SetResourceReference(TextBlock.ForegroundProperty, rows[i].Strong ? "AccentBrush" : "TextBrush");
+            Grid.SetRow(value, i);
+            Grid.SetColumn(value, 1);
+            kv.Children.Add(value);
+        }
+
+        var chips = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 0, 0, 16),
+            Children =
+            {
+                StatusChip($"工位 {TotalSlots}", "MutedBrush"),
+                StatusChip($"合格 {OkCount:F0}", "SuccessBrush"),
+                StatusChip($"警告 {WarnCount:F0}", "WarnBrush"),
+                StatusChip($"异常 {ErrCount:F0}", "ErrorBrush"),
+            },
+        };
+
+        var openButton = new Button
+        {
+            Content = "打开数据目录",
+            MinHeight = 34,
+            Padding = new Thickness(14, 0, 14, 0),
+        };
+        openButton.SetResourceReference(FrameworkElement.StyleProperty, "GhostButton");
+
+        var okButton = new Button
+        {
+            Content = "确定",
+            Width = 96,
+            MinHeight = 34,
+            Margin = new Thickness(8, 0, 0, 0),
+            IsDefault = true,
+            IsCancel = true,
+        };
+        okButton.SetResourceReference(FrameworkElement.StyleProperty, "PrimaryButton");
+
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Children = { openButton, okButton },
+        };
+
+        var panel = new StackPanel
+        {
+            Margin = new Thickness(24),
+            Children = { title, subtitle, kv, chips, buttons },
+        };
+        panel.SetResourceReference(Panel.BackgroundProperty, "SurfaceBrush");
+
+        var window = new Window
+        {
+            Title = "测试完成",
+            Width = 470,
+            SizeToContent = SizeToContent.Height,
+            ResizeMode = ResizeMode.NoResize,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = Application.Current?.MainWindow,
+            Content = panel,
+            ShowInTaskbar = true,   // 人可能切去干别的了，任务栏要能看到
+        };
+        window.SetResourceReference(Control.BackgroundProperty, "SurfaceBrush");
+
+        openButton.Click += (_, _) =>
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(AppPaths.DataDir) { UseShellExecute = true }); }
+            catch (Exception ex) { AppLog.Warn("UI", "打开数据目录失败：" + ex.Message); }
+        };
+        okButton.Click += (_, _) => window.Close();
+        window.Loaded += (_, _) => okButton.Focus();
+
+        window.ShowDialog();
+        AppLog.Info("Run", $"测试完成弹窗已确认：{startedAt:HH:mm:ss} → {finishedAt:HH:mm:ss}，用时 {durationText}");
+    }
+
     private async Task RunAsync()
     {
         ClaimRunPage();
 
         // 先弹出"选择运行方案 + 工位"对话框；取消则直接放弃本次运行。
-        var resumePrompt = PromptResumeCheckpoint();
+        (bool Cancel, bool? Resume, int? ResumeSoakMinutes) resumePrompt;
+        if (SkipResumePrompt)
+        {
+            // 程序启动时已经问过「是否继续 + 保温多久」，这里不再重复打扰。
+            SkipResumePrompt = false;
+            resumePrompt = (false, true, PendingResumeSoakMinutes);
+            PendingResumeSoakMinutes = null;
+        }
+        else
+        {
+            resumePrompt = PromptResumeCheckpoint();
+        }
+
         if (resumePrompt.Cancel)
         {
             Status = "已取消（未启动）";
@@ -772,6 +993,8 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
             Status = "正在关闭设备…";
             await ShutdownGracefullyAsync(saveData: false);
             Status = "完成";
+            // 跑完给个明显的完成弹窗：起止时间 / 用时 / 工位统计 / 数据目录
+            ShowRunFinishedDialog(_startedAt ?? DateTime.Now, DateTime.Now);
         }
         catch (OperationCanceledException)
         {

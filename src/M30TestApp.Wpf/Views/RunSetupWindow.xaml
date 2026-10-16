@@ -93,7 +93,7 @@
             </DockPanel>
         </Border>
 
-        <TabControl Margin="10">
+        <TabControl x:Name="SetupTabs" Margin="10">
             <!-- ════════════════════════════════════════════════════════ -->
             <!-- Tab 1: 选择方案 -->
             <!-- ════════════════════════════════════════════════════════ -->
@@ -177,6 +177,7 @@
                                     </StackPanel>
                                     <CheckBox Content="从断点续测" IsChecked="{Binding ResumeFromCheckpoint}"
                                               Visibility="{Binding CanResumeCheckpoint, Converter={StaticResource BoolToVis}}"
+                                              ToolTip="续测以温度点为单位：从上次未测完的那个温度点的第一个压力点重新测，该温度点已测的数据作废，更早温度点的数据保留"
                                               Margin="0,6,0,0"/>
                                     <TextBlock Text="{Binding CheckpointSummary}" TextWrapping="Wrap" FontSize="11"
                                                Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,0"
@@ -414,7 +415,7 @@
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="选择测试工位" FontWeight="SemiBold" FontSize="12.5"
                                                Foreground="{DynamicResource AccentBrush}" Margin="0,0,8,0"/>
-                                    <TextBlock Text="可不连续；留空则按上面的连续范围生成"
+                                    <TextBlock Text="可不连续（如 1-8,10-16）；或直接在下面的格子上按住左键拖动 —— 从 1 拖到 9 就选中 1-9"
                                                Foreground="{DynamicResource MutedBrush}" FontSize="11.5"
                                                VerticalAlignment="Center"/>
                                 </StackPanel>
@@ -458,8 +459,9 @@
                             </WrapPanel>
 
                             <!-- 勾选格：数量跟「所需工位」走（选了 80 就有 1..80）。
-                                 超过一屏高时自己滚动，不再把下面的表格挤掉。 -->
-                            <ScrollViewer MaxHeight="78" VerticalScrollBarVisibility="Auto"
+                                 按住左键拖动 = 连续勾选（1 拖到 9 就是 1-9）；
+                                 高度给到三行左右，太矮了拖起来容易出界。 -->
+                            <ScrollViewer MaxHeight="132" VerticalScrollBarVisibility="Auto"
                                           HorizontalScrollBarVisibility="Disabled" Margin="0,2,0,0">
                                 <ItemsControl ItemsSource="{Binding SlotToggles}"
                                               Background="Transparent"

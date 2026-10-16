@@ -87,6 +87,18 @@
                         <TextBlock Text="{Binding StationTitle, StringFormat=工位 · {0}}"
                                    Style="{StaticResource BannerChipText}"/>
                     </Border>
+                    <!-- 设备后端徽标：一眼看出现在跑的是真机还是 SIM 模拟，
+                         避免没接设备却按真机跑、报一串 HRESULT 还不知道为什么 -->
+                    <Border Style="{StaticResource BannerChip}" Margin="5,0,0,0"
+                            ToolTip="在「配置 → 系统设置 → 行为」里勾选/取消「使用 SIM 模拟设备」切换">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="7" Height="7"
+                                     Fill="{Binding DeviceModeLed}"
+                                     VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBlock Text="{Binding DeviceModeText}" FontSize="10.5" FontWeight="Bold"
+                                       Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
@@ -135,6 +147,13 @@
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
             <DockPanel LastChildFill="False">
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Stretch">
+                    <!-- 方案：现场用得最多，单独提到最前面（原来是配置中心里的一节） -->
+                    <RadioButton Style="{StaticResource NavTab}"
+                                 Content="方案"
+                                 Command="{Binding ShowConfigPlanCommand}"
+                                 IsChecked="{Binding IsTabPlan, Mode=OneWay}"
+                                 ToolTip="温度点 / 压力点 / 判定限值编辑"/>
+                    <Rectangle Width="1" Fill="{DynamicResource DividerBrush}" Margin="7,8"/>
                     <!-- 测试族：三个本来独立的视图，v2 被降级到命令条当二级单选 -->
                     <RadioButton Style="{StaticResource NavTab}"
                                  Content="{DynamicResource Nav.TestRun}"

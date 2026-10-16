@@ -516,9 +516,27 @@ public sealed class RunSetupViewModel : ViewModelBase
         foreach (var r in want) SlotQuickRanges.Add(r);
     }
 
+    /// <summary>
+    /// 拖动批量勾选：按下时开，松手时关。
+    ///
+    /// 拖动过程中每次 IsSelected 变化都重建预览表的话，从 1 拖到 9 就是 9 次全表重建，
+    /// 手感直接卡住。批量模式下只记账，松手时统一重建一次。
+    /// </summary>
+    private bool _slotBatch;
+
+    public void BeginSlotBatch() => _slotBatch = true;
+
+    public void EndSlotBatch()
+    {
+        if (!_slotBatch) return;
+        _slotBatch = false;
+        SetSlotSelection(_selectedSlots.ToList());
+    }
+
     private void OnSlotToggleChanged(int no, bool on)
     {
         if (on) _selectedSlots.Add(no); else _selectedSlots.Remove(no);
+        if (_slotBatch) return;   // 拖动中：先记账，松手时一次重建
         SetSlotSelection(_selectedSlots.ToList());
     }
 
@@ -949,11 +967,18 @@ public sealed class RunSetupViewModel : ViewModelBase
         _checkpoint = ck;
         CanResumeCheckpoint = true;
         ResumeFromCheckpoint = true;
-        CheckpointSummary =
-            $"方案 {ck.PlanName}：温度点 {ck.TempIndex + 1}，压力点 {ck.PressureIndex + 1}，保存于 {ck.SavedAt:yyyy-MM-dd HH:mm}";
+        CheckpointSummary = CheckpointText(ck);
         OnPropertyChanged(nameof(CanResumeCheckpoint));
         OnPropertyChanged(nameof(CheckpointSummary));
     }
+
+    /// <summary>
+    /// 断点摘要文案。断点粒度是**温度点** —— 续测从该温度点的第一个压力点重测，
+    /// 该温度点已测的数据作废，所以这里只报温度点，不再报压力点进度。
+    /// </summary>
+    private static string CheckpointText(TestCheckpoint ck) =>
+        $"方案 {ck.PlanName}：从温度点 T{ck.TempIndex + 1} 重新测（该温度点已测数据作废），"
+        + $"保存于 {ck.SavedAt:MM-dd HH:mm}";
 
     private void UpdateCheckpointState(bool defaultResume = false)
     {
@@ -969,8 +994,7 @@ public sealed class RunSetupViewModel : ViewModelBase
         {
             if (defaultResume || !ResumeFromCheckpoint)
                 ResumeFromCheckpoint = true;
-            CheckpointSummary =
-                $"方案 {ck!.PlanName}，温度点 {ck.TempIndex + 1}，压力点 {ck.PressureIndex + 1}，保存于 {ck.SavedAt:yyyy-MM-dd HH:mm}";
+            CheckpointSummary = CheckpointText(ck!);
         }
 
         OnPropertyChanged(nameof(CanResumeCheckpoint));

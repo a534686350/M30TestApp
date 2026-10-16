@@ -190,11 +190,21 @@ public partial class RunSetupWindow : Window
 
     // ─── 工位勾选格：按住拖动连续勾选（手感接近 Excel 刷选） ────────────────
 
+    private ItemsControl? _slotToggleHost;
+
     /// <summary>按下时以「该格的反值」为目标，拖动经过的格子统一设成它。</summary>
     private void OnSlotToggleMouseDown(object sender, MouseButtonEventArgs e)
     {
         var vm = FindSlotToggle(e.OriginalSource);
         if (vm is null) return;
+
+        // 捕获鼠标：拖到格子外面（格子间空隙、区域边缘）也不断线。
+        // 不捕获的话，从 1 拖到 9 途中手一抖出界，后面几个格子就漏选了。
+        _slotToggleHost = sender as ItemsControl;
+        _slotToggleHost?.CaptureMouse();
+
+        if (DataContext is RunSetupViewModel host) host.BeginSlotBatch();
+
         _slotDragActive = true;
         _slotDragValue = !vm.IsSelected;
         vm.IsSelected = _slotDragValue;
@@ -203,13 +213,57 @@ public partial class RunSetupWindow : Window
 
     private void OnSlotToggleMouseMove(object sender, MouseEventArgs e)
     {
-        if (!_slotDragActive || e.LeftButton != MouseButtonState.Pressed) return;
-        var vm = FindSlotToggle(e.OriginalSource);
+        if (!_slotDragActive) return;
+        if (e.LeftButton != MouseButtonState.Pressed)
+        {
+            EndSlotDrag();
+            return;
+        }
+
+        // 用命中测试而不是 e.OriginalSource：鼠标快速划过时中间的格子收不到 MouseMove，
+        // 只有鼠标最后停下的那个会报事件 —— 快速拖 1→9 会漏掉中间几个。
+        var vm = HitTestSlotToggle(e.GetPosition(_slotToggleHost ?? (IInputElement)sender));
         if (vm is not null && vm.IsSelected != _slotDragValue)
             vm.IsSelected = _slotDragValue;
     }
 
-    private void OnSlotToggleMouseUp(object sender, MouseButtonEventArgs e) => _slotDragActive = false;
+    private void OnSlotToggleMouseUp(object sender, MouseButtonEventArgs e) => EndSlotDrag();
+
+    private void EndSlotDrag()
+    {
+        if (!_slotDragActive && _slotToggleHost is null) return;
+
+        _slotDragActive = false;
+        if (_slotToggleHost is not null)
+        {
+            _slotToggleHost.ReleaseMouseCapture();
+            _slotToggleHost = null;
+        }
+
+        if (DataContext is RunSetupViewModel host) host.EndSlotBatch();
+    }
+
+    /// <summary>在勾选格区域内做命中测试，返回鼠标正下方的格子（没命中返回 null）。</summary>
+    private SlotToggleVm? HitTestSlotToggle(Point point)
+    {
+        if (_slotToggleHost is null) return null;
+
+        SlotToggleVm? hit = null;
+        VisualTreeHelper.HitTest(
+            _slotToggleHost,
+            null,
+            result =>
+            {
+                if (result.VisualHit is FrameworkElement fe && fe.DataContext is SlotToggleVm vm)
+                {
+                    hit = vm;
+                    return HitTestResultBehavior.Stop;
+                }
+                return HitTestResultBehavior.Continue;
+            },
+            new PointHitTestParameters(point));
+        return hit;
+    }
 
     private static SlotToggleVm? FindSlotToggle(object? source)
     {

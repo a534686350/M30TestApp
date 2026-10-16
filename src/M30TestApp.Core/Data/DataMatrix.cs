@@ -120,6 +120,27 @@ public sealed class DataMatrix
         _rows.Clear();
     }
 
+    /// <summary>
+    /// 按条件批量删列，返回真正删掉的列名。
+    ///
+    /// 用途：断点续测时丢弃「未完成温度点」已测的数据（那个温度重新保温过，
+    /// 之前采的值和续测后的不连续，留着会污染指标计算）。
+    /// 行本身不动，只是把命中的列从每个工位摘掉。
+    /// </summary>
+    public IReadOnlyList<string> RemoveColumnsWhere(Func<string, bool> predicate)
+    {
+        var removed = new List<string>();
+        foreach (var row in _rows.Values)
+        {
+            foreach (var key in row.Keys.ToArray())
+            {
+                if (predicate(key) && row.TryRemove(key, out _))
+                    removed.Add(key);
+            }
+        }
+        return removed.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
     /// <summary>Extract numeric suffix for natural sorting: "Slot2" → (Slot, 2).</summary>
     private static (string prefix, int number) NaturalSortKey(string s)
     {

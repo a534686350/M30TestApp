@@ -86,6 +86,12 @@ public sealed class TaskContext
     /// <summary>Optional soak time override for the resumed temperature point.</summary>
     public int? ResumeSoakMinutesOverride { get; set; }
 
+    /// <summary>
+    /// 当前硬件初始化/通讯失败时请求整体切换到 SIM 并重试。
+    /// 返回 true 表示已经切换，调用方可重跑初始化；false 表示不允许切换。
+    /// </summary>
+    public Func<bool>? TryUseSimulation { get; set; }
+
     public Func<CancellationToken, Task>? PauseWaiter { get; set; }
 
     /// <summary>

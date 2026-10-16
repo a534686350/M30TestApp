@@ -132,5 +132,271 @@ public partial class App : Application
         var win = new MainWindow { DataContext = mainVm };
         win.Show();
 
+        // ── 启动续测检测 ────────────────────────────────────────────────────
+        // 程序一打开就找上次没测完的断点，问「是否继续」并让用户填重新保温多久。
+        // 延后 1.2 秒：主窗口先画出来，否则模态框会抢在界面渲染之前弹，看着像卡死。
+        // 纯界面截图的两个参数跳过（否则截图会被对话框挡住）；--shot-resume 专门验弹窗，不跳过。
+        var isPlainShot = e.Args.Contains("--shot-config-system") || e.Args.Contains("--shot-run-setup");
+        if (!isPlainShot)
+        {
+            var resumeTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(1200),
+            };
+            resumeTimer.Tick += (_, _) =>
+            {
+                resumeTimer.Stop();
+                mainVm.PromptPendingResumeOnStartup();
+            };
+            resumeTimer.Start();
+        }
+
+        // ── 开发用自检钩子：带参数启动时，自动切到目标界面 → 渲染成 PNG 存到程序目录 → 退出。
+        //    给「改完界面自己看一眼」用；不带参数正常运行完全不触发，对现场无影响。
+        //      --shot-config-system  配置中心 / 系统设置（上报设备 ID）
+        //      --shot-run-setup      选择运行方案窗口 / 工位页签（勾选格拖动选择）
+        //      --shot-resume         启动续测弹窗（需先放好 data/checkpoint.json）
+        //      --shot-finish         测试完成弹窗
+        //      --shot-matrix         测试页多列矩阵（验横向滚动条）
+        //      --shot-slots          顶部「工位」页（验表格）
+        if (e.Args.Contains("--shot-finish"))
+        {
+            var run = mainVm.TestRun;
+            for (var i = 1; i <= 16; i++)
+                run.Rows.Add(new M30TestApp.Wpf.ViewModels.MatrixRowVm($"Slot{i}", $"260826_01#{i}"));
+            run.OkCount = 14;
+            run.WarnCount = 1;
+            run.ErrCount = 1;
+
+            var finishTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(1),
+            };
+            finishTimer.Tick += (_, _) =>
+            {
+                finishTimer.Stop();
+                run.ShowRunFinishedDialog(DateTime.Now.AddSeconds(-40), DateTime.Now);
+            };
+            finishTimer.Start();
+
+            var finishShotTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(5),
+            };
+            finishShotTimer.Tick += (_, _) =>
+            {
+                finishShotTimer.Stop();
+                var dlg = Windows.OfType<Window>().FirstOrDefault(w => w.Title == "测试完成");
+                if (dlg is not null)
+                {
+                    SaveWindowPng(dlg, "shot-finish-dialog.png");
+                    dlg.Close();
+                }
+                else
+                {
+                    AppLog.Warn("Shot", "没等到完成弹窗");
+                }
+                Shutdown();
+            };
+            finishShotTimer.Start();
+        }
+
+        if (e.Args.Contains("--shot-resume"))
+        {
+            var dlgTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(6),
+            };
+            dlgTimer.Tick += (_, _) =>
+            {
+                dlgTimer.Stop();
+                var dlg = Windows.OfType<Window>().FirstOrDefault(w => w.Title == "未完成测试");
+                if (dlg is not null)
+                {
+                    SaveWindowPng(dlg, "shot-resume-dialog.png");
+                    dlg.Close();
+                }
+                else
+                {
+                    AppLog.Warn("Shot", "没等到续测弹窗（断点文件可能不匹配当前方案）");
+                }
+                Shutdown();
+            };
+            dlgTimer.Start();
+        }
+
+        if (e.Args.Contains("--shot-longterm"))
+        {
+            // 自动跑一次长期稳定性测试（SIM），验证无设备时整条链路通不通：
+            // 开 SIM → 把保温压到 0 → 开始测试 → 自动确认方案窗口。
+            var warm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            warm.Tick += (_, _) =>
+            {
+                warm.Stop();
+                mainVm.Settings.DebugMode = true;                 // 开 SIM 并重建设备
+                foreach (var tp in mainVm.Session.Plan.TempPoints) tp.SoakMinutes = 0;   // 不等保温
+                mainVm.TestMode = "LongTerm";
+                mainVm.CurrentView = mainVm.TestModeView;
+                mainVm.SelectedNavKey = "Test";
+            };
+            warm.Start();
+
+            var startTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+            startTimer.Tick += (_, _) =>
+            {
+                startTimer.Stop();
+                if (mainVm.StartSelectedRunCommand.CanExecute(null))
+                    mainVm.StartSelectedRunCommand.Execute(null);
+            };
+            startTimer.Start();
+
+            // 方案窗口弹出来后自动点「确定」
+            var confirmTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(1),
+            };
+            confirmTimer.Tick += (_, _) =>
+            {
+                var dlg = Windows.OfType<M30TestApp.Wpf.Views.RunSetupWindow>().FirstOrDefault();
+                if (dlg is null || dlg.DataContext is not M30TestApp.Wpf.ViewModels.RunSetupViewModel vm)
+                    return;
+                confirmTimer.Stop();
+                vm.ApplyCommand.Execute(null);
+            };
+            confirmTimer.Start();
+
+            var stopTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(35),
+            };
+            stopTimer.Tick += (_, _) =>
+            {
+                stopTimer.Stop();
+                confirmTimer.Stop();
+                SaveWindowPng(win, "shot-longterm.png");
+                Shutdown();
+            };
+            stopTimer.Start();
+        }
+
+        if (e.Args.Contains("--shot-config-plan"))
+        {
+            win.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                mainVm.Config.SelectedSection = "方案";
+                mainVm.CurrentView = mainVm.Config;
+                mainVm.SelectedNavKey = "Settings";
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+            ShotAndExit(win, "shot-config-plan.png");
+        }
+
+        if (e.Args.Contains("--shot-station"))
+        {
+            // 自动输管理员密码解锁上报区（自检专用，不写任何凭据）
+            mainVm.Settings.TryUnlockStation(M30TestApp.Wpf.ViewModels.SettingsViewModel.DefaultAdminPassword);
+            win.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                mainVm.Config.SelectedSection = "系统设置";
+                mainVm.CurrentView = mainVm.Config;
+                mainVm.SelectedNavKey = "Settings";
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+            ShotAndExit(win, "shot-station.png");
+        }
+
+        if (e.Args.Contains("--shot-config-system"))
+        {
+            win.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                mainVm.Config.SelectedSection = "系统设置";
+                mainVm.CurrentView = mainVm.Config;
+                mainVm.SelectedNavKey = "Settings";
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+
+            ShotAndExit(win, "shot-config-system.png");
+        }
+
+        if (e.Args.Contains("--shot-matrix"))
+        {
+            var run = mainVm.TestRun;
+            for (var i = 1; i <= 16; i++)
+                run.Rows.Add(new M30TestApp.Wpf.ViewModels.MatrixRowVm($"Slot{i}", $"260826_01#{i}"));
+            for (var t = 1; t <= 3; t++)
+                for (var p = 0; p <= 5; p++)
+                    run.MatrixColumns.Add(new M30TestApp.Wpf.ViewModels.MatrixColumnVm(
+                        $"T{t}P{p}USG", $"T{t}P{p}USG"));
+
+            win.Dispatcher.BeginInvoke(new Action(() => mainVm.ShowTestCenterCommand.Execute(null)),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+            ShotAndExit(win, "shot-matrix.png");
+        }
+
+        if (e.Args.Contains("--shot-slots"))
+        {
+            win.Dispatcher.BeginInvoke(new Action(() => mainVm.ShowSlotsCommand.Execute(null)),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+            ShotAndExit(win, "shot-slots.png");
+        }
+
+        if (e.Args.Contains("--shot-run-setup"))
+        {
+            var setupVm = new M30TestApp.Wpf.ViewModels.RunSetupViewModel(session, false);
+            var setupWin = new M30TestApp.Wpf.Views.RunSetupWindow(setupVm)
+            {
+                Owner = win,
+            };
+            setupWin.Show();
+            setupWin.Dispatcher.BeginInvoke(new Action(() => setupWin.SetupTabs.SelectedIndex = 1),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+            ShotAndExit(setupWin, "shot-run-setup.png");
+        }
+    }
+
+    /// <summary>开发用：把窗口渲染成 PNG 后退出（配合上面的 --shot-* 参数）。</summary>
+    private static void ShotAndExit(System.Windows.Window win, string fileName)
+    {
+        var timer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(7),
+        };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            // 先把窗口拉到足够大，避免页签内容超出窗口被截掉（截图只是自检用）
+            if (win.WindowState == System.Windows.WindowState.Maximized)
+                win.WindowState = System.Windows.WindowState.Normal;
+            win.Width = Math.Max(win.ActualWidth, 1500);
+            win.Height = Math.Max(win.ActualHeight, 1240);
+            win.UpdateLayout();
+            SaveWindowPng(win, fileName);
+            win.Close();
+            System.Windows.Application.Current?.Shutdown();
+        };
+        timer.Start();
+    }
+
+    /// <summary>把窗口渲染成 PNG 存到程序目录（开发自检用，失败只记日志不抛）。</summary>
+    private static void SaveWindowPng(System.Windows.Window win, string fileName)
+    {
+        try
+        {
+            var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(win);
+            var bmp = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                (int)(win.ActualWidth * dpi.DpiScaleX),
+                (int)(win.ActualHeight * dpi.DpiScaleY),
+                96 * dpi.DpiScaleX, 96 * dpi.DpiScaleY,
+                System.Windows.Media.PixelFormats.Pbgra32);
+            bmp.Render(win);
+
+            var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bmp));
+
+            var path = System.IO.Path.Combine(M30TestApp.Core.Common.AppPaths.BaseDir, fileName);
+            using (var fs = System.IO.File.Create(path)) enc.Save(fs);
+            M30TestApp.Core.Common.AppLog.Info("Shot", "saved " + path);
+        }
+        catch (Exception ex)
+        {
+            M30TestApp.Core.Common.AppLog.Error("Shot", ex.Message);
+        }
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -160,6 +161,67 @@ public partial class ConfigView : UserControl
 
     private void OnSlotGridLoadingRow(object sender, DataGridRowEventArgs e)
         => e.Row.Header = (e.Row.GetIndex() + 1).ToString();
+
+    // ─── 上报设备 ID（站点标识）管理员锁 ────────────────────────────────────
+    //
+    // 站点标识 = 本机在总控制台上的身份，被随手改掉会让控制台把两台设备当成一台，
+    // 所以默认锁住，要改先输管理员密码（默认 123..00）。
+    // PasswordBox 出于安全设计不支持绑定，只能在 code-behind 里取值校验。
+    private void OnStationUnlockClick(object sender, RoutedEventArgs e) => TryUnlockStation();
+
+    private void OnStationPasswordKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter && e.Key != Key.Return) return;
+        e.Handled = true;
+        TryUnlockStation();
+    }
+
+    private void TryUnlockStation()
+    {
+        if (DataContext is not ConfigViewModel vm || vm.Settings is null) return;
+
+        if (vm.Settings.TryUnlockStation(StationPasswordBox.Password))
+        {
+            StationPasswordBox.Clear();
+            return;
+        }
+
+        var owner = Window.GetWindow(this);
+        const string message = "管理员密码不正确，站点标识保持锁定。";
+        if (owner is not null)
+            MessageBox.Show(owner, message, "上报设备 ID", MessageBoxButton.OK, MessageBoxImage.Warning);
+        else
+            MessageBox.Show(message, "上报设备 ID", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+        StationPasswordBox.SelectAll();
+        StationPasswordBox.Focus();
+    }
+
+    /// <summary>「打开在线工作台」：在默认浏览器打开总控制台（地址程序内置）。</summary>
+    private void OnOpenStationHubClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ConfigViewModel vm || vm.Settings is null) return;
+
+        var url = vm.Settings.StationHubUrl?.Trim();
+        if (string.IsNullOrEmpty(url))
+        {
+            M30TestApp.Core.Common.AppLog.Warn("Settings", "控制台地址为空，无法打开在线工作台");
+            return;
+        }
+
+        if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            url = "http://" + url;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            M30TestApp.Core.Common.AppLog.Warn("Settings", "打开在线工作台失败：" + ex.Message);
+        }
+    }
 
     private void OnBarcodeKeyDown(object sender, KeyEventArgs e)
     {

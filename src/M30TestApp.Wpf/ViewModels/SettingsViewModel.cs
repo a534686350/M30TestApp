@@ -173,6 +173,11 @@ public sealed class SettingsViewModel : ViewModelBase
 
         _station = StationConfig.Load(session.Context.Settings);
         SaveStationCommand = new RelayCommand(_ => SaveStation());
+        LockStationCommand = new RelayCommand(_ =>
+        {
+            StationUnlocked = false;
+            UpdateStatus = "站点标识已重新锁定。";
+        });
     }
 
     // ─── 站点标识（总控制台上报） ───────────────────────────────────────────
@@ -182,6 +187,61 @@ public sealed class SettingsViewModel : ViewModelBase
 
     private StationConfig _station;
     private StationReporter? _reporter;
+
+    // ─── 管理员锁 ───────────────────────────────────────────────────────────
+    //
+    // 站点标识 = 本机在总控制台上的身份，被随手改掉会让控制台把两台设备当成一台。
+    // 所以默认锁住，要改先输管理员密码（默认 123..00，可在 Setting.ini 的
+    // [Station] AdminPassword 里改）。解锁只在本次运行有效，重启自动上锁。
+
+    /// <summary>出厂管理员密码。可在 Setting.ini <c>[Station] AdminPassword</c> 覆盖。</summary>
+    public const string DefaultAdminPassword = "123..00";
+
+    private bool _stationUnlocked;
+
+    /// <summary>站点标识是否已解锁（只存内存，不落盘）。</summary>
+    public bool StationUnlocked
+    {
+        get => _stationUnlocked;
+        private set
+        {
+            if (!SetField(ref _stationUnlocked, value)) return;
+            OnPropertyChanged(nameof(StationLocked));
+            OnPropertyChanged(nameof(StationLockBadge));
+            OnPropertyChanged(nameof(StationLockHint));
+        }
+    }
+
+    /// <summary>未解锁 = true（XAML 里用它控制密码区 / 编辑区互斥显示）。</summary>
+    public bool StationLocked => !_stationUnlocked;
+
+    /// <summary>标题右边那个小徽标：锁定时只露状态，不露内容。</summary>
+    public string StationLockBadge => _stationUnlocked ? "已解锁" : "已锁定";
+
+    public string StationLockHint => _stationUnlocked
+        ? "已解锁：可修改站点 ID、昵称和上报参数。重启程序后自动重新上锁。"
+        : "上报功能已隐藏。站点 ID 为空时程序会按本机自动分配；输入管理员密码后可修改 ID、昵称和上报参数。";
+
+    /// <summary>校验管理员密码，正确则解锁本次会话。</summary>
+    public bool TryUnlockStation(string? password)
+    {
+        var expect = _session.Context.Settings.Get(StationConfig.Section, "AdminPassword", DefaultAdminPassword);
+        if (string.IsNullOrWhiteSpace(expect)) expect = DefaultAdminPassword;
+
+        if (!string.Equals((password ?? "").Trim(), expect.Trim(), StringComparison.Ordinal))
+        {
+            UpdateStatus = "管理员密码错误，站点标识保持锁定。";
+            AppLog.Warn("Settings", "站点标识解锁失败：管理员密码错误");
+            return false;
+        }
+
+        StationUnlocked = true;
+        UpdateStatus = "站点标识已解锁，可以修改。";
+        AppLog.Info("Settings", "站点标识已解锁");
+        return true;
+    }
+
+    public RelayCommand LockStationCommand { get; }
 
     /// <summary>上报器（由 MainViewModel 注入；本页只负责改配置和显示状态）。</summary>
     public StationReporter? Reporter
@@ -252,22 +312,46 @@ public sealed class SettingsViewModel : ViewModelBase
 
     private void SaveStation()
     {
+        if (!StationUnlocked)
+        {
+            UpdateStatus = "站点标识已锁定：请先输入管理员密码解锁。";
+            return;
+        }
+
+        if (!PersistStation()) return;
+
+        _session.Context.Settings.Save(AppPaths.SettingIni);
+        UpdateStatus = _station.IsReady
+            ? $"站点标识已保存：{_station.Id} → {_station.HubUrl}"
+            : "站点标识已保存（未启用上报）。";
+        AppLog.Info("Settings", UpdateStatus);
+    }
+
+    /// <summary>
+    /// 把「站点标识」写进 Setting.ini 的**内存副本**并立即重启上报（不写盘、不动状态文字）。
+    ///
+    /// 配置中心底部那个「保存」也要调这里：站点字段与配置页共用同一份 Setting.ini，
+    /// 不一起写的话，用户在「配置 → 系统设置」改完站点、顺手点底部保存，会以为已经存下了。
+    /// </summary>
+    /// <returns>成功 true；失败 false（已记日志，不抛）。</returns>
+    public bool PersistStation()
+    {
+        // 锁定时不碰站点配置：配置页底部那个「保存」会调到这里，
+        // 不解锁就直接返回 true（不打断整条保存链路），站点段落保持原样。
+        if (!StationUnlocked) return true;
+
         try
         {
             _station.SaveTo(_session.Context.Settings);
-            _session.Context.Settings.Save(AppPaths.SettingIni);
             _reporter?.Apply(_station);
-            UpdateStatus = _station.IsReady
-                ? $"站点标识已保存：{_station.Id} → {_station.HubUrl}"
-                : "站点标识已保存（未启用上报）。";
-            AppLog.Info("Settings", UpdateStatus);
             OnPropertyChanged(nameof(StationSummary));
             OnPropertyChanged(nameof(StationStatusText));
+            return true;
         }
         catch (Exception ex)
         {
-            UpdateStatus = "保存站点标识失败：" + ex.Message;
-            AppLog.Error("Settings", UpdateStatus);
+            AppLog.Error("Settings", "保存站点标识失败：" + ex.Message);
+            return false;
         }
     }
 

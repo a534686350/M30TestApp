@@ -366,7 +366,14 @@ public sealed class RunPerformanceTestAction : IAction
     {
         var resume = ctx.ResumeCheckpoint;
         var startTi = resume?.TempIndex ?? 0;
-        var startPi = resume?.PressureIndex ?? 0;
+
+        // 续测粒度 = **温度点**。
+        //
+        // 现场规则：断点只按温度点算。上次测到 T2 的 P3（P0~P2 都测过了），续测时
+        // 仍然从 T2 的第一个压力点重新测 —— 因为重新保温后温度环境已经变了，
+        // T2 下之前采的那几个压力点跟续测后的不连续，留着会污染指标计算。
+        // 但 T1 及更早温度点的数据完整保留。
+        var startPi = 0;
         var leakDone = resume?.LeakCheckDone ?? false;
 
         if (resume is null)
@@ -378,7 +385,9 @@ public sealed class RunPerformanceTestAction : IAction
         else
         {
             TestCheckpoint.RestoreMatrix(ctx, resume);
-            AppLog.Info("Run", $"续测：从温度点 #{startTi + 1}、压力点 #{startPi + 1} 继续");
+            DiscardTempPointData(ctx, startTi, resume.PressureIndex);
+            AppLog.Info("Run",
+                $"续测：从温度点 #{startTi + 1} 重新开始（该温度点已测数据作废，更早温度点的数据保留）");
         }
 
         AppLog.Info("Run", $"开始完整性能测试：方案={ctx.Plan.Name}，传感器={ctx.Plan.SensorType}，工位数={ctx.Slots.Entries.Count}");
@@ -536,8 +545,69 @@ public sealed class RunPerformanceTestAction : IAction
         }
     }
 
+    // ── 续测：丢掉未完成温度点已测的数据 ────────────────────────────────────
+    /// <summary>
+    /// 续测时把「当前温度点」已测的全部数据作废，让该温度点从第一个压力点重来。
+    ///
+    /// 现场规则：断点以温度点为单位。上次测到 T2 的 P3，续测从 T2 的 P0 重测，
+    /// T2 下原来采的 P0~P2 全部丢弃（温度重新保温过，之前的数据与续测后的不连续，
+    /// 留着会污染 Offset/Span/回差这些跨压力点的指标）；T1 及更早温度点原样保留。
+    ///
+    /// 列名匹配要留意：矩阵里的 key 是 sanitize 过的（冒号、空格、℃ 都换成下划线，
+    /// 例如 <c>T2: 25℃P3: 50kPa_USG</c> → <c>T2__25_P3__50kPa_USG</c>），
+    /// 而 <c>ctx.Columns</c> 里存的是原始名，所以两边各按各的前缀判断。
+    /// </summary>
+    private static void DiscardTempPointData(TaskContext ctx, int tempIndex, int lastPressureIndex)
+    {
+        if (tempIndex < 0 || tempIndex >= ctx.Plan.TempPoints.Count) return;
+
+        var tempName = ctx.Plan.TempPoints[tempIndex].Name;
+        if (string.IsNullOrWhiteSpace(tempName)) return;
+
+        var dropped = ctx.Matrix.RemoveColumnsWhere(c => ColumnBelongsToTemp(c, tempName));
+        var before = ctx.Columns.Count;
+        ctx.Columns.RemoveAll(c => ColumnBelongsToTemp(c, tempName));
+
+        AppLog.Info("Run",
+            $"续测：作废温度点 {tempName} 的数据 —— 矩阵 {dropped.Count} 列、" +
+            $"列清单 {before - ctx.Columns.Count} 项" +
+            $"（上次停在该温度点第 {lastPressureIndex} 个压力点，本次从第 1 个压力点重测）");
+    }
+
+    private static bool ColumnBelongsToTemp(string column, string tempName) =>
+        column.StartsWith(tempName + "_", StringComparison.OrdinalIgnoreCase) ||
+        column.StartsWith(tempName + ":", StringComparison.OrdinalIgnoreCase);
+
     // ── 初始化设备：测试本轮用到的设备是否可连接 ───────────────────────────
+    /// <summary>
+    /// 没接设备时的排查提示。VISA / 串口失败只丢一个 HRESULT，现场看不出该怎么办，
+    /// 这里把"切 SIM"的路直接写在错误里。
+    /// </summary>
+    internal static string SimulationHint(TaskContext ctx)
+    {
+        if (ctx.Settings is not null && AppPreferences.DebugMode(ctx.Settings))
+            return "";
+        return "（若本次未连接真实设备，请到「配置 → 系统设置 → 行为」勾选「使用 SIM 模拟设备」后再开始测试）";
+    }
+
     internal static async Task InitDevicesAsync(TaskContext ctx, CancellationToken ct)
+    {
+        try
+        {
+            await InitDevicesCoreAsync(ctx, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (!AppPreferences.DebugMode(ctx.Settings))
+        {
+            // 真机连不上：保留原始错误，但补一句人话，别让现场对着一串 HRESULT 发懵
+            throw new InvalidOperationException($"{ex.Message}{SimulationHint(ctx)}", ex);
+        }
+    }
+
+    private static async Task InitDevicesCoreAsync(TaskContext ctx, CancellationToken ct)
     {
         AppLog.Info("Init", "正在初始化本轮测试需要的设备…");
 
@@ -1173,7 +1243,17 @@ public sealed class RunPerformanceTestAction : IAction
         var lastError = "";
 
         // 自动切换压力类型（绝压/表压/差压）
-        await ctx.Pressure.SetPressureTypeAsync(pp.PressureType, ct);
+        try
+        {
+            await ctx.Pressure.SetPressureTypeAsync(pp.PressureType, ct);
+        }
+        catch (Exception ex)
+        {
+            // 这一段在重试循环外，真机连不上时是第一个炸点，必须带上排查提示
+            throw new InvalidOperationException(
+                $"压力控制器 {ctx.Pressure.Model}@{ctx.Pressure.Address} 通讯失败：{ex.Message}{SimulationHint(ctx)}",
+                ex);
+        }
         AppLog.Info("Pressure",
             $"压力类型切换为 {pp.PressureType} ({pp.PressureTypeDisplay})，" +
             $"稳定条件：连续{requiredSamples}次、间隔{sampleMs}ms、允许差值±{tolerance:G6}{ctx.Plan.PressureUnit}");

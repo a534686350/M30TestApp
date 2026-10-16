@@ -187,6 +187,64 @@ public sealed partial class ConfigViewModel : ViewModelBase
     private bool _fallbackSimOnDisconnect;
     public bool FallbackSimOnDisconnect { get => _fallbackSimOnDisconnect; set => SetField(ref _fallbackSimOnDisconnect, value); }
 
+    // ── 阻止 Windows 自动更新 ────────────────────────────────────────────
+    //
+    // 现场一跑就是几小时甚至几天，被系统更新重启一次整批数据就废了。
+    // 勾上 = 注册表关自动更新 + 禁止自动重启 + 停用 wuauserv/UsoSvc（要管理员权限）。
+
+    private bool _blockSystemUpdate;
+    public bool BlockSystemUpdate
+    {
+        get => _blockSystemUpdate;
+        set
+        {
+            if (!SetField(ref _blockSystemUpdate, value)) return;
+            ApplyBlockSystemUpdate(value);
+        }
+    }
+
+    private string _systemUpdateStatus = "";
+    public string SystemUpdateStatus { get => _systemUpdateStatus; set => SetField(ref _systemUpdateStatus, value); }
+
+    /// <summary>加载时读一次真实状态，勾选框反映系统现状而不是空口白话。</summary>
+    public void RefreshSystemUpdateStatus()
+    {
+        _blockSystemUpdate = WindowsUpdateGuard.IsBlocked();
+        OnPropertyChanged(nameof(BlockSystemUpdate));
+        SystemUpdateStatus = _blockSystemUpdate
+            ? "已阻止：系统不会自动更新或自动重启。"
+            : "未阻止：Windows 可能自动更新并在倒计时结束后重启电脑。";
+    }
+
+    private void ApplyBlockSystemUpdate(bool block)
+    {
+        string message;
+        try
+        {
+            message = block ? WindowsUpdateGuard.Enable() : WindowsUpdateGuard.Disable();
+        }
+        catch (Exception ex)
+        {
+            message = "操作失败：" + ex.Message;
+        }
+
+        // 非管理员时 setter 已经写进去了，必须按真实状态回滚，否则勾的是假的
+        _blockSystemUpdate = WindowsUpdateGuard.IsBlocked();
+        OnPropertyChanged(nameof(BlockSystemUpdate));
+        SystemUpdateStatus = message;
+        AppLog.Info("Settings", "阻止自动更新：" + message);
+
+        if (message.StartsWith("需要管理员权限", StringComparison.Ordinal))
+        {
+            MessageBox.Show(
+                Application.Current?.MainWindow,
+                message,
+                "阻止系统更新",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+    }
+
     // ── Sub-nav ──────────────────────────────────────────────────────────
     // 节名清单（当前未被 XAML 绑定；实际页签由 ConfigView.xaml 的 TabItem 声明，
     // MainViewModel 通过 SelectedSection 指定进入哪一节）。
@@ -208,6 +266,8 @@ public sealed partial class ConfigViewModel : ViewModelBase
     // ������ Commands ��������������������������������������������������������������������������������������������������������������������
     public RelayCommand SaveCommand { get; }
     public RelayCommand ReloadCommand { get; }
+    /// <summary>顶部快捷入口：一点跳到配置中心的某一节。</summary>
+    public RelayCommand GotoSectionCommand { get; }
     public RelayCommand AddSlotCommand { get; }
     public RelayCommand BatchGenerateSlotsCommand { get; }
     public RelayCommand ImportSlotsCommand { get; }
@@ -267,6 +327,11 @@ public sealed partial class ConfigViewModel : ViewModelBase
 
         SaveCommand = new RelayCommand(_ => SaveSettings());
         ReloadCommand = new RelayCommand(_ => ReloadSettings());
+        GotoSectionCommand = new RelayCommand(p =>
+        {
+            var section = p as string;
+            if (!string.IsNullOrWhiteSpace(section)) SelectedSection = section;
+        });
         AddSlotCommand = new RelayCommand(_ => AddSlot());
         BatchGenerateSlotsCommand = new RelayCommand(_ => BatchGenerateSlots());
         ImportSlotsCommand = new RelayCommand(_ => ImportSlots());
@@ -887,6 +952,9 @@ public sealed partial class ConfigViewModel : ViewModelBase
         SavePairs(DelaySettings);
         // 设备页的编辑（含 DAQ973A 台数与各台地址）必须先落进 ini，再走下面的重建。
         DeviceConfig.Save(_settingIni);
+        // 「站点标识」住在 SettingsViewModel 里，但字段在「配置 → 系统设置」页上。
+        // 底部「保存」必须一并写进同一份 Setting.ini，否则改完站点点保存会没生效。
+        Settings?.PersistStation();
         _settingIni.Save(AppPaths.SettingIni);
         _session.Context.Settings = _settingIni;
         ApplyDeviceProfilesToSession();
@@ -926,6 +994,8 @@ public sealed partial class ConfigViewModel : ViewModelBase
         AutoExportCsv = AppPreferences.AutoExportCsv(_settingIni);
         SaveCheckpointOnAbort = AppPreferences.SaveCheckpointOnAbort(_settingIni);
         FallbackSimOnDisconnect = AppPreferences.FallbackSimOnDisconnect(_settingIni);
+        _blockSystemUpdate = AppPreferences.BlockSystemUpdate(_settingIni);
+        RefreshSystemUpdateStatus();
     }
 
     private void SaveAppSettings()
@@ -936,6 +1006,7 @@ public sealed partial class ConfigViewModel : ViewModelBase
         AppPreferences.SetBool(_settingIni, "AutoExportCsv", AutoExportCsv);
         AppPreferences.SetBool(_settingIni, "SaveCheckpointOnAbort", SaveCheckpointOnAbort);
         AppPreferences.SetBool(_settingIni, "FallbackSimOnDisconnect", FallbackSimOnDisconnect);
+        AppPreferences.SetBool(_settingIni, "BlockSystemUpdate", BlockSystemUpdate);
         AppPreferences.Set(_settingIni, "LastPlan", Plan.Name);
         AppPreferences.Set(_settingIni, "LastPlanFolder", _selectedPlanFolder);
     }

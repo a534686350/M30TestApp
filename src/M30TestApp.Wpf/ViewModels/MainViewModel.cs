@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using M30TestApp.Core;
 using M30TestApp.Core.Common;
 using M30TestApp.Core.Config;
+using M30TestApp.Core.Data;
 using M30TestApp.Core.Net;
 using M30TestApp.Core.Devices;
 using M30TestApp.Wpf.Mvvm;
@@ -178,9 +179,17 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public bool IsTabManual => SelectedNavKey == "Manual";
     public bool IsTabSlots => SelectedNavKey == "Slots";
     public bool IsTabLog => SelectedNavKey == "Log";
-    public bool IsTabSettings => SelectedNavKey == "Settings";
+    public bool IsTabSettings => SelectedNavKey == "Settings"
+        && !string.Equals(Config.SelectedSection, "方案", StringComparison.Ordinal);
 
-    /// <summary>页签选中态的 6 个 bool 一次性通知（每次导航 / 模式变化都要刷）。</summary>
+    /// <summary>
+    /// 顶部「方案」页签：现场用得最多，从配置中心里提到一级导航。
+    /// 高亮条件 = 在配置中心且正好停在方案编辑节（在配置中心切到别的节就还给「配置」）。
+    /// </summary>
+    public bool IsTabPlan => SelectedNavKey == "Settings"
+        && string.Equals(Config.SelectedSection, "方案", StringComparison.Ordinal);
+
+    /// <summary>页签选中态一次性通知（每次导航 / 模式变化都要刷）。</summary>
     private void NotifyTabFlags()
     {
         OnPropertyChanged(nameof(IsTabAuto));
@@ -190,6 +199,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(IsTabSlots));
         OnPropertyChanged(nameof(IsTabLog));
         OnPropertyChanged(nameof(IsTabSettings));
+        OnPropertyChanged(nameof(IsTabPlan));
     }
 
     /// <summary>是否停在测试族三页之一（决定命令条显示「开始/停止」还是页面标题）。</summary>
@@ -247,6 +257,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         // 保证工位表只有一份（配置页 / 工位页 / 三种测试共用）。
         Slots = new SlotsViewModel(Config);
         Log = new LogViewModel();
+        Config.PropertyChanged += OnConfigPropertyChanged;
         Settings = new SettingsViewModel(session, deviceConfig);
 
         // 「设置 → 版本信息」子页要用检查更新 / 回退命令（都住在 SettingsViewModel 里）
@@ -256,7 +267,16 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         // 绝不阻塞测试。设置页改完「站点标识」会调 Reporter.Apply 立即生效。
         Reporter = new StationReporter(BuildStationSnapshot);
         Settings.Reporter = Reporter;
-        Reporter.Apply(StationConfig.Load(session.Context.Settings));
+        var stationConfig = StationConfig.Load(session.Context.Settings);
+        // 没填过 ID 时自动落盘一个稳定的机器 ID；不要求现场先解锁设置页，
+        // 只要已经配置了控制台地址并启用上报，后台就能直接上报。
+        if (string.IsNullOrWhiteSpace(session.Context.Settings.Get(StationConfig.Section, "Id", "")))
+        {
+            stationConfig.SaveTo(session.Context.Settings);
+            try { session.Context.Settings.Save(AppPaths.SettingIni); }
+            catch (Exception ex) { AppLog.Warn("Station", "自动保存设备 ID 失败：" + ex.Message); }
+        }
+        Reporter.Apply(stationConfig);
 
         _currentView = TestRun;
 
@@ -342,6 +362,60 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         });
     }
 
+    /// <summary>
+    /// 程序打开时检测「未完成的测试」并询问是否继续（由 App 在窗口显示后延迟调用）。
+    ///
+    /// 断点粒度是**温度点**：续测从该温度点的第一个压力点重测，该温度点已测的数据作废，
+    /// 更早温度点的数据保留。重新测试前的保温时长由用户在弹窗里输入。
+    ///
+    /// 三个分支：
+    ///   继续测试 → 记住保温时长，切到测试页并走正常的开始流程（会弹运行方案窗口确认方案/工位）
+    ///   重新开始 → 删掉断点，什么都不启动
+    ///   取消     → 断点原样保留，本次不动作（用户之后点开始测试还会再问）
+    /// </summary>
+    public void PromptPendingResumeOnStartup()
+    {
+        try
+        {
+            if (!AppPreferences.SaveCheckpointOnAbort(Session.Context.Settings)) return;
+            if (!TestCheckpoint.Exists()) return;
+
+            var ck = TestCheckpoint.Load();
+            if (ck is null) return;
+
+            var answer = TestRunViewModel.ShowResumeCheckpointDialog(ck);
+
+            if (answer.Cancel)
+            {
+                AppLog.Info("Run", "启动检测到未完成测试：用户选择取消，断点保留");
+                return;
+            }
+
+            if (answer.Resume == false)
+            {
+                TestCheckpoint.Delete();
+                AppLog.Info("Run", "启动检测到未完成测试：用户选择重新开始，断点已清除");
+                return;
+            }
+
+            var run = ActiveRunVm;
+            run.PendingResumeSoakMinutes = answer.ResumeSoakMinutes;
+            run.SkipResumePrompt = true;          // 刚才已经问过了，别在开始流程里再问一遍
+
+            TestMode = "Auto";
+            CurrentView = TestModeView;
+            SelectedNavKey = "Test";
+            AppLog.Info("Run",
+                $"启动续测：温度点 #{ck.TempIndex + 1} 重新开始，保温 {answer.ResumeSoakMinutes ?? 0} 分钟");
+            StartActiveTest();
+        }
+        catch (Exception ex)
+        {
+            // 续测检测失败绝不能挡住程序启动
+            AppLog.Warn("Run", "启动续测检测失败：" + ex.Message);
+        }
+    }
+
     private void OnSessionReconfigured(object? sender, EventArgs e)
     {
         System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
@@ -358,7 +432,26 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             Devices[2].SetDevice(Session.Dmm);
             Devices[3].SetDevice(Session.Dac);
             Devices[4].SetDevice(Session.Board);
+
+            OnPropertyChanged(nameof(DeviceModeText));
+            OnPropertyChanged(nameof(DeviceModeLed));
         }));
+    }
+
+    /// <summary>当前设备后端：真机 / SIM 模拟。顶栏徽标让现场一眼看出在哪个模式。</summary>
+    public bool IsSimulationMode => Session.DebugMode;
+
+    public string DeviceModeText => Session.DebugMode ? "SIM 模拟" : "真实设备";
+
+    /// <summary>徽标小灯颜色：SIM 用琥珀色提醒，真机用绿色（真机才是正式测）。</summary>
+    public System.Windows.Media.Brush DeviceModeLed
+    {
+        get
+        {
+            var key = Session.DebugMode ? "LedWarnBrush" : "LedOnBrush";
+            return System.Windows.Application.Current?.TryFindResource(key) as System.Windows.Media.Brush
+                   ?? System.Windows.Media.Brushes.Gray;
+        }
     }
 
     private void OnRunPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -426,8 +519,18 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         if (ActiveRunVm.CancelCommand.CanExecute(null)) ActiveRunVm.CancelCommand.Execute(null);
     }
 
+    private void OnConfigPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ConfigViewModel.SelectedSection))
+        {
+            OnPropertyChanged(nameof(IsTabPlan));
+            OnPropertyChanged(nameof(IsTabSettings));
+        }
+    }
+
     public void Dispose()
     {
+        Config.PropertyChanged -= OnConfigPropertyChanged;
         Session.Reconfigured -= OnSessionReconfigured;
         Session.DevicesRebuilt -= OnSessionDevicesRebuilt;
         TestRun.PropertyChanged -= OnRunPagePropertyChanged;
@@ -451,6 +554,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         string state, step;
         double progress = 0;
         int total = 0, ok = 0, warn = 0, err = 0;
+        string startedAt = "", elapsed = "", tempPoint = "", pressurePoint = "";
 
         var modeNote = TestMode switch
         {
@@ -476,10 +580,63 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             ok = (int)run.OkCount;
             warn = (int)run.WarnCount;
             err = (int)run.ErrCount;
+            elapsed = run.Elapsed ?? "";
+            tempPoint = run.CurrentT ?? "";
+            pressurePoint = run.CurrentP ?? "";
+            if (run.StartedAt is { } t) startedAt = t.ToString("yyyy-MM-dd HH:mm:ss");
         }
 
         // 位置参数：State, Plan, Step, Progress, Alarms, SlotTotal, SlotOk, SlotWarn, SlotErr, Note
         return new StationSnapshot(state, Session.Plan.Name ?? "", step, progress,
-            err, total, ok, warn, err, modeNote);
+            err, total, ok, warn, err, modeNote,
+            Model: Session.Plan.SensorType ?? "",
+            Batch: Session.Context.Settings.Get("Slots", "BatchNo", ""),
+            StartedAt: startedAt,
+            Elapsed: elapsed,
+            TempPoint: tempPoint,
+            PressurePoint: pressurePoint,
+            Slots: BuildStationSlots());
+    }
+
+    /// <summary>
+    /// 汇总工位明细（工位号 / 序列号 / 判定）给总控制台。
+    ///
+    /// 判定取该工位所有采集单元格里最严重的一个：有 Error 记 err、有 Warn 记 warn、
+    /// 有数据但全 Ok 记 ok、一格数据都没有记 idle（未测）。
+    /// </summary>
+    private IReadOnlyList<StationSlotInfo>? BuildStationSlots()
+    {
+        var run = TestMode == "Quick" ? null : ActiveRunVm;
+
+        if (run is not null && run.Rows.Count > 0)
+        {
+            var list = new List<StationSlotInfo>(run.Rows.Count);
+            foreach (var row in run.Rows)
+            {
+                var sawData = false;
+                var hasWarn = false;
+                var hasErr = false;
+                foreach (var kv in row.Cells)
+                {
+                    var status = kv.Value?.Status ?? CellStatus.Empty;
+                    if (status == CellStatus.Empty) continue;
+                    sawData = true;
+                    if (status == CellStatus.Error) hasErr = true;
+                    else if (status == CellStatus.Warn) hasWarn = true;
+                }
+
+                var state = hasErr ? "err" : hasWarn ? "warn" : sawData ? "ok" : "idle";
+                list.Add(new StationSlotInfo(row.Slot, row.SerialNo ?? "", state));
+            }
+            return list;
+        }
+
+        // 还没跑起来 / 快速测试：只报工位表里的序列号，判定留空
+        var entries = Session.Slots.Entries;
+        if (entries.Count == 0) return null;
+        var idle = new List<StationSlotInfo>(entries.Count);
+        foreach (var e in entries)
+            idle.Add(new StationSlotInfo(e.Slot, e.SerialNo ?? "", "idle"));
+        return idle;
     }
 }

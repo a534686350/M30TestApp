@@ -116,7 +116,7 @@
                             </Grid>
                         </Border>
 
-                        <!-- ═══ 站点标识：给本机录唯一 ID，绑定到总控制台 ═══ -->
+                        <!-- ═══ 站点标识：默认收起，输管理员密码才展开（与配置中心同一套） ═══ -->
                         <Border Style="{StaticResource Card}" Margin="0,2,0,2" Padding="20,16">
                             <StackPanel>
                                 <Grid>
@@ -124,17 +124,54 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <StackPanel>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                         <TextBlock Text="站点标识（上报总控制台）" FontWeight="SemiBold" FontSize="14"/>
-                                        <TextBlock Text="给本机录一个唯一 ID 并绑定控制台，就能在总控制台上统一看到各台设备的状态。只上报运行状态，不接受任何远程控制；填不全或关掉开关都不影响测试运行。"
-                                                   Foreground="{DynamicResource MutedBrush}" FontSize="12"
-                                                   Margin="0,3,0,0" TextWrapping="Wrap"/>
+                                        <Border Margin="8,0,0,0" Padding="6,1" CornerRadius="3"
+                                                Background="{DynamicResource AccentLightBrush}"
+                                                BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1">
+                                            <TextBlock FontSize="11" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AccentBrush}"
+                                                       Text="{Binding StationLockBadge}"/>
+                                        </Border>
                                     </StackPanel>
-                                    <CheckBox Grid.Column="1" Content="启用上报" VerticalAlignment="Top"
-                                              Margin="16,2,0,0" IsChecked="{Binding StationEnabled}"/>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <PasswordBox x:Name="StationPasswordBox" Width="150"
+                                                     MinHeight="28" Padding="6,3"
+                                                     VerticalContentAlignment="Center"
+                                                     Background="{DynamicResource SurfaceBrush}"
+                                                     Foreground="{DynamicResource TextBrush}"
+                                                     CaretBrush="{DynamicResource TextBrush}"
+                                                     KeyDown="OnStationPasswordKeyDown"
+                                                     Visibility="{Binding StationLocked, Converter={StaticResource BoolToVis}}"
+                                                     ToolTip="默认 123..00；可在 Setting.ini 的 [Station] AdminPassword 修改"/>
+                                        <Button Content="解锁" Style="{StaticResource PrimaryButton}"
+                                                Padding="14,5" Margin="8,0,0,0"
+                                                Click="OnStationUnlockClick"
+                                                Visibility="{Binding StationLocked, Converter={StaticResource BoolToVis}}"/>
+                                        <Button Content="收起" Style="{StaticResource GhostButton}"
+                                                Padding="14,5" Margin="8,0,0,0"
+                                                Command="{Binding LockStationCommand}"
+                                                Visibility="{Binding StationUnlocked, Converter={StaticResource BoolToVis}}"/>
+                                    </StackPanel>
                                 </Grid>
 
-                                <Grid Margin="0,12,0,0">
+                                <!-- 以下整块只在解锁后可见 -->
+                                <StackPanel Visibility="{Binding StationUnlocked, Converter={StaticResource BoolToVis}}">
+                                <CheckBox Content="启用上报" Margin="0,12,0,8" IsChecked="{Binding StationEnabled}"
+                                          IsEnabled="{Binding StationUnlocked}"/>
+
+                                <TextBlock Text="给本机录一个唯一 ID 并绑定控制台，就能在总控制台上统一看到各台设备的状态。只上报运行状态，不接受任何远程控制；填不全或关掉开关都不影响测试运行。"
+                                           Foreground="{DynamicResource MutedBrush}" FontSize="12"
+                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                <StackPanel Margin="0,0,0,10">
+                                    <TextBlock Text="{Binding StationSummary}" FontSize="12.5"
+                                               Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding StationStatusText}" FontSize="11.5" Margin="0,3,0,0"
+                                               Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"/>
+                                </StackPanel>
+
+                                <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="86"/>
                                         <ColumnDefinition Width="*"/>
@@ -144,35 +181,44 @@
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
 
                                     <TextBlock Text="站点 ID" Style="{StaticResource StationLabel}" Margin="0,0,8,8"/>
                                     <TextBox Grid.Column="1" Margin="0,0,16,8"
                                              Text="{Binding StationId, UpdateSourceTrigger=PropertyChanged}"
-                                             ToolTip="本机唯一标识，例如 M30-A01（车间+工位号）。控制台靠它区分设备。"/>
+                                             ToolTip="没填过就按机器自动分配一个稳定 ID；可改成有意义的（车间+工位号）。控制台靠它区分设备。"/>
 
                                     <TextBlock Grid.Column="2" Text="显示名称" Style="{StaticResource StationLabel}" Margin="0,0,8,8"/>
                                     <TextBox Grid.Column="3" Margin="0,0,0,8"
                                              Text="{Binding StationName, UpdateSourceTrigger=PropertyChanged}"
-                                             ToolTip="控制台上显示的名字，例如「1号台(自动测试)」。留空则显示站点 ID。"/>
+                                             ToolTip="控制台上显示的名字（昵称），例如「1号台(自动测试)」。留空则显示站点 ID。"/>
 
-                                    <TextBlock Grid.Row="1" Text="控制台地址" Style="{StaticResource StationLabel}" Margin="0,0,8,8"/>
-                                    <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Margin="0,0,0,8"
-                                             Text="{Binding StationHubUrl, UpdateSourceTrigger=PropertyChanged}"
-                                             ToolTip="例如 http://54.206.27.158/"/>
-
-                                    <TextBlock Grid.Row="2" Text="上报令牌" Style="{StaticResource StationLabel}" Margin="0,0,8,0"/>
-                                    <TextBox Grid.Row="2" Grid.Column="1" Margin="0,0,16,0"
-                                             Text="{Binding StationToken, UpdateSourceTrigger=PropertyChanged}"
-                                             ToolTip="要和服务器上的 M30_HUB_TOKEN 一致；服务器没设令牌就留空。"/>
-                                    <TextBlock Grid.Row="2" Grid.Column="2" Text="间隔(秒)" Style="{StaticResource StationLabel}" Margin="0,0,8,0"/>
-                                    <TextBox Grid.Row="2" Grid.Column="3"
-                                             Text="{Binding StationIntervalSec, UpdateSourceTrigger=PropertyChanged}"
-                                             ToolTip="多久上报一次，最小 5 秒。"/>
+                                    <!-- 控制台地址 / 令牌 / 间隔由程序内置，不让现场手填。 -->
+                                    <TextBlock Grid.Row="1" Grid.ColumnSpan="4"
+                                               Text="上报地址、令牌与间隔由程序内置；点右侧按钮进入在线总控制台。"
+                                               Foreground="{DynamicResource MutedBrush}" FontSize="11.5"
+                                               TextWrapping="Wrap" Margin="0,0,0,10"/>
                                 </Grid>
 
-                                <DockPanel Margin="0,12,0,0">
+                                <DockPanel Margin="0,4,0,12">
+                                    <Button DockPanel.Dock="Right" Content="打开在线工作台"
+                                            Style="{StaticResource PrimaryButton}"
+                                            Padding="14,6" Margin="8,0,0,0"
+                                            Click="OnOpenStationHubClick"
+                                            ToolTip="在默认浏览器打开总控制台网页入口"/>
+                                    <TextBlock Text="控制台地址："
+                                               FontSize="11.5" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource MutedBrush}"/>
+                                    <TextBlock Text="{Binding StationHubUrl}" FontSize="11.5"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource MutedBrush}"/>
+                                </DockPanel>
+
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Content="锁定" Style="{StaticResource GhostButton}"
+                                            Padding="14,6" Margin="8,0,0,0"
+                                            Command="{Binding LockStationCommand}"
+                                            ToolTip="改完就锁上，避免被误改"/>
                                     <Button DockPanel.Dock="Right" Content="保存站点标识"
                                             Style="{StaticResource PrimaryButton}" Padding="16,6"
                                             Command="{Binding SaveStationCommand}"/>
@@ -183,6 +229,7 @@
                                                    Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"/>
                                     </StackPanel>
                                 </DockPanel>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
 

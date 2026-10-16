@@ -46,6 +46,12 @@ public sealed class TestSession : IDisposable
     public TaskRunner Runner { get; }
     public bool DebugMode { get; private set; }
 
+    /// <summary>
+    /// 设备连不上时是否自动换 SIM 模拟跑（配置页那个「设备未连接时使用 SIM 后端」）。
+    /// 默认开 —— 现场没接设备也能把流程跑通，数据是模拟的。
+    /// </summary>
+    private bool _fallbackToSim;
+
     public event EventHandler? DevicesRebuilt;
 
     public TestSession(StationProfile station, CommandDictionary commands, SlotTable slots, TestPlan plan, IniFile? settings = null)
@@ -56,6 +62,8 @@ public sealed class TestSession : IDisposable
         Plan = plan;
 
         DebugMode = AppPreferences.DebugMode(settings ?? new IniFile());
+        // 设备后端只由管理员手动选择（DebugMode=true=SIM，false=HW），不自动切换。
+        _fallbackToSim = false;
 
         // 万用表自动测试的通道分配（电压 / 电阻 / 工位电源 / 总电源）来自设置，
         // 让 DmmAutoSlotMap 全局吃到现场配置；配置页保存后会重新赋值。
@@ -69,12 +77,15 @@ public sealed class TestSession : IDisposable
         {
             Pressure = Pressure, Oven = Oven, Dmm = Dmm, Dmms = Dmms, Dac = Dac, Board = Board,
             Plan = Plan, Slots = Slots, Matrix = Matrix, Commands = Commands, Settings = settings ?? new IniFile(),
+            TryUseSimulation = SwitchToSimulationIfAllowed,
         };
         Runner = new TaskRunner().RegisterBuiltins();
     }
 
     public void RebuildDevices(bool debugMode)
     {
+        _fallbackToSim = false;
+
         if (Context is null)
         {
             DebugMode = debugMode;
@@ -98,6 +109,19 @@ public sealed class TestSession : IDisposable
             ? "Debug mode enabled: all devices use simulated backends"
             : "Debug mode disabled: devices use station backends");
         DevicesRebuilt?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// 初始化/通讯失败时整体切换到 SIM。只在配置开启「设备未连接时使用 SIM」
+    /// 且当前还没有处于调试 SIM 模式时执行一次。
+    /// </summary>
+    private bool SwitchToSimulationIfAllowed()
+    {
+        if (!_fallbackToSim || DebugMode) return false;
+
+        AppLog.Warn("Session", "硬件初始化/通讯失败，按配置自动切换到 SIM 模拟设备并重试");
+        RebuildDevices(debugMode: true);
+        return true;
     }
 
     /// <summary>
@@ -138,7 +162,13 @@ public sealed class TestSession : IDisposable
 
         Dac      = factory.CreateDac(Station.Require(DeviceKind.Dac));
         Board    = factory.CreateBoard(Station.Require(DeviceKind.Board));
+
+        // 不再自动探测/切换：真实设备或 SIM 由设置里的「设备后端」手动决定。
     }
+
+    /// <summary>HW 打不开就换 SIM；已经是 SIM 或探测成功就原样返回。</summary>
+    private static IDevice FallbackIfOffline(DeviceFactory factory, IDevice device) =>
+        factory.FallbackIfOffline(device);
 
     private void ApplyDevicesToContext()
     {

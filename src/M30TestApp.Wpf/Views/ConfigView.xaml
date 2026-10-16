@@ -95,11 +95,34 @@
 
     <Grid Margin="16,14,16,12">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TabControl x:Name="ConfigTabs"
+        <!-- 顶部快捷入口：最常用的几节放在第一屏，不用去左侧窄导航里翻
+             （「方案编辑」= 温度点 / 压力点 / 判定限值，进配置中心第一眼就能点到） -->
+        <Border Grid.Row="0" Style="{StaticResource Card}" Margin="0,0,0,10" Padding="12,10">
+            <DockPanel LastChildFill="False">
+                <TextBlock Text="快速跳转" VerticalAlignment="Center" Margin="0,0,14,0"
+                           FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource MutedBrush}"/>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Content="方案编辑" Style="{StaticResource PrimaryButton}" Padding="14,5"
+                            Command="{Binding GotoSectionCommand}" CommandParameter="方案"
+                            ToolTip="温度点 / 压力点 / 判定限值"/>
+                    <Button Content="工位" Style="{StaticResource GhostButton}" Padding="14,5" Margin="6,0,0,0"
+                            Command="{Binding GotoSectionCommand}" CommandParameter="工位"/>
+                    <Button Content="设备" Style="{StaticResource GhostButton}" Padding="14,5" Margin="6,0,0,0"
+                            Command="{Binding GotoSectionCommand}" CommandParameter="设备"/>
+                    <Button Content="指令" Style="{StaticResource GhostButton}" Padding="14,5" Margin="6,0,0,0"
+                            Command="{Binding GotoSectionCommand}" CommandParameter="指令"/>
+                    <Button Content="系统设置" Style="{StaticResource GhostButton}" Padding="14,5" Margin="6,0,0,0"
+                            Command="{Binding GotoSectionCommand}" CommandParameter="系统设置"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <TabControl x:Name="ConfigTabs" Grid.Row="1"
                     Style="{StaticResource SideTabControl}"
                     ItemContainerStyle="{StaticResource SideTabItem}"
                     TabStripPlacement="Left"
@@ -1480,7 +1503,139 @@
             <!-- 8. 系统设置 -->
             <!-- ════════════════════════════════════════════════════════ -->
             <TabItem Header="系统设置">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <Grid Margin="4">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- ════════════════════════════════════════════════════════════
+                         上报设备 ID（站点标识）—— 本机在总控制台上的身份
+                         放在本页第一屏（原来在页面底部，要滚动才看得到）
+
+                         **默认收起**：外界只看到一行窄条 + 锁状态，看不出这台设备
+                         在不在上报、有没有绑定控制台；输对管理员密码才展开完整功能。
+                         ════════════════════════════════════════════════════════════ -->
+                    <Border Grid.Row="0" Style="{StaticResource Card}">
+                        <StackPanel>
+                            <!-- 始终可见的一行：标题 + 锁状态 + 密码框 + 解锁/收起按钮 -->
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Text="输入管理员密码后显示上报设置；未填写 ID 的电脑会自动分配一个稳定 ID。"
+                                               Foreground="{DynamicResource MutedBrush}" FontSize="11.5"
+                                               VerticalAlignment="Center" Margin="0,0,10,0"
+                                               Visibility="{Binding Settings.StationLocked, Converter={StaticResource BoolToVis}}"/>
+                                    <PasswordBox x:Name="StationPasswordBox" Width="150"
+                                                 MinHeight="28" Padding="6,3"
+                                                 VerticalContentAlignment="Center"
+                                                 Background="{DynamicResource SurfaceBrush}"
+                                                 Foreground="{DynamicResource TextBrush}"
+                                                 CaretBrush="{DynamicResource TextBrush}"
+                                                 KeyDown="OnStationPasswordKeyDown"
+                                                 Visibility="{Binding Settings.StationLocked, Converter={StaticResource BoolToVis}}"
+                                                 ToolTip="管理员密码（默认 123..00）"/>
+                                    <Button Content="解锁" Style="{StaticResource PrimaryButton}"
+                                            Padding="14,5" Margin="8,0,0,0"
+                                            Click="OnStationUnlockClick"
+                                            Visibility="{Binding Settings.StationLocked, Converter={StaticResource BoolToVis}}"/>
+                                    <Button Content="收起" Style="{StaticResource GhostButton}"
+                                            Padding="14,5" Margin="8,0,0,0"
+                                            Command="{Binding Settings.LockStationCommand}"
+                                            ToolTip="收起上报设置并上锁"
+                                            Visibility="{Binding Settings.StationUnlocked, Converter={StaticResource BoolToVis}}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
+                                               VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBlock Text="上报设备 ID（站点标识）" Style="{StaticResource SectionTitle}"/>
+                                    <Border Margin="10,-6,0,0" Padding="7,2" CornerRadius="3"
+                                            Background="{DynamicResource AccentLightBrush}"
+                                            BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1">
+                                        <TextBlock FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AccentBrush}"
+                                                   Text="{Binding Settings.StationLockBadge}"/>
+                                    </Border>
+                                </StackPanel>
+                            </DockPanel>
+
+                            <!-- 以下整块只在解锁后可见 -->
+                            <StackPanel Visibility="{Binding Settings.StationUnlocked, Converter={StaticResource BoolToVis}}">
+                                <CheckBox Content="启用上报" Margin="0,10,0,8"
+                                          IsChecked="{Binding Settings.StationEnabled}"
+                                          ToolTip="不勾就完全不上报；填不全也不影响测试运行"/>
+
+                                <TextBlock Text="给本机录一个唯一 ID 绑定控制台，就能在总控制台上统一看到各台设备的状态。只上报运行状态、不接受任何远程控制；填不全或关掉开关都不影响测试。"
+                                           Foreground="{DynamicResource MutedBrush}" FontSize="12"
+                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                <!-- 当前绑定状态 -->
+                                <StackPanel Margin="0,0,0,10">
+                                    <TextBlock Text="{Binding Settings.StationSummary}" FontSize="12.5"
+                                               Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding Settings.StationStatusText}" FontSize="11.5" Margin="0,3,0,0"
+                                               Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"/>
+                                </StackPanel>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Text="站点 ID" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Grid.Column="1" Margin="0,0,16,8"
+                                             Text="{Binding Settings.StationId, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="本机唯一标识，控制台靠它区分设备。没填过就按机器自动分配一个，可随手改成有意义的（车间+工位号）。"/>
+
+                                    <TextBlock Grid.Column="2" Text="显示名称" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Grid.Column="3" Margin="0,0,0,8"
+                                             Text="{Binding Settings.StationName, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="控制台上显示的名字（昵称），例如「1号台(自动测试)」。留空则显示站点 ID。"/>
+
+                                    <!-- 控制台地址 / 令牌 / 间隔由程序内置，不让现场手填。 -->
+                                    <TextBlock Grid.Row="1" Text="控制台入口" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"
+                                               Text="已内置，点击下方「打开在线工作台」进入"
+                                               Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,0,8"/>
+
+                                    <TextBlock Grid.Row="2" Grid.ColumnSpan="2"
+                                               Text="上报地址和令牌由程序统一管理，不需要现场填写。"
+                                               Foreground="{DynamicResource MutedBrush}" FontSize="11"
+                                               VerticalAlignment="Center"/>
+                                    <Button Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2"
+                                            Content="打开在线工作台" Style="{StaticResource PrimaryButton}"
+                                            Padding="14,5" HorizontalAlignment="Right"
+                                            Click="OnOpenStationHubClick"
+                                            ToolTip="打开总控制台网页入口"/>
+                                </Grid>
+
+                                <DockPanel Margin="0,12,0,0">
+                                    <Button DockPanel.Dock="Right" Content="锁定" Style="{StaticResource GhostButton}"
+                                            Padding="14,6" Margin="8,0,0,0"
+                                            Command="{Binding Settings.LockStationCommand}"
+                                            ToolTip="改完就锁上，避免被误改"/>
+                                    <Button DockPanel.Dock="Right" Content="保存站点标识"
+                                            Style="{StaticResource PrimaryButton}" Padding="16,6"
+                                            Command="{Binding Settings.SaveStationCommand}"/>
+                                    <TextBlock Text="改完记得点「保存站点标识」" VerticalAlignment="Center"
+                                               FontSize="11.5" Foreground="{DynamicResource MutedBrush}"/>
+                                </DockPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ══ 路径 / 行为 ══ -->
+                    <Grid Grid.Row="1" Margin="0,10,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="*"/>
@@ -1525,15 +1680,40 @@
                             <CheckBox Content="启动时自动加载上次方案" IsChecked="{Binding AutoLoadLastPlan}" Margin="0,16,0,0"/>
                             <CheckBox Content="测试结束后自动导出 CSV" IsChecked="{Binding AutoExportCsv}" Margin="0,6,0,0"/>
                             <CheckBox Content="异常退出时保留断点（续测）" IsChecked="{Binding SaveCheckpointOnAbort}" Margin="0,6,0,0"/>
-                            <CheckBox Content="设备未连接时使用 SIM 后端" IsChecked="{Binding FallbackSimOnDisconnect}" Margin="0,6,0,0"/>
+                            <!-- 设备后端随时可手动切换：勾上=SIM 模拟，取消=真实设备。
+                                 管理员密码只保护上报标识，不挡这个开关。 -->
+                            <CheckBox Content="使用 SIM 模拟设备（未勾选 = 使用真实设备）"
+                                      IsChecked="{Binding Settings.DebugMode}"
+                                      Margin="0,6,0,0"
+                                      ToolTip="勾上不连接真实硬件（模拟数据）；取消则按设备配置连接真实仪器。"/>
+                            <TextBlock Text="设备模式随时可直接切换；真实设备连不上会直接报错，不会自动改成 SIM。"
+                                       Foreground="{DynamicResource MutedBrush}" FontSize="11"
+                                       TextWrapping="Wrap" Margin="20,3,0,0"/>
+                        </StackPanel>
+                    </Border>
+                    </Grid>
+
+                    <!-- ══ 阻止 Windows 自动更新：避免测试跑一半被系统重启 ══ -->
+                    <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,10,0,0">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
+                                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Text="阻止系统自动更新" Style="{StaticResource SectionTitle}"/>
+                            </StackPanel>
+                            <CheckBox Content="阻止 Windows 自动更新与自动重启（测试跑一半不被系统打断）"
+                                      IsChecked="{Binding BlockSystemUpdate}" Margin="0,0,0,6"/>
+                            <TextBlock Text="{Binding SystemUpdateStatus}" FontSize="11.5"
+                                       Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
                 </Grid>
+                </ScrollViewer>
             </TabItem>
         </TabControl>
 
         <!-- ────────── Bottom action bar ────────── -->
-        <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}"
+        <Border Grid.Row="2" Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                 CornerRadius="8"
                 Padding="12,9" Margin="0,10,0,0"

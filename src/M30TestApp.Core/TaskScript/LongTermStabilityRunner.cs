@@ -125,7 +125,11 @@ public static class LongTermStabilityRunner
                 await ctx.Pressure.SetMeasureAsync(ct);
                 AppLog.Info("Init", $"压力控制器 {ctx.Pressure.Model} 已连接");
             }
-            catch (Exception ex) { AppLog.Warn("Init", $"压力控制器连接失败: {ex.Message}"); }
+            catch (Exception ex)
+            {
+                AppLog.Error("Init", $"压力控制器连接失败: {ex.Message}"
+                    + (AppPreferences.DebugMode(ctx.Settings) ? "" : "（未连接真实设备？可在「配置 → 系统设置 → 行为」勾选「使用 SIM 模拟设备」）"));
+            }
         }
 
         if (ctx.Oven is not null)
@@ -148,7 +152,12 @@ public static class LongTermStabilityRunner
                 await ctx.Dmm.OpenAsync(ct);
                 AppLog.Info("Init", $"DAQ973A/DMM {ctx.Dmm.Model} 已连接");
             }
-            catch (Exception ex) { AppLog.Warn("Init", $"DAQ973A/DMM 连接失败: {ex.Message}"); }
+            catch (Exception ex)
+            {
+                // 真机连不上：原始错误 + 一句人话（切 SIM 的路），别只甩 HRESULT
+                AppLog.Error("Init", $"DAQ973A/DMM 连接失败: {ex.Message}"
+                    + (AppPreferences.DebugMode(ctx.Settings) ? "" : "（未连接真实设备？可在「配置 → 系统设置 → 行为」勾选「使用 SIM 模拟设备」）"));
+            }
         }
 
         AppLog.Info("Init", "长期稳定性：设备初始化完成");

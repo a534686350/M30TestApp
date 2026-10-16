@@ -1,4 +1,5 @@
 using System;
+using System.Security.Cryptography;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -17,7 +18,11 @@ public sealed class StationConfig
 {
     public const string Section = "Station";
 
-    /// <summary>站点唯一 ID（必填，例如 M30-A01）。空 = 没绑定，不上报。</summary>
+    // 现场不需要手填这些固定的控制台参数；管理员仍可在 Setting.ini 覆盖。
+    public const string DefaultHubUrl = "http://54.206.27.158/";
+    public const string DefaultToken = "lzJq06lbJrVT9MZQ8kv3GOAd";
+
+    /// <summary>站点唯一 ID。为空时按电脑自动生成稳定 ID。</summary>
     public string Id { get; set; } = "";
 
     /// <summary>显示名（控制台上显示；留空则用 ID）。</summary>
@@ -38,31 +43,74 @@ public sealed class StationConfig
     public bool IsReady =>
         Enabled && !string.IsNullOrWhiteSpace(Id) && !string.IsNullOrWhiteSpace(HubUrl);
 
-    public static StationConfig Load(IniFile ini) => new()
+    public static StationConfig Load(IniFile ini)
     {
-        Id = ini.Get(Section, "Id", ""),
-        Name = ini.Get(Section, "Name", ""),
-        HubUrl = ini.Get(Section, "HubUrl", ""),
-        Token = ini.Get(Section, "Token", ""),
-        Enabled = ini.Get(Section, "Enabled", "0") is "1" or "true" or "True",
-        IntervalSec = int.TryParse(ini.Get(Section, "IntervalSec", "5"), out var n) ? Math.Max(5, n) : 5,
-    };
+        var id = ini.Get(Section, "Id", "").Trim();
+        var generated = string.IsNullOrWhiteSpace(id);
+        if (generated) id = GenerateDefaultId();
+
+        return new StationConfig
+        {
+            Id = id,
+            Name = ini.Get(Section, "Name", ""),
+            HubUrl = ini.Get(Section, "HubUrl", DefaultHubUrl),
+            Token = ini.Get(Section, "Token", DefaultToken),
+            // 新装设备默认启用上报；已有配置明确写 0 时保持关闭。
+            Enabled = ini.Get(Section, "Enabled", "1") is "1" or "true" or "True",
+            IntervalSec = int.TryParse(ini.Get(Section, "IntervalSec", "5"), out var n) ? Math.Max(5, n) : 5,
+        };
+    }
+
+    /// <summary>
+    /// 没填站点 ID 时按机器生成一个稳定 ID：同一台电脑每次启动不变，
+    /// 不依赖 IP、不上传硬件序列号；用户解锁后仍可手动改成车间/工位昵称。
+    /// </summary>
+    public static string GenerateDefaultId()
+    {
+        var machine = string.IsNullOrWhiteSpace(Environment.MachineName) ? "PC" : Environment.MachineName.Trim();
+        var safe = new string(machine.Where(char.IsLetterOrDigit).ToArray());
+        if (safe.Length == 0) safe = "PC";
+        if (safe.Length > 20) safe = safe[..20];
+
+        var digest = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(machine.ToUpperInvariant()));
+        var suffix = Convert.ToHexString(digest, 0, 3);
+        return $"M30-{safe}-{suffix}";
+    }
 
     public void SaveTo(IniFile ini)
     {
         ini.Set(Section, "Id", Id?.Trim() ?? "");
         ini.Set(Section, "Name", Name?.Trim() ?? "");
-        ini.Set(Section, "HubUrl", HubUrl?.Trim() ?? "");
-        ini.Set(Section, "Token", Token?.Trim() ?? "");
+        // 地址 / 令牌由程序内置：为空就回填默认值，绝不让空值覆盖成"没配置"
+        ini.Set(Section, "HubUrl", string.IsNullOrWhiteSpace(HubUrl) ? DefaultHubUrl : HubUrl.Trim());
+        ini.Set(Section, "Token", string.IsNullOrWhiteSpace(Token) ? DefaultToken : Token.Trim());
         ini.Set(Section, "Enabled", Enabled ? "1" : "0");
         ini.Set(Section, "IntervalSec", Math.Max(5, IntervalSec).ToString());
     }
 }
 
+/// <summary>上报给总控制台的一个工位条目。</summary>
+public sealed record StationSlotInfo(string Slot, string Serial, string State, string Note = "");
+
+/// <summary>上报给总控制台的一条测试指标。</summary>
+public sealed record StationMetricInfo(string Name, string Value, string Limit = "", string Result = "");
+
 /// <summary>上报给总控制台的一份状态快照。</summary>
+/// <remarks>
+/// 前 10 个参数是第一期就有的位置参数，后面的是第二期加的明细字段（都有默认值，老调用不受影响）。
+/// Slots / Metrics 为 null 表示"本次不带"，服务端会沿用上一份，省带宽。
+/// </remarks>
 public sealed record StationSnapshot(
     string State, string Plan, string Step, double Progress, int Alarms,
-    int SlotTotal, int SlotOk, int SlotWarn, int SlotErr, string? Note = null);
+    int SlotTotal, int SlotOk, int SlotWarn, int SlotErr, string? Note = null,
+    string Model = "",          // 传感器型号
+    string Batch = "",          // 批次号（Setting.ini [Slots] BatchNo）
+    string StartedAt = "",      // 本次运行开始时间 yyyy-MM-dd HH:mm:ss
+    string Elapsed = "",        // 已运行时长 HH:mm:ss
+    string TempPoint = "",      // 当前温度点
+    string PressurePoint = "",  // 当前压力点
+    IReadOnlyList<StationSlotInfo>? Slots = null,      // 工位明细
+    IReadOnlyList<StationMetricInfo>? Metrics = null); // 指标结果
 
 /// <summary>
 /// 站点状态上报器（后台循环）。
@@ -103,6 +151,8 @@ public sealed class StationReporter : IDisposable
     {
         _cts = new CancellationTokenSource();
         var token = _cts.Token;
+        _lastSlotFingerprint = "";      // 重新开始上报时明细必须重发一遍
+        _lastMetricsFingerprint = "";
         SetStatus($"已启用，正在上报 {_cfg.Id} → {_cfg.HubUrl}");
         _ = Task.Run(() => LoopAsync(token), CancellationToken.None);
     }
@@ -165,6 +215,10 @@ public sealed class StationReporter : IDisposable
         }
     }
 
+    /// <summary>上一轮发出去的工位明细指纹；没变就不再发（256 工位全量发一遍不小）。</summary>
+    private string _lastSlotFingerprint = "";
+    private string _lastMetricsFingerprint = "";
+
     private string BuildPayload()
     {
         StationSnapshot s;
@@ -175,6 +229,29 @@ public sealed class StationReporter : IDisposable
             s = new StationSnapshot("idle", "", "", 0, 0, 0, 0, 0, 0);
         }
 
+        // 明细只在变化时带，其余心跳发 null（服务端沿用上一份）
+        object? slotDetails = null;
+        if (s.Slots is { Count: > 0 } slots)
+        {
+            var fp = Fingerprint(slots.Select(x => $"{x.Slot}|{x.Serial}|{x.State}|{x.Note}"));
+            if (fp != _lastSlotFingerprint)
+            {
+                _lastSlotFingerprint = fp;
+                slotDetails = slots.Select(x => new { slot = x.Slot, serial = x.Serial, state = x.State, note = x.Note }).ToList();
+            }
+        }
+
+        object? metrics = null;
+        if (s.Metrics is { Count: > 0 } ms)
+        {
+            var fp = Fingerprint(ms.Select(x => $"{x.Name}|{x.Value}|{x.Limit}|{x.Result}"));
+            if (fp != _lastMetricsFingerprint)
+            {
+                _lastMetricsFingerprint = fp;
+                metrics = ms.Select(x => new { name = x.Name, value = x.Value, limit = x.Limit, result = x.Result }).ToList();
+            }
+        }
+
         var payload = new
         {
             stationId = _cfg.Id.Trim(),
@@ -182,13 +259,29 @@ public sealed class StationReporter : IDisposable
             version = AppVersion(),
             state = s.State,
             plan = s.Plan,
+            model = s.Model,
+            batch = s.Batch,
             step = s.Step,
+            startedAt = s.StartedAt,
+            elapsed = s.Elapsed,
+            tempPoint = s.TempPoint,
+            pressurePoint = s.PressurePoint,
             progress = Math.Round(Math.Clamp(s.Progress, 0, 1), 4),
             alarms = s.Alarms,
             slots = new { total = s.SlotTotal, ok = s.SlotOk, warn = s.SlotWarn, err = s.SlotErr },
+            slotDetails,
+            metrics,
             extra = new { note = s.Note, machine = Environment.MachineName },
         };
         return JsonSerializer.Serialize(payload);
+    }
+
+    /// <summary>给明细算个短指纹，只用来判断"变没变"，不进网络。</summary>
+    private static string Fingerprint(IEnumerable<string> parts)
+    {
+        using var sha = System.Security.Cryptography.SHA1.Create();
+        var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(string.Join("\n", parts)));
+        return Convert.ToHexString(bytes, 0, 8);
     }
 
     private static string AppVersion()
