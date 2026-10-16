@@ -172,8 +172,40 @@ bash server/deploy.sh --status   # 看状态
 
 ## 控制台鉴权
 
-浏览器首次访问会弹一次登录框（用户名 `admin`，密码 `123..00`；部署配置记录在 `artifacts/m30_secrets.txt`）。
-上位机上报走 `X-Station-Token` 头，令牌仍保存在本地 `Setting.ini`，和 `M30_HUB_TOKEN` 对应。
+**浏览器走自带登录页，不再是浏览器原生的 Basic Auth 对话框。**
+
+- `GET /login` 登录页（居中卡片，浅/深色各一套），`POST /login` 校验后种
+  HttpOnly + SameSite=Lax 的签名 Cookie（默认 12 小时，`M30_HUB_SESSION_TTL` 可调），
+  `GET /logout` 清除会话。
+- 账号密码仍是环境变量 `M30_HUB_USER` / `M30_HUB_PASS`：
+  浏览器访问弹登录框时填 `admin` / `123..00`（部署配置记录在 `artifacts/m30_secrets.txt`）。
+- 登录成功后跳回原来要访问的页面（`?next=`），`next` 只接受站内相对路径，
+  `//evil.com`、`https://evil.com` 这类会被拦回首页。
+- **接口 / 脚本仍可用 Basic 头**：`curl -u admin:123..00 http://HOST/api/stations`。
+  未带 Cookie 的浏览器访问是 302 跳登录页，未认证的接口请求是 401 JSON。
+- 顶栏右侧有「退出」按钮（仅启用鉴权时显示）。
+
+## 绑定域名
+
+域名 DNS 指到服务器 IP 即可，**服务端不校验 Host 头**，不需要额外配置
+（`GET /health` 用任意 Host 都能通，看板/登录页/下载页同样）。
+
+1. 在域名 DNS 管理处加一条 **A 记录**：
+
+   | 主机记录 | 类型 | 值 |
+   | --- | --- | --- |
+   | `m30` | A | `54.206.27.158` |
+
+2. 若域名在 Cloudflare 且开了代理（橙色云），控制台仍可正常访问，
+   但服务端看到的来源 IP 会是 Cloudflare 的；需要按真实客户端 IP 统计时改成
+   「仅 DNS」（灰色云）。
+3. 生效后用 `http://m30.hl888.cn/` 访问（同样要登录）。
+4. （可选）上位机的上报地址可以改成域名，但**已部署的设备仍在用旧 IP 上报**，
+   批量改动前先确认现场都升级过 —— 现在两种地址服务端都收。
+
+> HTTPS 需要单独申请证书（Let's Encrypt / Cloudflare Origin CA）并在服务端配 443，
+> 目前只开 80。上 HTTPS 后，浏览器地址栏的「不安全」提示才会消失，
+> 且 Cookie 应补 `Secure` 属性。
 
 ## 后续
 
