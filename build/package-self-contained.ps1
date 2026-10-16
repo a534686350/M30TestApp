@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Runtime = "win-x64"
 )
 
@@ -7,11 +7,20 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $project = Join-Path $root "src\M30TestApp.Wpf\M30TestApp.Wpf.csproj"
 
-# 版本单一来源是根目录 Directory.Build.props（csproj 不再直接携带 Version）
-$propsXml = [xml](Get-Content -LiteralPath (Join-Path $root "Directory.Build.props"))
-$version = $propsXml.Project.PropertyGroup.Version
+# 版本单一来源是根目录 Directory.Build.props（csproj 不再直接携带 Version）。
+# 这里用正则直接读文本：早先用 [xml] 对象模型，在部分宿主环境下取不到值时
+# 会静默回退成 0.0.0，打出来的包名就成了 v0.0.0。
+$version = ""
+$propsPath = Join-Path $root "Directory.Build.props"
+if (Test-Path -LiteralPath $propsPath) {
+    $propsText = Get-Content -LiteralPath $propsPath -Raw -Encoding UTF8
+    $verMatch = [regex]::Match($propsText, '<Version>([0-9][^<]*)</Version>')
+    if ($verMatch.Success) {
+        $version = $verMatch.Groups[1].Value.Trim()
+    }
+}
 if ([string]::IsNullOrWhiteSpace($version)) {
-    $version = "0.0.0"
+    throw "Cannot resolve version from Directory.Build.props (looked in $root)"
 }
 
 $releaseRoot = Join-Path $root "artifacts\release"

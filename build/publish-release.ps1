@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Version = "",
     [string]$Runtime = "win-x64",
     [switch]$SkipBuild
@@ -9,10 +9,18 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $project = Join-Path $root "src\M30TestApp.Wpf\M30TestApp.Wpf.csproj"
 
-# 版本单一来源是根目录 Directory.Build.props（csproj 不再直接携带 Version）
+# 版本单一来源是根目录 Directory.Build.props（csproj 不再直接携带 Version）。
+# 用正则直接读文本：早先用 [xml] 对象模型，在部分宿主环境下取不到值时
+# 会静默回退成 0.0.0。
 if ([string]::IsNullOrWhiteSpace($Version)) {
-    $propsXml = [xml](Get-Content -LiteralPath (Join-Path $root "Directory.Build.props"))
-    $Version = $propsXml.Project.PropertyGroup.Version
+    $propsPath = Join-Path $root "Directory.Build.props"
+    if (Test-Path -LiteralPath $propsPath) {
+        $propsText = Get-Content -LiteralPath $propsPath -Raw -Encoding UTF8
+        $verMatch = [regex]::Match($propsText, '<Version>([0-9][^<]*)</Version>')
+        if ($verMatch.Success) {
+            $Version = $verMatch.Groups[1].Value.Trim()
+        }
+    }
 }
 if ([string]::IsNullOrWhiteSpace($Version)) {
     throw "Cannot resolve version from Directory.Build.props"
