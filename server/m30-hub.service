@@ -14,12 +14,16 @@ RestartSec=3
 Environment=M30_HUB_PORT=80
 Environment=M30_HUB_DB=/opt/m30hub/stations.db
 # 控制台登录（浏览器会弹一次登录框；留空则不校验）
-Environment=M30_HUB_USER=m30
+Environment=M30_HUB_USER=__USER__
 Environment=M30_HUB_PASS=__PASSWORD__
 # 站点上报令牌（上位机要用同一个值；留空则不校验）
 Environment=M30_HUB_TOKEN=__TOKEN__
 # 超过这个秒数没心跳就显示为离线
 Environment=M30_HUB_OFFLINE=30
+# 程序下载页：版本清单与安装包目录
+Environment=M30_HUB_RELEASES=/opt/m30hub/releases.json
+Environment=M30_HUB_RELEASE_DIR=/opt/m30hub/releases
+Environment=M30_HUB_VERSION=__VERSION__
 
 # 收紧权限：只给一个可写目录
 NoNewPrivileges=true

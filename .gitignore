@@ -46,3 +46,7 @@ f40/releases/*.zip
 .agents/
 M30TempFix/
 保存数据格式/截图/
+
+# Python 缓存（本地自检跑 server/station_hub.py 会生成）
+__pycache__/
+*.pyc

@@ -47,18 +47,82 @@ fi
 source "$SECRETS"
 
 # ── 用模板渲染出真实单元文件（模板里是占位符，不把密码写进仓库） ────
-sed -e "s|__PASSWORD__|$CONSOLE_PASS|" -e "s|__TOKEN__|$STATION_TOKEN|" \
+HUB_VERSION="$(
+  python - <<'PY'
+import re
+try:
+    txt = open('Directory.Build.props', encoding='utf-8').read()
+    m = re.search(r'<Version>([^<]+)</Version>', txt)
+    print(m.group(1) if m else '')
+except Exception:
+    print('')
+PY
+)"
+sed -e "s|__USER__|$CONSOLE_USER|" -e "s|__PASSWORD__|$CONSOLE_PASS|" \
+    -e "s|__TOKEN__|$STATION_TOKEN|" -e "s|__VERSION__|$HUB_VERSION|" \
     server/m30-hub.service > artifacts/m30-hub.local.service
 
 echo "==> 上传并重启（$HOST）"
-ssh "${SSHOPT[@]}" "$USER_@$HOST" "mkdir -p /opt/m30hub"
+ssh "${SSHOPT[@]}" "$USER_@$HOST" "mkdir -p /opt/m30hub /opt/m30hub/releases"
 scp "${SSHOPT[@]}" server/station_hub.py      "$USER_@$HOST:/opt/m30hub/"
 scp "${SSHOPT[@]}" artifacts/m30-hub.local.service "$USER_@$HOST:/etc/systemd/system/m30-hub.service"
+
+# ── 版本清单 + 安装包（下载页数据源）───────────────────────────────
+# 1) 扫本地 artifacts/release 里的 zip，生成 releases.json
+# 2) 逐个上传到 /opt/m30hub/releases（服务器上已存在且大小一致就跳过）
+if [ -d artifacts/release ]; then
+  echo "==> 生成版本清单并上传安装包"
+  python - <<'PY'
+import hashlib, json, os, re, time
+src = 'artifacts/release'
+out = []
+for fn in sorted(os.listdir(src)):
+    if not fn.lower().endswith('.zip'):
+        continue
+    m = re.search(r'-v(\d+(?:\.\d+)+)-', fn)
+    if not m:
+        continue
+    fp = os.path.join(src, fn)
+    h = hashlib.sha256()
+    with open(fp, 'rb') as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b''):
+            h.update(chunk)
+    out.append({
+        'version': m.group(1),
+        'date': time.strftime('%Y-%m-%d', time.localtime(os.path.getmtime(fp))),
+        'size': os.path.getsize(fp),
+        'file': fn,
+        'sha256': h.hexdigest(),
+        'notes': '',
+    })
+out.sort(key=lambda i: [int(x) for x in i['version'].split('.')], reverse=True)
+with open('artifacts/releases.json', 'w', encoding='utf-8') as fh:
+    json.dump(out, fh, ensure_ascii=False, indent=2)
+print('  清单 %d 个版本: %s' % (len(out), ', '.join('v' + i['version'] for i in out)))
+PY
+  scp "${SSHOPT[@]}" artifacts/releases.json "$USER_@$HOST:/opt/m30hub/"
+  for z in artifacts/release/*.zip; do
+    [ -e "$z" ] || continue
+    n="$(basename "$z")"
+    ls="$(
+      ssh "${SSHOPT[@]}" "$USER_@$HOST" \
+        "if [ -f /opt/m30hub/releases/'$n' ]; then stat -c %s /opt/m30hub/releases/'$n'; else echo 0; fi"
+    )"
+    if [ "$ls" = "$(stat -c %s "$z")" ]; then
+      echo "  跳过 $n（服务器已是最新同尺寸）"
+    else
+      echo "  上传 $n ..."
+      scp "${SSHOPT[@]}" "$z" "$USER_@$HOST:/opt/m30hub/releases/"
+    fi
+  done
+fi
+
 ssh "${SSHOPT[@]}" "$USER_@$HOST" \
   "systemctl daemon-reload && systemctl enable --now m30-hub && systemctl restart m30-hub && sleep 2 && systemctl is-active m30-hub"
 
 echo
 echo "控制台地址 : http://$HOST/  （用户 $CONSOLE_USER / 密码 $CONSOLE_PASS）"
+echo "程序下载页 : http://$HOST/download"
 echo "站点令牌   : $STATION_TOKEN   ← 上位机「站点标识」里要填一样的值"
 echo
 echo "提醒：AWS 安全组需要放行 80 端口，否则外网访问不了。"
