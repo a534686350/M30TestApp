@@ -205,9 +205,12 @@ dotnet run --project src/M30TestApp.Wpf/M30TestApp.Wpf.csproj
 
 ## 在线地址
 
-- 总控制台：http://54.206.27.158/  （用户 `admin` / 密码 `123..00`）
+- 总控制台：http://54.206.27.158/  （登录 `admin` / `123..00`，已改为自带登录页）
 - **程序下载页**：http://54.206.27.158/download  —— 列出全部版本，倒序排列，最新版标「最新」，
   点「下载」直接拿自包含 zip。加历史版本：把 zip 丢进 `artifacts/release/` 后跑 `bash server/deploy.sh`
+- 域名 `m30.hl888.cn`：**待加 DNS A 记录指向 `54.206.27.158`**（服务端已就绪、不校验 Host，
+  加完即可直接访问）。目前该域名在 Cloudflare 且指向 CF 的 CDN IP，还没指向本服务器。
+  步骤见 `server/README.md` 的「绑定域名」章节。
 
 ## 待办
 
