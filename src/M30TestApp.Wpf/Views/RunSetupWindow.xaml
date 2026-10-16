@@ -311,11 +311,13 @@
                                         Visibility="{Binding ShowLongTermSlotLayout, Converter={StaticResource BoolToVis}}">
                                 <StackPanel Margin="8,0">
                                     <TextBlock Text="起始工位" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Style="{StaticResource InputField}" Text="{Binding StartIndex, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBox Style="{StaticResource InputField}" Text="{Binding StartIndex}"
+                                             ToolTip="第一个工位的编号（1-60）"/>
                                 </StackPanel>
                                 <StackPanel Margin="8,0">
                                     <TextBlock Text="结束工位" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Style="{StaticResource NumBox}" Text="{Binding EndIndex, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBox Style="{StaticResource NumBox}" Text="{Binding EndIndex}"
+                                             ToolTip="最后一个工位的编号（含）"/>
                                 </StackPanel>
                                 <StackPanel Margin="8,0">
                                     <TextBlock Text="工位数量" Style="{StaticResource FieldLabel}"/>
@@ -335,11 +337,17 @@
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="工位范围" Style="{StaticResource GroupCaption}"/>
                                         <TextBlock Text="所需工位" Style="{StaticResource InlineLabel}"/>
+                                        <!-- 这两个框用默认的 LostFocus 回写，不能用 PropertyChanged：
+                                             逐字回写会把输入中间态（想输 129，中途的 "1"→"12"→"129"）当成最终值，
+                                             而 StartIndex 上限 256 一旦被中间态顶到，工位数量会被连带压成 1，
+                                             现场看到的就是「起始工位这块只能填 1」。 -->
                                         <TextBox Style="{StaticResource InlineNum}" Width="64"
-                                                 Text="{Binding SlotCount, UpdateSourceTrigger=PropertyChanged}"/>
+                                                 Text="{Binding SlotCount}"
+                                                 ToolTip="要测的工位数（1-256）"/>
                                         <TextBlock Text="起始编号" Style="{StaticResource InlineLabel}"/>
                                         <TextBox Style="{StaticResource InlineNum}" Width="64"
-                                                 Text="{Binding StartIndex, UpdateSourceTrigger=PropertyChanged}"/>
+                                                 Text="{Binding StartIndex}"
+                                                 ToolTip="第一个工位的编号，例如 1 或 129（1-256）"/>
                                     </StackPanel>
                                 </Border>
 
@@ -369,18 +377,23 @@
                                 <Border Style="{StaticResource CompactGroup}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="夹具 / 阀位 / 通道" Style="{StaticResource GroupCaption}"/>
-                                        <TextBlock Text="起始阀位" Style="{StaticResource InlineLabel}"/>
+                                        <!-- 起始阀位是按工位号推导出来的展示值（每 32 工位一个阀），
+                                             手填不会影响生成的阀门列与运行时打开的阀门 —— 标成只读，
+                                             免得操作员改半天发现没用。 -->
+                                        <TextBlock Text="起始阀位（按工位自动）" Style="{StaticResource InlineLabel}"/>
                                         <TextBox Style="{StaticResource InlineNum}"
-                                                 Text="{Binding StartValve, UpdateSourceTrigger=PropertyChanged}"/>
+                                                 Text="{Binding StartValve}"
+                                                 IsReadOnly="True"
+                                                 ToolTip="由起始工位推导：每 32 个工位共用一个阀门"/>
                                         <TextBlock Text="单个夹具工位" Style="{StaticResource InlineLabel}"/>
                                         <TextBox Style="{StaticResource InlineNum}"
-                                                 Text="{Binding FixtureSlotCapacity, UpdateSourceTrigger=PropertyChanged}"/>
+                                                 Text="{Binding FixtureSlotCapacity}"/>
                                         <TextBlock Text="夹具数量" Style="{StaticResource InlineLabel}"/>
                                         <TextBox Style="{StaticResource InlineNum}"
-                                                 Text="{Binding FixtureCount, UpdateSourceTrigger=PropertyChanged}"/>
+                                                 Text="{Binding FixtureCount}"/>
                                         <TextBlock Text="万用表起始通道" Style="{StaticResource InlineLabel}"/>
                                         <TextBox Style="{StaticResource InlineNum}"
-                                                 Text="{Binding StartChannel, UpdateSourceTrigger=PropertyChanged}"/>
+                                                 Text="{Binding StartChannel}"/>
                                     </StackPanel>
                                 </Border>
                             </WrapPanel>
@@ -440,6 +453,9 @@
                             <WrapPanel Margin="0,6,0,0">
                                 <Button Content="全选" Style="{StaticResource GhostButton}" Padding="9,2" Margin="0,0,6,4"
                                         Command="{Binding SelectAllSlotsCommand}"/>
+                                <Button Content="全不选" Style="{StaticResource GhostButton}" Padding="9,2" Margin="0,0,6,4"
+                                        Command="{Binding ClearAllSlotsCommand}"
+                                        ToolTip="取消全部勾选，回到「起始工位 + 所需工位」的连续模式"/>
                                 <ItemsControl ItemsSource="{Binding SlotQuickRanges}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>

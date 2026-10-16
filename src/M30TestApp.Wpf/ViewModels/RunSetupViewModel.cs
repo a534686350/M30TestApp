@@ -429,6 +429,7 @@ public sealed class RunSetupViewModel : ViewModelBase
 
     public RelayCommand ApplySlotSelectionCommand { get; }
     public RelayCommand SelectAllSlotsCommand { get; }
+    public RelayCommand ClearAllSlotsCommand { get; }
     public RelayCommand ClearSlotSelectionCommand { get; }
     public RelayCommand QuickSlotRangeCommand { get; }
 
@@ -561,6 +562,10 @@ public sealed class RunSetupViewModel : ViewModelBase
             // 工位号直接决定生成的 Slot 名与阀门号，必须落在 1..工位上限内。
             var next = Math.Clamp(value, 1, SlotLimit);
             if (!SetField(ref _startIndex, next)) return;
+            // 手改起始工位 = 回到连续模式（与「所需工位」同一套语义）：
+            // 零散勾选是按**绝对工位号**生成的，不清掉的话起始工位改了工位表却纹丝不动，
+            // 看着就像「起始工位填了没用」。
+            if (_selectedSlots.Count > 0) ClearSlotSelectionCore();
             if (_slotCount > MaxSlotCountFromStart)
             {
                 _slotCount = MaxSlotCountFromStart;
@@ -574,14 +579,28 @@ public sealed class RunSetupViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// 「起始阀位 / 起始板卡 / 起始板卡工位」不再是独立的手填参数，全部由起始工位推导：
+    /// 上一次按起始工位推导板卡 / 阀位时用的工位号。
+    ///
+    /// 用「记住上次推导来源」而不是「每次重建都推导」：本页每个布局字段的 setter 都会走
+    /// <see cref="Regenerate"/>，而 Regenerate 里会调 <see cref="SyncDerivedLayoutFromStartIndex"/>。
+    /// 无脑推导的后果是 —— 操作员把「起始板卡」改成 9，改完立刻被按起始工位（1）重算回 1，
+    /// 输入框看着像「只能填 1」。现在只有**起始工位真的变了**才重新推导，手填值原样保留。
+    /// </summary>
+    private int _derivedFromStartIndex = int.MinValue;
+
+    /// <summary>
+    /// 「起始阀位 / 起始板卡 / 起始板卡工位」默认由起始工位推导：
     /// 阀门每 32 工位一个（起始 129 → 5 号阀），板卡每 BoardSlotCapacity 工位一块
-    /// （起始 129、每板 16 工位 → 板卡 9 / 工位 1）。
-    /// 输入框仍可编辑（历史兼容），但起始工位一变就按工位重算覆盖，
-    /// 避免出现「起始工位 129 却从 1 号板卡 / 1 号阀开始数」的错配。
+    /// （起始 129、每板 16 工位 → 板卡 9 / 工位 1），避免「起始工位 129 却从 1 号板卡开始数」。
+    ///
+    /// 但推导**只在起始工位发生变化时执行一次**：操作员随后手改的起始板卡 / 板卡工位 /
+    /// 起始阀位一律保留，不再被重建覆盖。
     /// </summary>
     private void SyncDerivedLayoutFromStartIndex()
     {
+        if (_derivedFromStartIndex == _startIndex) return;
+        _derivedFromStartIndex = _startIndex;
+
         var zeroBased = Math.Max(0, _startIndex - 1);
 
         var valve = SlotLayoutHelper.ValveForSlot(_startIndex);
@@ -882,6 +901,13 @@ public sealed class RunSetupViewModel : ViewModelBase
 
         SelectAllSlotsCommand = new RelayCommand(_ =>
             SetSlotSelection(Enumerable.Range(1, SlotMaxAllowed)));
+
+        // 「全不选」：一键取消所有勾选，回到「起始工位 + 所需工位」的连续模式。
+        ClearAllSlotsCommand = new RelayCommand(_ =>
+        {
+            ClearSlotSelectionCore();
+            Regenerate();
+        });
 
         ClearSlotSelectionCommand = new RelayCommand(_ =>
         {
@@ -1206,7 +1232,12 @@ public sealed class RunSetupViewModel : ViewModelBase
             _startIndex = Math.Clamp(SlotDacAddress.ParseSlotIndex(slots.Entries[0].Slot), 1, SlotLimit);
 
         NormalizeFixedDmmLayout();
-        SyncDerivedLayoutFromStartIndex();
+
+        // 起始板卡 / 板卡工位 / 起始阀位：Setting.ini 里存过就用存过的（那是操作员上次手填的值），
+        // 没存过（首次使用）才按起始工位推导一次。否则每次打开窗口都会把手填值重算回 1。
+        var hasSavedBoard = !string.IsNullOrWhiteSpace(ini.Get("Slots", "StartBoard", ""));
+        if (hasSavedBoard) _derivedFromStartIndex = _startIndex;
+        else SyncDerivedLayoutFromStartIndex();
     }
 
     /// <summary>当前布局参数快照（公式计算 / 批量生成 / ini 持久化共用，与 ConfigViewModel 一致）。</summary>
