@@ -698,6 +698,21 @@
                                     <ColumnDefinition Width="24"/>
                                 </Grid.ColumnDefinitions>
 
+                                <!-- 展开开关：自定义模板必须自带这个 ToggleButton 并垫在最底层、
+                                     跨满两列，否则点控件/箭头都不会展开下拉（WPF 默认模板就是靠它开合）。
+                                     透明模板盖掉系统按钮外观；箭头 Path 设 IsHitTestVisible=False 让点击穿透到它。 -->
+                                <ToggleButton x:Name="toggleButton"
+                                              Grid.ColumnSpan="2"
+                                              Focusable="False" IsTabStop="False" ClickMode="Press"
+                                              HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border Background="Transparent"/>
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+
                                 <!-- 非编辑态：显示当前选中项 -->
                                 <ContentPresenter x:Name="ContentSite"
                                                   Grid.Column="0"
@@ -725,6 +740,7 @@
 
                                 <Path x:Name="Arrow" Grid.Column="1"
                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                      IsHitTestVisible="False"
                                       Data="M 0 0 L 4 4 L 8 0 Z"
                                       Fill="{TemplateBinding Foreground}"/>
                             </Grid>
@@ -755,6 +771,9 @@
                         <Trigger Property="IsEditable" Value="True">
                             <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible"/>
                             <Setter TargetName="ContentSite" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                        <Trigger Property="IsDropDownOpen" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.5"/>
