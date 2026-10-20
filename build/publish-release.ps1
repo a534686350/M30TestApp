@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Version = "",
     [string]$Runtime = "win-x64",
     [switch]$SkipBuild
@@ -9,10 +9,18 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $project = Join-Path $root "src\M30TestApp.Wpf\M30TestApp.Wpf.csproj"
 
-# 版本单一来源是根目录 Directory.Build.props（csproj 不再直接携带 Version）
+# 版本单一来源是根目录 Directory.Build.props（csproj 不再直接携带 Version）。
+# 用正则直接读文本：早先用 [xml] 对象模型，在部分宿主环境下取不到值时
+# 会静默回退成 0.0.0。
 if ([string]::IsNullOrWhiteSpace($Version)) {
-    $propsXml = [xml](Get-Content -LiteralPath (Join-Path $root "Directory.Build.props"))
-    $Version = $propsXml.Project.PropertyGroup.Version
+    $propsPath = Join-Path $root "Directory.Build.props"
+    if (Test-Path -LiteralPath $propsPath) {
+        $propsText = Get-Content -LiteralPath $propsPath -Raw -Encoding UTF8
+        $verMatch = [regex]::Match($propsText, '<Version>([0-9][^<]*)</Version>')
+        if ($verMatch.Success) {
+            $Version = $verMatch.Groups[1].Value.Trim()
+        }
+    }
 }
 if ([string]::IsNullOrWhiteSpace($Version)) {
     throw "Cannot resolve version from Directory.Build.props"
@@ -36,20 +44,27 @@ if ([string]::IsNullOrWhiteSpace($ghToken)) {
 
 $giteeToken = $env:GITEE_TOKEN
 
+if ([string]::IsNullOrWhiteSpace($ghToken) -and [string]::IsNullOrWhiteSpace($giteeToken)) {
+    throw "Set GH_TOKEN (or GITHUB_TOKEN) and/or GITEE_TOKEN for release upload."
+}
 if ([string]::IsNullOrWhiteSpace($ghToken)) {
-    throw "Set GH_TOKEN (or GITHUB_TOKEN) for GitHub release upload."
+    Write-Warning "GH_TOKEN not set; skipping GitHub release."
+}
+if ([string]::IsNullOrWhiteSpace($giteeToken)) {
+    Write-Warning "GITEE_TOKEN not set; skipping Gitee release."
 }
 
 $releaseNotes = @"
-v1.2.42 更新:
+v1.2.44 更新:
 
-- 修复：手动调试页「读取数据」按钮组位置错误。上一版把这一组从独立卡片挪进
-  「采集控制」卡片时，插到了卡片外层，结果被渲染到第一列，把「数据采集卡串口设置」
-  挤扁（波特率 / 停止位下拉框被压成小图标）。现已正确落在卡内，并改成 3 列 × 2 行排布，
-  数值框与 mV / uA 单位完整显示。
-- 界面：读数据按钮去掉 emoji 图标（在 Consolas / 雅黑下渲染成黑白符号），改纯文字。
-- 说明：本版只修界面布局，不影响任何采集逻辑与数据。v1.2.41 的功能改动全部保留
-  （烘箱串口单一所有者、万用表 48 工位加固、设备配置统一、工控外壳紧凑型等）。
+【修复：下拉框点不开、不能下拉】
+- 全程序下拉框（方案 / 传感器型号 / 压力类型 / 设备型号 / 页签内各选项）此前点击无反应，
+  包括点右侧箭头按钮也一样。根因是自绘的 ComboBox 样式模板里少了 WPF 约定名称
+  "toggleButton" 的开合按钮 —— ComboBox 只认这个名字，找不到就认为没有下拉开关。
+  现已补上（透明、铺满控件，可下拉框点中间即可展开；可输入下拉点右侧箭头区展开）。
+- 深色 / 浅色主题都已修复；同时补上下拉展开时边框高亮。
+
+本版不影响采集与计算逻辑，历史数据格式完全兼容。
 
 Self-contained win-x64 build. .NET 8.0 runtime is included.
 "@
@@ -61,6 +76,11 @@ function Invoke-GitHubRelease {
         [string]$Body,
         [string]$ZipFile
     )
+
+    if ([string]::IsNullOrWhiteSpace($ghToken)) {
+        Write-Warning "GH_TOKEN not set; skipping GitHub release."
+        return $null
+    }
 
     $headers = @{
         Authorization = "Bearer $ghToken"
@@ -245,9 +265,24 @@ $title = "M30TestApp V2 v$Version"
 Write-Host "Publishing $title ..."
 Write-Host "Zip: $zipPath"
 
-$ghRelease = Invoke-GitHubRelease -Tag $tag -Title $title -Body $releaseNotes -ZipFile $zipPath
+# GitHub 与 Gitee 互为备份：任一渠道网络不通时只警告，不阻断另一条。
+# 现场多数环境只有 Gitee 能通，所以 Gitee 失败才算整体失败。
+$ghRelease = $null
+try {
+    $ghRelease = Invoke-GitHubRelease -Tag $tag -Title $title -Body $releaseNotes -ZipFile $zipPath
+}
+catch {
+    Write-Warning "GitHub release failed (network or API): $($_.Exception.Message)"
+    Write-Warning "GitHub 渠道跳过，稍后网络恢复可用同一命令重跑补发（已存在的 release 会复用）。"
+}
+
 Invoke-GiteeRelease -Tag $tag -Title $title -Body $releaseNotes -ZipFile $zipPath
 
 Write-Host ""
 Write-Host "Done."
-Write-Host "GitHub: $($ghRelease.html_url)"
+if ($ghRelease -and $ghRelease.html_url) {
+    Write-Host "GitHub: $($ghRelease.html_url)"
+} else {
+    Write-Host "GitHub: 未发布（网络不通或未提供 GH_TOKEN）"
+}
+Write-Host "Gitee : https://gitee.com/hl515/m30-test-app/releases/tag/$tag"

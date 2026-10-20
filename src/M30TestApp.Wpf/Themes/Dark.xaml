@@ -698,6 +698,21 @@
                                     <ColumnDefinition Width="24"/>
                                 </Grid.ColumnDefinitions>
 
+                                <!-- 展开开关：自定义模板必须自带这个 ToggleButton 并垫在最底层、
+                                     跨满两列，否则点控件/箭头都不会展开下拉（WPF 默认模板就是靠它开合）。
+                                     透明模板盖掉系统按钮外观；箭头 Path 设 IsHitTestVisible=False 让点击穿透到它。 -->
+                                <ToggleButton x:Name="toggleButton"
+                                              Grid.ColumnSpan="2"
+                                              Focusable="False" IsTabStop="False" ClickMode="Press"
+                                              HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border Background="Transparent"/>
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+
                                 <!-- 非编辑态：显示当前选中项 -->
                                 <ContentPresenter x:Name="ContentSite"
                                                   Grid.Column="0"
@@ -725,6 +740,7 @@
 
                                 <Path x:Name="Arrow" Grid.Column="1"
                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                      IsHitTestVisible="False"
                                       Data="M 0 0 L 4 4 L 8 0 Z"
                                       Fill="{TemplateBinding Foreground}"/>
                             </Grid>
@@ -755,6 +771,9 @@
                         <Trigger Property="IsEditable" Value="True">
                             <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible"/>
                             <Setter TargetName="ContentSite" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                        <Trigger Property="IsDropDownOpen" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.5"/>
@@ -895,8 +914,10 @@
          深色主题下整条是浅色的，在矩阵右侧露出一道白。 -->
     <Style TargetType="ScrollBar">
         <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Width" Value="10"/>
-        <Setter Property="MinWidth" Value="10"/>
+        <!-- 尺寸**只能按方向分别设**：横向滚动条的"长度"就是它的 Width，
+             基础 setter 里一旦写死 Width=10，整条会塌成 10px 的小疙瘩 ——
+             看着像"只有中间一个点"、还点不着。所以宽度只在 Vertical 触发器里给，
+             高度只在 Horizontal 触发器里给。 -->
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ScrollBar">
@@ -907,7 +928,7 @@
                                               Opacity="0" Background="Transparent" BorderThickness="0"/>
                             </Track.DecreaseRepeatButton>
                             <Track.Thumb>
-                                <Thumb MinHeight="24">
+                                <Thumb x:Name="Thumb" MinHeight="24" MinWidth="24">
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="Thumb">
                                             <Border x:Name="Bd" CornerRadius="5" Margin="2,1"
@@ -931,6 +952,11 @@
                     <ControlTemplate.Triggers>
                         <Trigger Property="Orientation" Value="Horizontal">
                             <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False"/>
+                            <!-- 横向时 thumb 的"长度"看 MinWidth，MinHeight 归零免得把条撑高 -->
+                            <Setter TargetName="Thumb" Property="MinHeight" Value="0"/>
+                        </Trigger>
+                        <Trigger Property="Orientation" Value="Vertical">
+                            <Setter TargetName="Thumb" Property="MinWidth" Value="0"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
