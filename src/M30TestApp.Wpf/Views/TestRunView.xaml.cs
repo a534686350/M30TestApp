@@ -16,19 +16,9 @@ public partial class TestRunView : UserControl
         };
     }
 
-    private void OnViewLoaded(object sender, RoutedEventArgs e) => ApplyResponsiveLayout();
+    private void OnViewLoaded(object sender, RoutedEventArgs e) { }
 
-    private void OnViewSizeChanged(object sender, SizeChangedEventArgs e) => ApplyResponsiveLayout();
-
-    private void ApplyResponsiveLayout()
-    {
-        if (!IsLoaded) return;
-
-        // 采集矩阵优先：窄窗口收窄右侧栏（测试统计 + 实时日志），把宽度让给矩阵。
-        // 实时日志只显示"时间 + 采集数据"，单行约 50 字符（约 340px），右栏必须留足宽度避免数据被截断。
-        var compact = ActualWidth < 1120;
-        RightRailColumn.Width = new GridLength(compact ? 400 : 480);
-    }
+    private void OnViewSizeChanged(object sender, SizeChangedEventArgs e) { }
 
     /// <summary>
     /// 仅当滚动条已位于底部时才自动跟随，避免操作员上翻查看历史时被强制拉回底部。

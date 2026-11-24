@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -15,6 +15,7 @@ using M30TestApp.Core.Data;
 using TestCheckpoint = M30TestApp.Core.Data.TestCheckpoint;
 using M30TestApp.Core.TaskScript.Actions;
 using M30TestApp.Wpf.Mvvm;
+using M30TestApp.Wpf.Views;
 
 namespace M30TestApp.Wpf.ViewModels;
 
@@ -435,7 +436,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     {
         ct.ThrowIfCancellationRequested();
         var operation = Application.Current.Dispatcher.InvokeAsync(() =>
-            MessageBox.Show(
+            AppDialog.Show(
                 Application.Current.MainWindow,
                 message,
                 "探漏超限",
@@ -448,7 +449,7 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     {
         ct.ThrowIfCancellationRequested();
         var operation = Application.Current.Dispatcher.InvokeAsync(() =>
-            MessageBox.Show(
+            AppDialog.Show(
                 Application.Current.MainWindow,
                 message,
                 "压力波动",

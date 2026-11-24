@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using M30TestApp.Core;
 using M30TestApp.Core.Common;
@@ -136,7 +137,10 @@ public partial class App : Application
         // 程序一打开就找上次没测完的断点，问「是否继续」并让用户填重新保温多久。
         // 延后 1.2 秒：主窗口先画出来，否则模态框会抢在界面渲染之前弹，看着像卡死。
         // 纯界面截图的两个参数跳过（否则截图会被对话框挡住）；--shot-resume 专门验弹窗，不跳过。
-        var isPlainShot = e.Args.Contains("--shot-config-system") || e.Args.Contains("--shot-run-setup");
+        // 其余 --shot-* 一律跳过（含 --shot-config-section=xx 这类通用参数）。
+        var isPlainShot = (e.Args.Contains("--shot-config-system") || e.Args.Contains("--shot-run-setup"))
+                          || (e.Args.Any(a => a.StartsWith("--shot-", StringComparison.OrdinalIgnoreCase))
+                              && !e.Args.Contains("--shot-resume"));
         if (!isPlainShot)
         {
             var resumeTimer = new System.Windows.Threading.DispatcherTimer
@@ -315,6 +319,29 @@ public partial class App : Application
             ShotAndExit(win, "shot-config-system.png");
         }
 
+        // 通用：--shot-config-section=<节名>（节名就是配置页左侧的页签名，例如 接口设置 / 温度采集 / 设备 / 工位 / 系统设置）
+        // 每个配置页签都能单独截图自检，不用再一页一页加专门的参数。
+        string? sectionName = null;
+        foreach (var a in e.Args)
+        {
+            if (a.StartsWith("--shot-config-section=", StringComparison.OrdinalIgnoreCase))
+            {
+                sectionName = a["--shot-config-section=".Length..].Trim();
+                break;
+            }
+        }
+        if (!string.IsNullOrEmpty(sectionName))
+        {
+            var target = sectionName;
+            win.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                mainVm.Config.SelectedSection = target;
+                mainVm.CurrentView = mainVm.Config;
+                mainVm.SelectedNavKey = "Settings";
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+            ShotAndExit(win, $"shot-config-{target}.png");
+        }
+
         if (e.Args.Contains("--shot-matrix"))
         {
             var run = mainVm.TestRun;
@@ -337,18 +364,158 @@ public partial class App : Application
             ShotAndExit(win, "shot-slots.png");
         }
 
-        if (e.Args.Contains("--shot-run-setup"))
+        // 偏好设置页（语言 / 更新 / 设备），从系统菜单进入，平时没有专属截图参数
+        if (e.Args.Contains("--shot-settings"))
         {
+            win.Dispatcher.BeginInvoke(new Action(() => mainVm.ShowSettingsCommand.Execute(null)),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+            ShotAndExit(win, "shot-settings.png");
+        }
+
+        // 主题化消息框自检：ShowDialog 会阻塞，所以先挂定时器（ShowDialog 内部有嵌套消息循环，定时器照常跑）
+        if (e.Args.Contains("--shot-dialog"))
+        {
+            var dlgTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(1.6),
+            };
+            dlgTimer.Tick += (_, _) =>
+            {
+                dlgTimer.Stop();
+                var dlg = Windows.OfType<Window>().FirstOrDefault(w => w is Views.AppDialog);
+                if (dlg is not null)
+                {
+                    SaveWindowPng(dlg, "shot-dialog.png");
+                    dlg.Close();
+                }
+                else
+                {
+                    AppLog.Warn("Shot", "没等到 AppDialog");
+                }
+                Shutdown();
+            };
+            dlgTimer.Start();
+
+            win.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                Views.AppDialog.Show(
+                    "保存失败：无法写入 Setting.ini（文件被其它程序占用）。\n请关闭占用该文件的程序后重试。",
+                    "保存", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+
+        if (e.Args.Contains("--shot-run-setup") || e.Args.Contains("--shot-run-setup-plan"))
+        {
+            var planTab = e.Args.Contains("--shot-run-setup-plan");
             var setupVm = new M30TestApp.Wpf.ViewModels.RunSetupViewModel(session, false);
             var setupWin = new M30TestApp.Wpf.Views.RunSetupWindow(setupVm)
             {
                 Owner = win,
             };
             setupWin.Show();
-            setupWin.Dispatcher.BeginInvoke(new Action(() => setupWin.SetupTabs.SelectedIndex = 1),
+            // 工位页签已移除，窗口只剩「选择方案」一页
+            setupWin.Dispatcher.BeginInvoke(new Action(() => setupWin.SetupTabs.SelectedIndex = 0),
                 System.Windows.Threading.DispatcherPriority.Loaded);
-            ShotAndExit(setupWin, "shot-run-setup.png");
+            ShotAndExit(setupWin, planTab ? "shot-run-setup-plan.png" : "shot-run-setup.png");
         }
+
+        // 通用页面截图钩子：--shot-view=<key>
+        // 快速测试 / 手动调试 / 日志这几页一直没有专属的 --shot-*，改版后没法自检，
+        // 这里补一个按页面 key 切过去再截的通用入口。
+        //   quick / manual / log / slots / auto / longterm / plan / config
+        string? viewKey = null;
+        foreach (var a in e.Args)
+        {
+            if (a.StartsWith("--shot-view=", StringComparison.OrdinalIgnoreCase))
+            {
+                viewKey = a["--shot-view=".Length..].Trim().ToLowerInvariant();
+                break;
+            }
+        }
+        if (!string.IsNullOrEmpty(viewKey))
+        {
+            win.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                switch (viewKey)
+                {
+                    case "quick":    mainVm.ShowQuickTestCommand.Execute(null); break;
+                    case "manual":   mainVm.ShowManualCommand.Execute(null); break;
+                    case "log":      mainVm.ShowLogCommand.Execute(null); break;
+                    case "slots":    mainVm.ShowSlotsCommand.Execute(null); break;
+                    case "auto":     mainVm.ShowTestRunCommand.Execute(null); break;
+                    case "longterm": mainVm.ShowLongTermStabilityCommand.Execute(null); break;
+                    case "plan":     mainVm.ShowConfigPlanCommand.Execute(null); break;
+                    case "config":   mainVm.ShowConfigCommand.Execute(null); break;
+                }
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+
+            // 任务类页面现在开独立窗口，截图要指向任务窗而非主窗
+            if (viewKey is "quick" or "manual" or "auto" or "longterm")
+            {
+                var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(7) };
+                timer.Tick += (_, _) =>
+                {
+                    timer.Stop();
+                    var task = Application.Current.Windows.OfType<Views.TaskWindow>().FirstOrDefault();
+                    if (task is not null)
+                        CaptureWindow(task, Path.Combine(AppPaths.BaseDir, $"shot-view-{viewKey}.png"));
+                    Application.Current.Shutdown();
+                };
+                timer.Start();
+            }
+            else
+                ShotAndExit(win, $"shot-view-{viewKey}.png");
+        }
+
+        // 独立面板窗口自检：--shot-panel=batch / freq
+        string? panelKey = null;
+        foreach (var a in e.Args)
+        {
+            if (a.StartsWith("--shot-panel=", StringComparison.OrdinalIgnoreCase))
+            {
+                panelKey = a["--shot-panel=".Length..].Trim().ToLowerInvariant();
+                break;
+            }
+        }
+        if (!string.IsNullOrEmpty(panelKey))
+        {
+            win.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (panelKey == "batch")
+                    mainVm.Manual.OpenBatchPanelCommand.Execute(null);
+                else if (panelKey == "freq")
+                    mainVm.Manual.OpenFrequencyPanelCommand.Execute(null);
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+
+            // PanelWindow.Show() 是非模态，ShotAndExit 需要指向新窗口：
+            // 7 秒后从 Application.Windows 里按标题取出来截。
+            var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(7) };
+            timer.Tick += (_, _) =>
+            {
+                timer.Stop();
+                var panel = Application.Current.Windows
+                    .OfType<Views.PanelWindow>().FirstOrDefault();
+                if (panel is not null)
+                {
+                    var name = Path.Combine(AppPaths.BaseDir, $"shot-panel-{panelKey}.png");
+                    CaptureWindow(panel, name);
+                }
+                Application.Current.Shutdown();
+            };
+            timer.Start();
+        }
+    }
+
+    private static void CaptureWindow(System.Windows.Window win, string fileName)
+    {
+        var rect = new System.Windows.Rect(0, 0, win.ActualWidth, win.ActualHeight);
+        var bmp = new System.Windows.Media.Imaging.RenderTargetBitmap(
+            (int)rect.Width, (int)rect.Height, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        bmp.Render(win);
+        using var fs = File.Create(fileName);
+        var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bmp));
+        enc.Save(fs);
     }
 
     /// <summary>开发用：把窗口渲染成 PNG 后退出（配合上面的 --shot-* 参数）。</summary>

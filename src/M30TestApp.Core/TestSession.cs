@@ -35,7 +35,7 @@ public sealed class TestSession : IDisposable
     /// <summary>主 DMM，恒等于 <see cref="Dmms"/>[0]；长期稳定性等单台路径沿用此属性。</summary>
     public IDmm Dmm { get; private set; } = null!;
 
-    /// <summary>全部 DMM（DAQ973A）：万用表自动测试 48 工位 = 3 台 × 16。按 <c>[Device.Dmm*]</c> 段顺序。</summary>
+    /// <summary>全部 DMM（DAQ973A）：万用表自动测试 54 工位 = 3 台 × 18。按 <c>[Device.Dmm*]</c> 段顺序。</summary>
     public IReadOnlyList<IDmm> Dmms { get; private set; } = Array.Empty<IDmm>();
 
     public IDac Dac { get; private set; } = null!;
@@ -70,6 +70,10 @@ public sealed class TestSession : IDisposable
         DmmAutoSlotMap.Current = DmmAutoChannelConfig.Load(settings ?? new IniFile());
 
         CreateDevices(DebugMode);
+
+        // 973 两种用途（电路板继电器 / 万用表采集）的命令完整性 + 通道撞号校验。
+        // 只告警不阻断：现场可能有简化配置，但日志里必须留下线索。
+        DmmCommandGuard.LogWarnings(commands, station, settings ?? new IniFile());
 
         foreach (var slot in slots.Entries) Matrix.EnsureSlot(slot.Slot);
 

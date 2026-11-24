@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using M30TestApp.Core;
 using M30TestApp.Core.Common;
 using M30TestApp.Core.Config;
@@ -34,6 +35,16 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>站点状态上报器（上报给总控制台；只读，不接收控制指令）。</summary>
     public StationReporter Reporter { get; }
+
+    /// <summary>
+    /// 是否有测试任务正在运行（自动/长期/快速）。运行中锁定主界面所有导航与配置修改，
+    /// 防止操作员切到手动调试或改配置，导致硬件被两套流程同时占用。
+    /// </summary>
+    public bool IsTaskRunning =>
+        TestRun.IsRunning || LongTermStability.IsRunning || QuickTest.IsRunning;
+
+    /// <summary>任务独立窗口是否打开（一次只能一个）。</summary>
+    public bool IsTaskWindowOpen => Views.TaskWindow.IsOpen;
 
     private object _currentView;
     public object CurrentView
@@ -291,14 +302,28 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
         // 「测试」主页签 + 命令条上的模式选择器：三种测试共用一个页面。
         // 页签只导航（保留当前模式），模式选择器才改 TestMode。
-        ShowTestCenterCommand = new RelayCommand(_ => { CurrentView = TestModeView; SelectedNavKey = "Test"; });
-        ShowTestRunCommand  = new RelayCommand(_ => { TestMode = "Auto"; CurrentView = TestModeView; SelectedNavKey = "Test"; });
-        ShowLongTermStabilityCommand = new RelayCommand(_ => { TestMode = "LongTerm"; CurrentView = TestModeView; SelectedNavKey = "Test"; });
-        ShowQuickTestCommand = new RelayCommand(_ => { TestMode = "Quick"; CurrentView = TestModeView; SelectedNavKey = "Test"; });
-        ShowManualCommand   = new RelayCommand(_ => { CurrentView = Manual; SelectedNavKey = "Manual"; });
-        // 「设置」主页签 = 全部配置子页的容器（方案/接口设置/温度采集/气路与参数/压力指令/设备/指令/工位/测试流程/版本信息/系统设置）
-        ShowConfigCommand   = new RelayCommand(_ => { CurrentView = Config; SelectedNavKey = "Settings"; });
-        ShowConfigPlanCommand = new RelayCommand(_ => { Config.SelectedSection = "方案"; CurrentView = Config; SelectedNavKey = "Settings"; });
+        // 测试任务改成独立窗口：一次只开一个，关掉回主界面。
+        // 运行中（IsTaskRunning）禁止开新任务窗，也禁止切到手动调试 / 改配置。
+        ShowTestCenterCommand = new RelayCommand(_ => OpenTaskWindow("Test", "测试中心", ActiveRunVm),
+            _ => !IsTaskRunning);
+        ShowTestRunCommand  = new RelayCommand(_ =>
+        {
+            TestMode = "Auto";
+            OpenTaskWindow("Auto", "自动测试", TestRun);
+        }, _ => !IsTaskRunning);
+        ShowLongTermStabilityCommand = new RelayCommand(_ =>
+        {
+            TestMode = "LongTerm";
+            OpenTaskWindow("LongTerm", "长期稳定性测试", LongTermStability);
+        }, _ => !IsTaskRunning);
+        ShowQuickTestCommand = new RelayCommand(_ =>
+        {
+            TestMode = "Quick";
+            OpenTaskWindow("Quick", "快速测试", QuickTest);
+        }, _ => !IsTaskRunning);
+        ShowManualCommand   = new RelayCommand(_ => OpenTaskWindow("Manual", "手动调试", Manual),
+            _ => !IsTaskRunning);
+        // 「设置」主页签 = 全部配置子页的容器；命令定义在下面（带运行中锁定）。
         // 顶部「工位」页签 → 独立的简化工位页（无扫码录入）：只输入工位数量、看工位表。
         // 系统菜单的「工位配置」→ 配置页的工位节（带扫码录入），供现场扫码场景使用。
         // 两者共用同一份工位数据（Slots 页只是 Config 的包装）。
@@ -306,16 +331,23 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         {
             CurrentView = Slots;
             SelectedNavKey = "Slots";
-        });
+        }, _ => !IsTaskRunning);
         ShowConfigSlotsCommand = new RelayCommand(_ =>
         {
             Config.SelectedSection = "工位";
             CurrentView = Config;
             SelectedNavKey = "Settings";
-        });
-        ShowLogCommand      = new RelayCommand(_ => { CurrentView = Log; SelectedNavKey = "Log"; });
+        }, _ => !IsTaskRunning);
+        ShowLogCommand      = new RelayCommand(_ => { CurrentView = Log; SelectedNavKey = "Log"; },
+            _ => !IsTaskRunning);
         // 偏好设置（语言/主题/更新）保留独立页，从「系统」菜单进入
-        ShowSettingsCommand = new RelayCommand(_ => { OpenSettings(); SelectedNavKey = "Settings"; });
+        ShowSettingsCommand = new RelayCommand(_ => { OpenSettings(); SelectedNavKey = "Settings"; },
+            _ => !IsTaskRunning);
+        // 配置页也锁定（运行中禁止改配置）
+        ShowConfigCommand = new RelayCommand(_ => { CurrentView = Config; SelectedNavKey = "Settings"; },
+            _ => !IsTaskRunning);
+        ShowConfigPlanCommand = new RelayCommand(_ => { Config.SelectedSection = "方案"; CurrentView = Config; SelectedNavKey = "Settings"; },
+            _ => !IsTaskRunning);
 
         OpenDataDirCommand = new RelayCommand(_ => OpenDirectory(AppPaths.DataDir));
         OpenLogDirCommand  = new RelayCommand(_ => OpenDirectory(AppPaths.LogDir));
@@ -344,22 +376,28 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         session.Reconfigured += OnSessionReconfigured;
         session.DevicesRebuilt += OnSessionDevicesRebuilt;
 
-        // 启动后异步检查更新（不阻塞主界面）；发现新版时弹窗提示，不强制安装
-        _ = System.Threading.Tasks.Task.Run(async () =>
+        // 启动后异步检查更新（不阻塞主界面）；发现新版时弹窗提示，不强制安装。
+        // 截图自检模式（--shot-*）跳过：模态更新框会阻塞 dispatcher，导致截图定时器永不触发、进程挂住。
+        var isShotMode = Environment.GetCommandLineArgs()
+            .Any(a => a.StartsWith("--shot-", StringComparison.OrdinalIgnoreCase));
+        if (!isShotMode)
         {
-            try
+            _ = System.Threading.Tasks.Task.Run(async () =>
             {
-                await System.Threading.Tasks.Task.Delay(3000);
-                await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                try
                 {
-                    _ = Settings.CheckForUpdateOnStartupAsync();
-                });
-            }
-            catch (Exception ex)
-            {
-                AppLog.Warn("Startup", $"检查更新失败: {ex.Message}");
-            }
-        });
+                    await System.Threading.Tasks.Task.Delay(3000);
+                    await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        _ = Settings.CheckForUpdateOnStartupAsync();
+                    });
+                }
+                catch (Exception ex)
+                {
+                    AppLog.Warn("Startup", $"检查更新失败: {ex.Message}");
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -460,13 +498,66 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             OnPropertyChanged(nameof(CurrentRunStatus));
         if (e.PropertyName == nameof(TestRunViewModel.CurrentStep))
             OnPropertyChanged(nameof(CurrentRunStep));
+        if (e.PropertyName == nameof(TestRunViewModel.IsRunning))
+            NotifyRunLockChanged();
     }
 
     private void OnQuickTestPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(QuickTestViewModel.Status)) return;
-        OnPropertyChanged(nameof(CurrentRunStatus));
-        OnPropertyChanged(nameof(CurrentRunStep));
+        if (e.PropertyName == nameof(QuickTestViewModel.Status))
+        {
+            OnPropertyChanged(nameof(CurrentRunStatus));
+            OnPropertyChanged(nameof(CurrentRunStep));
+        }
+        if (e.PropertyName == nameof(QuickTestViewModel.IsRunning))
+            NotifyRunLockChanged();
+    }
+
+    /// <summary>运行态变化：主界面所有导航/配置入口立刻失效（CanExecute 重算）。</summary>
+    private void NotifyRunLockChanged()
+    {
+        OnPropertyChanged(nameof(IsTaskRunning));
+        ShowTestCenterCommand.RaiseCanExecuteChanged();
+        ShowTestRunCommand.RaiseCanExecuteChanged();
+        ShowLongTermStabilityCommand.RaiseCanExecuteChanged();
+        ShowQuickTestCommand.RaiseCanExecuteChanged();
+        ShowManualCommand.RaiseCanExecuteChanged();
+        ShowSlotsCommand.RaiseCanExecuteChanged();
+        ShowLogCommand.RaiseCanExecuteChanged();
+        ShowConfigCommand.RaiseCanExecuteChanged();
+        ShowConfigPlanCommand.RaiseCanExecuteChanged();
+        ShowConfigSlotsCommand.RaiseCanExecuteChanged();
+        ShowSettingsCommand.RaiseCanExecuteChanged();
+        StartSelectedRunCommand.RaiseCanExecuteChanged();
+        StopSelectedRunCommand.RaiseCanExecuteChanged();
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    /// <summary>
+    /// 打开测试任务独立窗口（自动/长期/快速/手动调试）。
+    /// 复用长生命周期任务 VM 单例 —— 绝不 new，否则丢状态且和顶栏命令指向不同实例。
+    /// </summary>
+    private void OpenTaskWindow(string key, string title, object taskVm)
+    {
+        if (IsTaskRunning) return;   // 运行中禁止换任务
+
+        // 顶栏开始/停止按 SelectedNavKey + TestMode 分发，任务窗也用同一套。
+        // 主界面保持在工位表，不切 CurrentView —— 任务内容只在独立窗口里显示。
+        SelectedNavKey = key == "Manual" ? "Manual" : "Test";
+
+        var opened = Views.TaskWindow.Open(key, title, this, taskVm, () =>
+        {
+            // 关窗回主界面：清掉任务导航态，主界面回到工位表
+            SelectedNavKey = "Slots";
+            CurrentView = Slots;
+            OnPropertyChanged(nameof(IsTaskRunning));
+            OnPropertyChanged(nameof(IsTaskWindowOpen));
+            CommandManager.InvalidateRequerySuggested();
+        });
+        if (!opened)
+            AppLog.Warn("Shell", $"已有其它测试任务窗口打开，拒绝同时开「{title}」");
+        OnPropertyChanged(nameof(IsTaskWindowOpen));
+        CommandManager.InvalidateRequerySuggested();
     }
 
     private void OpenSettings() => CurrentView = Settings;

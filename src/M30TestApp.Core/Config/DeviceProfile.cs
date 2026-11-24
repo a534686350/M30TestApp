@@ -48,7 +48,7 @@ public sealed class StationProfile
     /// <summary>
     /// 每类设备的全部实例，按配置段顺序排列：<c>[Device.X]</c>、<c>[Device.X2]</c>、<c>[Device.X3]</c>…
     /// 下标 0 恒等于 <see cref="Devices"/> 里的主实例（同一对象引用）。
-    /// 目前只有 DMM（DAQ973A）需要多台：万用表自动测试 48 工位 = 3 台 × 16。
+    /// 目前只有 DMM（DAQ973A）需要多台：万用表自动测试 54 工位 = 3 台 × 18。
     /// </summary>
     public Dictionary<DeviceKind, List<DeviceProfile>> AllUnits { get; } = new();
 

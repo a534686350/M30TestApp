@@ -1639,12 +1639,12 @@ public sealed class RunPerformanceTestAction : IAction
 /// <summary>
 /// 万用表自动测试（Run:DmmAutoTest）——与电路板自动测试并列的采集方案。
 ///
-/// 用 1-3 台 DAQ973A 采电压/电阻，最多 48 工位：
-///   工位 1-16 → 973-1，17-32 → 973-2，33-48 → 973-3（每台独立的通道组）
-///   电压通道 101-116、电阻通道 201-216、工位电源开关 301-316、总电源 319/320
+/// 用 1-3 台 DAQ973A 采电压/电阻，最多 54 工位（每台 18）：
+///   工位 1-18 → 973-1，19-36 → 973-2，37-54 → 973-3（每台独立的通道组）
+///   电压通道 101-118、电阻通道 201-218、工位电源开关 301-318、总电源 319/320
 ///
 /// 每个温度点的采集顺序：
-///   1. 上电：每台 973 闭合本台 301-316 + 319/320（总电源同时闭合）
+///   1. 上电：每台 973 闭合本台 301-318 + 319/320（总电源同时闭合）
 ///   2. 逐压力点（正向）：设压力 → 稳定 → 保压 → 逐工位读电压 mV → {Tn}{Pm}_USG
 ///   3. 下行回差（压力点 ≥2）：反向再走一遍 → {Tn}{Pm}_USG_R
 ///   4. 断电：每台 973 断开 301-320
@@ -1741,7 +1741,7 @@ public sealed class RunDmmAutoTestAction : IAction
         }
         finally
         {
-            // 兜底：异常 / 取消路径上绝不能把 301-316、319-320 留在闭合状态。
+            // 兜底：异常 / 取消路径上绝不能把工位电源开关组（默认 301-318）、总电源 319/320 留在闭合状态。
             // 用 CancellationToken.None —— 原 token 可能已取消，断电必须继续做完。
             if (powered)
             {
@@ -1803,12 +1803,12 @@ public sealed class RunDmmAutoTestAction : IAction
         return DmmAutoSlotMap.VoltageChannelForSlot(n).ToString(CultureInfo.InvariantCulture);
     }
 
-    /// <summary>电阻通道：优先用工位表推导值（表里没有独立列），按工位号算 201-216。</summary>
+    /// <summary>电阻通道：优先用工位表推导值（表里没有独立列），按工位号算（默认 201-218）。</summary>
     private static string ResistanceChannel(SlotEntry slot) =>
         DmmAutoSlotMap.ResistanceChannelForSlot(SlotDacAddress.ParseSlotIndex(slot.Slot))
             .ToString(CultureInfo.InvariantCulture);
 
-    /// <summary>电源开关通道：优先用「电源开关」列，缺省按工位号推导 301-316。</summary>
+    /// <summary>电源开关通道：优先用「电源开关」列，缺省按工位号推导（默认 301-318）。</summary>
     private static string PowerSwitchChannel(SlotEntry slot)
     {
         if (!string.IsNullOrWhiteSpace(slot.PowerSwitch) && slot.PowerSwitch.Trim() != "-")

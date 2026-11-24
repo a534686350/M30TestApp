@@ -9,8 +9,10 @@ namespace M30TestApp.Core.Config;
 /// 万用表自动测试的通道分配 —— 现场可在「配置 → 设备」页单独修改：
 /// 哪一组通道采电压、哪一组采电阻、哪一组切换工位电源、总电源用哪几个通道。
 ///
-/// 默认值（对应 DAQ973A 一台 16 工位）：
-///   电压 101-116、电阻 201-216、工位电源开关 301-316、总电源 319 / 320。
+/// 默认值（对应 DAQ973A 一台 18 工位）：
+///   电压 101-118、电阻 201-218、工位电源开关 301-318、总电源 319 / 320。
+///
+/// 三台 973 共 18×3 = 54 个工位（每台独立一套上述通道）。
 ///
 /// 持久化在 Setting.ini 的 <c>[DmmAutoTest]</c> 段。
 /// </summary>
@@ -24,8 +26,8 @@ public sealed class DmmAutoChannelConfig
     /// </summary>
     public static DmmAutoChannelConfig Default => new();
 
-    /// <summary>单台 973 负责的工位数。</summary>
-    public int SlotsPerUnit { get; set; } = 16;
+    /// <summary>单台 973 负责的工位数（默认 18）。</summary>
+    public int SlotsPerUnit { get; set; } = 18;
 
     /// <summary>电压采集通道起始号（默认 101）。</summary>
     public int VoltageStart { get; set; } = 101;

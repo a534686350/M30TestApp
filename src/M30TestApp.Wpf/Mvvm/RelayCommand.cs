@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using System.Windows.Input;
+using M30TestApp.Wpf.Views;
 
 namespace M30TestApp.Wpf.Mvvm;
 
@@ -48,7 +49,7 @@ public sealed class AsyncRelayCommand : ICommand
             M30TestApp.Core.Common.AppLog.Error(source, ex.ToString());
             try
             {
-                System.Windows.MessageBox.Show(
+                AppDialog.Show(
                     ex.Message,
                     $"{source} 操作失败",
                     System.Windows.MessageBoxButton.OK,

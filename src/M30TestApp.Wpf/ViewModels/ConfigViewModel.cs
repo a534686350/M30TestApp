@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
@@ -236,7 +236,7 @@ public sealed partial class ConfigViewModel : ViewModelBase
 
         if (message.StartsWith("需要管理员权限", StringComparison.Ordinal))
         {
-            MessageBox.Show(
+            AppDialog.Show(
                 Application.Current?.MainWindow,
                 message,
                 "阻止系统更新",
@@ -266,6 +266,8 @@ public sealed partial class ConfigViewModel : ViewModelBase
     // ������ Commands ��������������������������������������������������������������������������������������������������������������������
     public RelayCommand SaveCommand { get; }
     public RelayCommand ReloadCommand { get; }
+    /// <summary>扫描 GPIB 总线上的 DAQ973A 并自动填入设备地址。</summary>
+    public RelayCommand ScanGpibCommand { get; }
     /// <summary>顶部快捷入口：一点跳到配置中心的某一节。</summary>
     public RelayCommand GotoSectionCommand { get; }
     public RelayCommand AddSlotCommand { get; }
@@ -300,6 +302,9 @@ public sealed partial class ConfigViewModel : ViewModelBase
         LoadPressureModels(session.Commands);
 
         DeviceConfig.Load(_settingIni);
+        // 启动后台自动扫描 GPIB 上的 DAQ973A：扫到就自动填地址（用户仍可手改/手填）。
+        // 放后台线程，不阻塞主界面启动；扫不到（未装 NI-VISA / 设备未开机）静默保留手填地址。
+        System.Threading.Tasks.Task.Run(() => DeviceConfig.ScanAndFillDmmAddresses());
         RefreshComPorts();
         LoadDeviceSettings();
         LoadAppSettings();
@@ -327,6 +332,11 @@ public sealed partial class ConfigViewModel : ViewModelBase
 
         SaveCommand = new RelayCommand(_ => SaveSettings());
         ReloadCommand = new RelayCommand(_ => ReloadSettings());
+        ScanGpibCommand = new RelayCommand(_ =>
+        {
+            // VISA IO 可能耗时，放后台线程；结果回写必须切回 UI 线程（ObservableCollection 线程亲和）。
+            System.Threading.Tasks.Task.Run(() => DeviceConfig.ScanAndFillDmmAddresses());
+        });
         GotoSectionCommand = new RelayCommand(p =>
         {
             var section = p as string;
@@ -395,7 +405,7 @@ public sealed partial class ConfigViewModel : ViewModelBase
     {
         if (string.IsNullOrWhiteSpace(_selectedPlanFolder))
         {
-            MessageBox.Show("请先选择一个方案文件夹", "新建传感器型号", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show("请先选择一个方案文件夹", "新建传感器型号", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -430,10 +440,10 @@ public sealed partial class ConfigViewModel : ViewModelBase
         var path = Path.Combine(AppPaths.TestConfigDir, name + ".ini");
         if (!File.Exists(path))
         {
-            MessageBox.Show($"方案文件不存在：{path}", "删除方案", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show($"方案文件不存在：{path}", "删除方案", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
-        var result = MessageBox.Show($"确定要删除方案「{name}」吗？\n此操作不可撤销。", "删除方案",
+        var result = AppDialog.Show($"确定要删除方案「{name}」吗？\n此操作不可撤销。", "删除方案",
             MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (result != MessageBoxResult.Yes) return;
         try
@@ -452,7 +462,7 @@ public sealed partial class ConfigViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"删除失败：{ex.Message}", "删除方案", MessageBoxButton.OK, MessageBoxImage.Error);
+            AppDialog.Show($"删除失败：{ex.Message}", "删除方案", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -491,7 +501,7 @@ public sealed partial class ConfigViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "压力点录入", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show(ex.Message, "压力点录入", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -521,7 +531,7 @@ public sealed partial class ConfigViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "温度点录入", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show(ex.Message, "温度点录入", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -544,6 +554,11 @@ public sealed partial class ConfigViewModel : ViewModelBase
 
         foreach (var dir in Directory.GetDirectories(AppPaths.TestConfigDir))
             PlanFolders.Add(Path.GetFileName(dir));
+
+        // 单一「方案」下拉：扁平列出全部 ini（文件夹/型号 + 根目录方案）。
+        _planEntries = PlanCatalog.List();
+        AllPlans.Clear();
+        foreach (var e in _planEntries) AllPlans.Add(e.Display);
     }
 
     /// <summary>启动时自动选中当前方案所在的文件夹和传感器型号。</summary>
@@ -575,6 +590,11 @@ public sealed partial class ConfigViewModel : ViewModelBase
             _selectedSensorModelFile = SensorModelFiles[0];
         _loadedSensorModelFile = _selectedSensorModelFile;
         OnPropertyChanged(nameof(SelectedSensorModelFile));
+
+        // 单一方案下拉显示当前项
+        var match = PlanCatalog.Find(Plan);
+        _selectedPlanDisplay = match?.Display ?? Plan.Name;
+        OnPropertyChanged(nameof(SelectedPlanDisplay));
         _loadingPlan = false;
     }
 
@@ -746,7 +766,7 @@ public sealed partial class ConfigViewModel : ViewModelBase
 
     private void ConfirmAndRegenerateSlots()
     {
-        var result = System.Windows.MessageBox.Show(
+        var result = AppDialog.Show(
             "刷新将根据当前参数重新生成工位表，已手动修改的序列号会尽量保留。\n\n确定要刷新吗？",
             "确认刷新",
             System.Windows.MessageBoxButton.YesNo,
@@ -1164,7 +1184,7 @@ public sealed partial class ConfigViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            MessageBox.Show("写入 Command.ini 失败：" + ex.Message, "保存",
+            AppDialog.Show("写入 Command.ini 失败：" + ex.Message, "保存",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -1174,7 +1194,7 @@ public sealed partial class ConfigViewModel : ViewModelBase
         var kind = SelectedCommandDeviceKind;
         if (string.IsNullOrWhiteSpace(kind))
         {
-            MessageBox.Show("请先选择设备类型。", "新增设备型号", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show("请先选择设备类型。", "新增设备型号", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -1184,7 +1204,7 @@ public sealed partial class ConfigViewModel : ViewModelBase
 
         if (_session.Commands.HasModel(name))
         {
-            MessageBox.Show($"型号「{name}」已存在。", "新增设备型号", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show($"型号「{name}」已存在。", "新增设备型号", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -1206,11 +1226,11 @@ public sealed partial class ConfigViewModel : ViewModelBase
     {
         if (SelectedModelCommand is not { } cur)
         {
-            MessageBox.Show("请先选择要删除的型号。", "删除设备型号", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show("请先选择要删除的型号。", "删除设备型号", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
-        if (MessageBox.Show(
+        if (AppDialog.Show(
                 $"确定从 Command.ini 删除型号「{cur.Model}」？\n该型号下的全部指令模板会一并删除，且不可撤销。",
                 "删除设备型号", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK)
             return;
@@ -1231,7 +1251,7 @@ public sealed partial class ConfigViewModel : ViewModelBase
 
         if (_session.Commands.HasModel(name))
         {
-            MessageBox.Show($"型号「{name}」已存在。", "新增压力控制器型号", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show($"型号「{name}」已存在。", "新增压力控制器型号", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -1255,7 +1275,7 @@ public sealed partial class ConfigViewModel : ViewModelBase
         var name = PressureModelName;
         if (string.IsNullOrWhiteSpace(name)) return;
 
-        if (MessageBox.Show(
+        if (AppDialog.Show(
                 $"确定从 Command.ini 删除压力控制器型号「{name}」？\n该型号下的全部指令会一并删除，且不可撤销。",
                 "删除压力控制器型号", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK)
             return;

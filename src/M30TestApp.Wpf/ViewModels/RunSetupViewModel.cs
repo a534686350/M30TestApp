@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
@@ -12,6 +12,7 @@ using M30TestApp.Core.Common;
 using M30TestApp.Core.Config;
 using M30TestApp.Core.Data;
 using M30TestApp.Wpf.Mvvm;
+using M30TestApp.Wpf.Views;
 
 namespace M30TestApp.Wpf.ViewModels;
 
@@ -29,8 +30,35 @@ public sealed class RunSetupViewModel : ViewModelBase
     private readonly bool _isLongTermStabilityMode;
 
     // ─── Plan selection ────────────────────────────────────────────────────
+    // 方案与传感器型号已合并为单一「方案」下拉：扁平列出 TestConfig 下全部 ini。
+    // 旧的 PlanFolders / SensorModels 保留为内部状态（加载链和保存逻辑仍在用），
+    // 界面不再直接绑定它们。
     public ObservableCollection<string> PlanFolders { get; } = new();
     public ObservableCollection<string> SensorModels { get; } = new();
+
+    /// <summary>方案下拉的全部候选（显示名，如「M30测试/M30-1MPa」）。</summary>
+    public ObservableCollection<string> AllPlans { get; } = new();
+    private IReadOnlyList<PlanEntry> _planEntries = Array.Empty<PlanEntry>();
+
+    private string _selectedPlanDisplay = "";
+    /// <summary>当前选中的方案显示名；赋值后自动加载对应 ini 并带出 SensorType。</summary>
+    public string SelectedPlanDisplay
+    {
+        get => _selectedPlanDisplay;
+        set
+        {
+            if (!SetField(ref _selectedPlanDisplay, value)) return;
+            var entry = PlanCatalog.FindByDisplay(value, _planEntries);
+            if (entry is null) return;
+
+            // 根目录下的方案：folder 为空 → LoadSelectedPlan 需要单独处理（见该方法）。
+            _selectedPlanFolder = entry.Folder;
+            OnPropertyChanged(nameof(SelectedPlanFolder));
+            _selectedSensorModel = entry.Name;
+            OnPropertyChanged(nameof(SelectedSensorModel));
+            LoadSelectedPlan();
+        }
+    }
 
     private TestPlan? _selectedPlan;
     public TestPlan? SelectedPlan
@@ -342,10 +370,10 @@ public sealed class RunSetupViewModel : ViewModelBase
     // ─── Slot layout inputs ────────────────────────────────────────────────
     public const int SlotMax = SlotLayoutHelper.SlotMax;
     public const int LongTermStabilitySlotMax = 60;
-    /// <summary>万用表采集模式最多支持的工位数 = 3 台 × 每台工位数（默认 48）。</summary>
+    /// <summary>万用表采集模式最多支持的工位数 = 3 台 × 每台工位数（默认 54）。</summary>
     public int DmmAutoTestSlotMax => DmmAutoSlotMap.MaxSlotCount;
 
-    /// <summary>万用表采集模式实际可用的工位上限 = 已配置的 973 台数 × 16。</summary>
+    /// <summary>万用表采集模式实际可用的工位上限 = 已配置的 973 台数 × 每台工位数（默认 18）。</summary>
     public int DmmAutoTestSlotLimit =>
         Math.Clamp(_session.Dmms.Count, 1, DmmAutoSlotMap.MaxUnits) * DmmAutoSlotMap.SlotsPerUnit;
 
@@ -419,7 +447,7 @@ public sealed class RunSetupViewModel : ViewModelBase
         set => SetField(ref _slotSelectionText, value);
     }
 
-    /// <summary>1..N 的工位勾选格（超过 48 只给文本框，避免几百个格子）。</summary>
+    /// <summary>1..N 的工位勾选格（超过当前模式上限只给文本框，避免几百个格子）。</summary>
     public ObservableCollection<SlotToggleVm> SlotToggles { get; } = new();
 
     public string SlotSelectionSummary =>
@@ -1029,29 +1057,35 @@ public sealed class RunSetupViewModel : ViewModelBase
 
     private void LoadPlanFolders(TestPlan current)
     {
+        // 单一方案列表：扁平扫描全部 ini，兼容根目录与子目录。
+        _planEntries = PlanCatalog.List();
+        AllPlans.Clear();
+        foreach (var e in _planEntries)
+            AllPlans.Add(e.Display);
+
+        // 旧的两级列表仍填一份，供加载链 / 保存逻辑使用（界面不再绑定）。
         PlanFolders.Clear();
+        foreach (var dir in _planEntries.Where(e => e.Folder.Length > 0).Select(e => e.Folder).Distinct())
+            PlanFolders.Add(dir);
 
-        if (Directory.Exists(AppPaths.TestConfigDir))
+        var match = PlanCatalog.Find(current);
+        if (match is null)
         {
-            foreach (var dir in Directory.GetDirectories(AppPaths.TestConfigDir)
-                         .OrderBy(d => Path.GetFileName(d), StringComparer.OrdinalIgnoreCase))
-                PlanFolders.Add(Path.GetFileName(dir));
-        }
-
-        var folder = FindPlanFolder(current.Name)
-            ?? (PlanFolders.Contains(current.FolderName) ? current.FolderName : null)
-            ?? PlanFolders.FirstOrDefault()
-            ?? "";
-
-        if (string.IsNullOrWhiteSpace(folder))
-        {
-            SelectedPlan = current;
+            _selectedPlanDisplay = "";
+            OnPropertyChanged(nameof(SelectedPlanDisplay));
+            SelectedPlan = current;   // 目录里没这个方案，仍让当前方案可用
             return;
         }
 
-        _selectedPlanFolder = folder;
+        _selectedPlanDisplay = match.Display;
+        OnPropertyChanged(nameof(SelectedPlanDisplay));
+        _selectedPlanFolder = match.Folder;
         OnPropertyChanged(nameof(SelectedPlanFolder));
-        LoadSensorModels(current.Name);
+        SensorModels.Clear();
+        SensorModels.Add(match.Name);
+        _selectedSensorModel = match.Name;
+        OnPropertyChanged(nameof(SelectedSensorModel));
+        SelectedPlan = current;
     }
 
     private string? FindPlanFolder(string sensorModel)
@@ -1096,10 +1130,15 @@ public sealed class RunSetupViewModel : ViewModelBase
 
     private void LoadSelectedPlan()
     {
-        if (string.IsNullOrWhiteSpace(SelectedPlanFolder) || string.IsNullOrWhiteSpace(SelectedSensorModel))
-            return;
+        if (string.IsNullOrWhiteSpace(SelectedSensorModel)) return;
 
-        var path = Path.Combine(AppPaths.TestConfigDir, SelectedPlanFolder, SelectedSensorModel + ".ini");
+        // 单一方案下拉：优先按「显示名」精确取条目的完整路径（兼容根目录方案），
+        // 取不到再回退到旧的 folder/name 拼路径。
+        var entry = PlanCatalog.FindByDisplay(_selectedPlanDisplay, _planEntries);
+        var path = entry?.Path
+                   ?? (string.IsNullOrWhiteSpace(SelectedPlanFolder)
+                       ? Path.Combine(AppPaths.TestConfigDir, SelectedSensorModel + ".ini")
+                       : Path.Combine(AppPaths.TestConfigDir, SelectedPlanFolder, SelectedSensorModel + ".ini"));
         if (!File.Exists(path)) return;
 
         try
@@ -1108,7 +1147,7 @@ public sealed class RunSetupViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            AppLog.Warn("RunSetup", $"加载传感器型号失败 {path}: {ex.Message}");
+            AppLog.Warn("RunSetup", $"加载方案失败 {path}: {ex.Message}");
         }
     }
 
@@ -1265,7 +1304,7 @@ public sealed class RunSetupViewModel : ViewModelBase
     private void ConfirmAndRegenerate()
     {
         var message = "刷新工位会重新生成全部工位，并清空当前序列号，方便重新扫码录入。\n\n确定要刷新吗？";
-        if (MessageBox.Show(message, "刷新工位", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+        if (AppDialog.Show(message, "刷新工位", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
             return;
 
         Regenerate(preserveSerials: false);
@@ -1338,8 +1377,8 @@ public sealed class RunSetupViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// 万用表采集模式的工位映射：按 16 工位一组分到 973-1 / 973-2 / 973-3。
-    /// 「数字万用表」列写设备号、「通道」列写电压通道、「电源开关」列写 301-316；
+    /// 万用表采集模式的工位映射：按每台工位数（默认 18）一组分到 973-1 / 973-2 / 973-3。
+    /// 「数字万用表」列写设备号、「通道」列写电压通道、「电源开关」列写 301-318；
     /// 气路阀门相关列（阀位 / 阀门）一律清空 —— 万用表模式不控制阀门。
     /// </summary>
     private static List<SlotEntry> ApplyDmmAutoTestChannels(List<SlotEntry> slots, int startSlotNo)
@@ -1402,9 +1441,10 @@ public sealed class RunSetupViewModel : ViewModelBase
     {
         if (SelectedPlan is null) return;
 
-        var list = SlotLayoutHelper.TrimTrailingPlaceholders(PreviewSlots.ToList());
-        var newSlots = new SlotTable(list);
-        _session.ApplyRunConfig(SelectedPlan, newSlots);
+        // 工位统一在侧边栏「工位表」配置并保存，运行时不再重建工位表 ——
+        // 原来这里用 PreviewSlots new SlotTable 覆盖 session.Slots，
+        // 会和侧边栏工位表打架（后操作覆盖前者）。现在只应用方案，工位沿用已保存的那份。
+        _session.ApplyRunConfig(SelectedPlan, _session.Slots);
 
         try
         {

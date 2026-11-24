@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
@@ -202,7 +202,7 @@ public partial class PointBatchEditorWindow : Window, INotifyPropertyChanged
         var badRow = activeRows.FirstOrDefault(r => !TryCountRange(r.Range, singleInput, out _));
         if (badRow is not null)
         {
-            MessageBox.Show($"范围/序号格式不正确：{badRow.Range}", Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show($"范围/序号格式不正确：{badRow.Range}", Title, MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 

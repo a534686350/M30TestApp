@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Windows;
@@ -189,9 +189,9 @@ public partial class ConfigView : UserControl
         var owner = Window.GetWindow(this);
         const string message = "管理员密码不正确，站点标识保持锁定。";
         if (owner is not null)
-            MessageBox.Show(owner, message, "上报设备 ID", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show(owner, message, "上报设备 ID", MessageBoxButton.OK, MessageBoxImage.Warning);
         else
-            MessageBox.Show(message, "上报设备 ID", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show(message, "上报设备 ID", MessageBoxButton.OK, MessageBoxImage.Warning);
 
         StationPasswordBox.SelectAll();
         StationPasswordBox.Focus();
@@ -268,7 +268,7 @@ public partial class ConfigView : UserControl
             return;
         }
 
-        var result = MessageBox.Show(
+        var result = AppDialog.Show(
             $"将清除已录入的 {scanned} 个序列号（共 {total} 个工位），并回到第 1 行。\n\n" +
             "此操作不可撤销，确定清空吗？",
             "清空重扫",

@@ -1,4 +1,4 @@
-<Window x:Class="M30TestApp.Wpf.Views.BulkPointEditorWindow"
+﻿<Window x:Class="M30TestApp.Wpf.Views.BulkPointEditorWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="批量录入点表" Height="520" Width="680"
@@ -17,14 +17,14 @@
             <TextBlock x:Name="ExampleTextBlock"
                        Text="录入后仍可在表格中单独修改每个点。"
                        Margin="0,8,0,0"
-                       Foreground="#64748B"
+                       Foreground="{DynamicResource MutedBrush}"
                        TextWrapping="Wrap"/>
         </StackPanel>
 
         <TextBox x:Name="InputTextBox" Grid.Row="1" Margin="0,12,0,12"
                  AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                 FontFamily="Consolas" FontSize="14"/>
+                 FontFamily="Consolas" FontSize="13.5"/>
 
         <DockPanel Grid.Row="2">
             <Button Content="取消" Width="90" Height="30" DockPanel.Dock="Right" Margin="8,0,0,0" Click="Cancel_Click"/>

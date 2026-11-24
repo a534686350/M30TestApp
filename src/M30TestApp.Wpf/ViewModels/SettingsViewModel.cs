@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -124,6 +124,8 @@ public sealed class SettingsViewModel : ViewModelBase
     public RelayCommand RollbackCommand { get; }
     public RelayCommand SaveDevicesCommand { get; }
     public RelayCommand ReloadDevicesCommand { get; }
+    /// <summary>扫描 GPIB 总线上的 DAQ973A 并自动填入设备地址。</summary>
+    public RelayCommand ScanGpibCommand { get; }
 
     // ─── 设备配置（设置页「设备」页） ────────────────────────────────────────
 
@@ -169,6 +171,8 @@ public sealed class SettingsViewModel : ViewModelBase
 
         SaveDevicesCommand = new RelayCommand(_ => SaveDeviceConfigs());
         ReloadDevicesCommand = new RelayCommand(_ => ReloadDeviceConfigs());
+        ScanGpibCommand = new RelayCommand(_ =>
+            System.Threading.Tasks.Task.Run(() => DeviceConfig.ScanAndFillDmmAddresses()));
         DeviceConfig.Load(_session.Context.Settings);
 
         _station = StationConfig.Load(session.Context.Settings);
@@ -394,7 +398,7 @@ public sealed class SettingsViewModel : ViewModelBase
         var message = Language == "zh-CN"
             ? $"确认回退到上一版本 v{ver}？\n\n当前程序将被替换为备份版本；设置与测试数据不受影响。\n回退完成后应用将自动重启。"
             : $"Roll back to v{ver}?\n\nCurrent binaries will be replaced by the backup. Settings and test data are kept.\nThe app will restart automatically.";
-        if (MessageBox.Show(Application.Current.MainWindow, message, "M30TestApp",
+        if (AppDialog.Show(Application.Current.MainWindow, message, "M30TestApp",
                 MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
             return;
 
@@ -449,7 +453,7 @@ public sealed class SettingsViewModel : ViewModelBase
             var message = Language == "zh-CN"
                 ? $"\u53d1\u73b0\u65b0\u7248\u672c v{latest}\uff08\u5f53\u524d v{currentVersion}\uff09\n\n\u662f\u5426\u7acb\u5373\u4e0b\u8f7d\u5e76\u5b89\u88c5\uff1f\n\u9009\u62e9\u201c\u5426\u201d\u53ef\u7ee7\u7eed\u4f7f\u7528\u5f53\u524d\u7248\u672c\u3002"
                 : $"New version v{latest} is available (current v{currentVersion}).\n\nDownload and install now?\nChoose No to keep using the current version.";
-            if (MessageBox.Show(Application.Current.MainWindow, message, "M30TestApp", MessageBoxButton.YesNo, MessageBoxImage.Information) != MessageBoxResult.Yes)
+            if (AppDialog.Show(Application.Current.MainWindow, message, "M30TestApp", MessageBoxButton.YesNo, MessageBoxImage.Information) != MessageBoxResult.Yes)
             {
                 UpdateStatus = Language == "zh-CN"
                     ? $"\u53d1\u73b0\u65b0\u7248\u672c v{latest}\uff0c\u5df2\u8df3\u8fc7\uff08\u53ef\u5728\u8bbe\u7f6e\u9875\u624b\u52a8\u68c0\u67e5\u66f4\u65b0\uff09"

@@ -8,7 +8,7 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance vm:RunSetupViewModel}"
         Title="选择运行方案"
-        Width="1000" Height="700" MinHeight="600" MinWidth="880"
+        Width="1180" Height="720" MinHeight="600" MinWidth="1040"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResize"
         Background="{DynamicResource SurfaceBrush}">
@@ -51,12 +51,12 @@
             <Setter Property="Margin" Value="0,0,10,0"/>
         </Style>
         <Style x:Key="CompactGroup" TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource HeaderBgBrush}"/>
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="4"/>
-            <Setter Property="Padding" Value="9,5"/>
-            <Setter Property="Margin" Value="0,0,8,6"/>
+            <Setter Property="BorderThickness" Value="0,0,1,0"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="Padding" Value="10,2"/>
+            <Setter Property="Margin" Value="0"/>
         </Style>
         <Style x:Key="NumBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="Width" Value="60"/>
@@ -82,13 +82,15 @@
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="14,8">
             <DockPanel>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                    <TextBlock Text="🚀  选择运行方案" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center"/>
+                    <Rectangle Width="3" Height="14" Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center"/>
+                    <TextBlock Text="选择运行方案" FontWeight="SemiBold" FontSize="13"
+                               VerticalAlignment="Center" Margin="8,0,0,0"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
-                    <Button Content="✓ Apply" Style="{StaticResource PrimaryButton}" Padding="14,4"
-                            Command="{Binding ApplyCommand}"/>
-                    <Button Content="✕ Cancel" Style="{StaticResource GhostButton}" Padding="14,4" Margin="8,0,0,0"
-                            Command="{Binding CancelCommand}"/>
+                    <Button Content="应用" Style="{StaticResource PrimaryButton}" Height="28" Padding="16,0"
+                            FontSize="12" Command="{Binding ApplyCommand}"/>
+                    <Button Content="取消" Style="{StaticResource GhostButton}" Height="28" Padding="16,0"
+                            FontSize="12" Margin="8,0,0,0" Command="{Binding CancelCommand}"/>
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -104,30 +106,32 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- 顶部方案选择 -->
+                    <!-- 顶部方案选择：左「方案」下拉 + 右「运行参数」，两块紧邻靠左，
+                         不再让方案下拉孤零零挂在最左、中间空一大片。 -->
                     <Border Style="{StaticResource Card}">
                         <Grid>
                             <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="400"/>
+                                <ColumnDefinition Width="20"/>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <StackPanel>
-                                <TextBlock Text="方案" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,4"/>
-                                <ComboBox ItemsSource="{Binding PlanFolders}"
-                                          SelectedItem="{Binding SelectedPlanFolder}"
-                                          Width="320" HorizontalAlignment="Left"/>
-                                <TextBlock Text="传感器型号" Foreground="{DynamicResource MutedBrush}" Margin="0,10,0,4"/>
-                                <ComboBox ItemsSource="{Binding SensorModels}"
-                                          SelectedItem="{Binding SelectedSensorModel}"
-                                          Width="320" HorizontalAlignment="Left"/>
+                            <StackPanel VerticalAlignment="Top">
+                                <TextBlock Text="方案" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,6"/>
+                                <ComboBox ItemsSource="{Binding AllPlans}"
+                                          SelectedItem="{Binding SelectedPlanDisplay}"
+                                          Width="380" HorizontalAlignment="Left"
+                                          ToolTip="选择一个方案即加载其全部参数与传感器型号；不再需要单独选型号"/>
+                                <TextBlock Text="{Binding PlanSensorType, StringFormat=传感器型号：{0}}"
+                                           Foreground="{DynamicResource MutedBrush}" FontSize="{StaticResource FontSizeCaption}"
+                                           Margin="0,8,0,0" ToolTip="由所选方案自动带出，无需单独选择"/>
                             </StackPanel>
-                            <Border Grid.Column="1" Background="{DynamicResource HeaderBgBrush}" CornerRadius="6"
-                                    Padding="10,6" Margin="0,0,12,0" VerticalAlignment="Bottom">
+                            <Border Grid.Column="2" Background="{DynamicResource HeaderBgBrush}" CornerRadius="6"
+                                    Padding="12,8" VerticalAlignment="Top">
                                 <StackPanel>
                                     <!-- 自动测试的采集方式：电路板（DAC 逐工位）或万用表（DAQ973A 电压/电阻）。
                                          决定 RunTaskScript 走 Run:PerformanceTest 还是 Run:DmmAutoTest。 -->
-                                    <TextBlock Text="采集方式" Foreground="{DynamicResource MutedBrush}" FontSize="11" Margin="0,0,0,4"
+                                    <TextBlock Text="采集方式" Foreground="{DynamicResource MutedBrush}" FontSize="11.5" Margin="0,0,0,4"
                                                Visibility="{Binding ShowAutoTestModeOptions, Converter={StaticResource BoolToVis}}"/>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8"
                                                 Visibility="{Binding ShowAutoTestModeOptions, Converter={StaticResource BoolToVis}}">
@@ -138,7 +142,7 @@
                                                      IsChecked="{Binding UseDmmAutoTest}"
                                                      ToolTip="{Binding DmmChannelSummary}"/>
                                     </StackPanel>
-                                    <TextBlock Text="设备启用" Foreground="{DynamicResource MutedBrush}" FontSize="11" Margin="0,0,0,4"/>
+                                    <TextBlock Text="设备启用" Foreground="{DynamicResource MutedBrush}" FontSize="11.5" Margin="0,0,0,4"/>
                                     <StackPanel Orientation="Horizontal">
                                         <CheckBox Content="压力控制器" IsChecked="{Binding UsePressure}" Margin="0,0,10,0"/>
                                         <CheckBox Content="烘箱" IsChecked="{Binding UseOven}" Margin="0,0,10,0"
@@ -147,7 +151,7 @@
                                                   Visibility="{Binding ShowLeakCheckOption, Converter={StaticResource BoolToVis}}"
                                                   ToolTip="保压测泄漏率。万用表采集不控制气路阀门，不做探漏"/>
                                     </StackPanel>
-                                    <TextBlock Text="DAQ973A 采集项" Foreground="{DynamicResource MutedBrush}" FontSize="11" Margin="0,8,0,4"
+                                    <TextBlock Text="DAQ973A 采集项" Foreground="{DynamicResource MutedBrush}" FontSize="11.5" Margin="0,8,0,4"
                                                Visibility="{Binding ShowLongTermMeasureOptions, Converter={StaticResource BoolToVis}}"/>
                                     <StackPanel Orientation="Horizontal"
                                                 Visibility="{Binding ShowLongTermMeasureOptions, Converter={StaticResource BoolToVis}}">
@@ -156,7 +160,7 @@
                                         <RadioButton Content="电阻 (Ω)" GroupName="LongTermMeasure"
                                                      IsChecked="{Binding LongTermMeasureResistance}"/>
                                     </StackPanel>
-                                    <TextBlock Text="采集项启用" Foreground="{DynamicResource MutedBrush}" FontSize="11" Margin="0,8,0,4"
+                                    <TextBlock Text="采集项启用" Foreground="{DynamicResource MutedBrush}" FontSize="11.5" Margin="0,8,0,4"
                                                Visibility="{Binding ShowCollectionOptions, Converter={StaticResource BoolToVis}}"/>
                                     <StackPanel Orientation="Horizontal"
                                                 Visibility="{Binding ShowCollectionOptions, Converter={StaticResource BoolToVis}}">
@@ -167,7 +171,7 @@
                                         <CheckBox Content="烘箱温度" IsChecked="{Binding CollectOvenTemp}"/>
                                     </StackPanel>
                                     <!-- 万用表采集：本轮采什么由这里勾 -->
-                                    <TextBlock Text="采集项启用" Foreground="{DynamicResource MutedBrush}" FontSize="11" Margin="0,8,0,4"
+                                    <TextBlock Text="采集项启用" Foreground="{DynamicResource MutedBrush}" FontSize="11.5" Margin="0,8,0,4"
                                                Visibility="{Binding ShowDmmCollectionOptions, Converter={StaticResource BoolToVis}}"/>
                                     <StackPanel Orientation="Horizontal"
                                                 Visibility="{Binding ShowDmmCollectionOptions, Converter={StaticResource BoolToVis}}">
@@ -179,27 +183,28 @@
                                               Visibility="{Binding CanResumeCheckpoint, Converter={StaticResource BoolToVis}}"
                                               ToolTip="续测以温度点为单位：从上次未测完的那个温度点的第一个压力点重新测，该温度点已测的数据作废，更早温度点的数据保留"
                                               Margin="0,6,0,0"/>
-                                    <TextBlock Text="{Binding CheckpointSummary}" TextWrapping="Wrap" FontSize="11"
+                                    <TextBlock Text="{Binding CheckpointSummary}" TextWrapping="Wrap" FontSize="11.5"
                                                Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,0"
                                                Visibility="{Binding CanResumeCheckpoint, Converter={StaticResource BoolToVis}}"/>
                                 </StackPanel>
                             </Border>
-                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Bottom">
+                            <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Top"
+                                        HorizontalAlignment="Right">
                                 <Border Background="{DynamicResource AccentBrush}" CornerRadius="4" Padding="10,4" Margin="0,0,8,0">
                                     <StackPanel>
-                                        <TextBlock Text="压力点" Foreground="#CCFFFFFF" FontSize="11"/>
+                                        <TextBlock Text="压力点" Foreground="#CCFFFFFF" FontSize="11.5"/>
                                         <TextBlock Text="{Binding PlanPressureCount}" Foreground="White" FontWeight="Bold"/>
                                     </StackPanel>
                                 </Border>
                                 <Border Background="{DynamicResource AccentBrush}" CornerRadius="4" Padding="10,4" Margin="0,0,8,0">
                                     <StackPanel>
-                                        <TextBlock Text="温度点" Foreground="#CCFFFFFF" FontSize="11"/>
+                                        <TextBlock Text="温度点" Foreground="#CCFFFFFF" FontSize="11.5"/>
                                         <TextBlock Text="{Binding PlanTempCount}" Foreground="White" FontWeight="Bold"/>
                                     </StackPanel>
                                 </Border>
                                 <Border Background="{DynamicResource HeaderBgBrush}" CornerRadius="4" Padding="10,4">
                                     <StackPanel>
-                                        <TextBlock Text="精度 (‰)" Foreground="{DynamicResource MutedBrush}" FontSize="11"/>
+                                        <TextBlock Text="精度 (‰)" Foreground="{DynamicResource MutedBrush}" FontSize="11.5"/>
                                         <TextBlock Text="{Binding PlanPrecision}" FontWeight="Bold"/>
                                     </StackPanel>
                                 </Border>
@@ -224,10 +229,9 @@
                                     <TextBlock Text="基础信息" FontWeight="SemiBold"
                                                FontSize="{StaticResource FontSizeTitle}" Margin="0,0,0,12"/>
 
-                                    <TextBlock Text="型号" Foreground="{DynamicResource MutedBrush}"/>
-                                    <TextBox Text="{Binding PlanSensorType, Mode=OneWay}" IsReadOnly="True"/>
-
-                                    <TextBlock Text="压力单位" Foreground="{DynamicResource MutedBrush}" Margin="0,10,0,2"/>
+                                    <!-- 传感器型号已并入顶部「方案」下拉，这里不再重复显示一个「型号」框
+                                         （原来选完方案下面又冒出个「型号 demo」，现场以为没合并成功）。 -->
+                                    <TextBlock Text="压力单位" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,2"/>
                                     <TextBox Text="{Binding PlanPressureUnit, Mode=OneWay}" IsReadOnly="True"/>
 
                                     <TextBlock Text="默认压力类型" Foreground="{DynamicResource MutedBrush}" Margin="0,10,0,2"/>
@@ -251,22 +255,22 @@
                                               SelectedItem="{Binding SelectedReportTemplate}"
                                               ToolTip="自动测试模板 = 沿用全性能.xlsx，行为不变；晶圆测试模板 = 用「生成的数据格式」下的现场样例生成，并在桌面另存一份同名 xlsx"/>
                                     <TextBlock Text="{Binding ReportTemplateHint}" Foreground="{DynamicResource AccentBrush}"
-                                               FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                               FontSize="11.5" Margin="0,2,0,0" TextWrapping="Wrap"/>
 
                                     <TextBlock Text="晶圆编号（报表 C 列）" Foreground="{DynamicResource MutedBrush}" Margin="0,10,0,2"/>
                                     <TextBox Text="{Binding ReportWaferNo, UpdateSourceTrigger=PropertyChanged}"
                                              ToolTip="留空 = 自动取序列号去掉末段工位序号，例如 142426-08-01 → 142426-08"/>
                                     <TextBlock Text="{Binding ReportWaferNoHint}" Foreground="{DynamicResource AccentBrush}"
-                                               FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                               FontSize="11.5" Margin="0,2,0,0" TextWrapping="Wrap"/>
 
                                     <TextBlock Text="型号（报表 C 列 + 文件名）" Foreground="{DynamicResource MutedBrush}" Margin="0,10,0,2"/>
                                     <TextBox Text="{Binding ReportModel, UpdateSourceTrigger=PropertyChanged}"
                                              ToolTip="留空 = 自动取方案传感器型号去掉 M30- 前缀"/>
                                     <TextBlock Text="{Binding ReportModelHint}" Foreground="{DynamicResource AccentBrush}"
-                                               FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                               FontSize="11.5" Margin="0,2,0,0" TextWrapping="Wrap"/>
 
                                     <TextBlock Text="说明" Foreground="{DynamicResource MutedBrush}" Margin="0,16,0,4"/>
-                                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" FontSize="11">
+                                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" FontSize="11.5">
                                         本对话框只在本次启动测试时生效。指定方案 + 重新生成工位表后点击 Apply，
                                         主程序会用新配置开始流水线，不会写回 setting 文件。
                                     </TextBlock>
@@ -290,302 +294,7 @@
                     </Grid>
                 </Grid>
             </TabItem>
-
-            <!-- ════════════════════════════════════════════════════════ -->
-            <!-- Tab 2: 工位 -->
-            <!-- ════════════════════════════════════════════════════════ -->
-            <TabItem Header="工位">
-                <Grid Margin="4">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-
-                    <!-- 参数 -->
-                    <Border Style="{StaticResource Card}" Padding="12,10">
-                        <StackPanel>
-                            <!-- 长期稳定性：起止工位 -->
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
-                                        Visibility="{Binding ShowLongTermSlotLayout, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="起始工位" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Style="{StaticResource InputField}" Text="{Binding StartIndex}"
-                                             ToolTip="第一个工位的编号（1-60）"/>
-                                </StackPanel>
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="结束工位" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Style="{StaticResource NumBox}" Text="{Binding EndIndex}"
-                                             ToolTip="最后一个工位的编号（含）"/>
-                                </StackPanel>
-                                <StackPanel Margin="8,0">
-                                    <TextBlock Text="工位数量" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Style="{StaticResource NumBoxReadonly}" Text="{Binding SlotCount, Mode=OneWay}"/>
-                                </StackPanel>
-                            </StackPanel>
-                            <TextBlock Text="{Binding LongTermSlotRangeHint}"
-                                       HorizontalAlignment="Center" Margin="0,6,0,0"
-                                       Foreground="{DynamicResource AccentBrush}" FontSize="11.5"
-                                       Visibility="{Binding ShowLongTermSlotLayout, Converter={StaticResource BoolToVis}}"/>
-
-                            <!-- 自动测试 / 板卡模式：原来三张竖排字段面板占了十几行，
-                                 现在每组压成一行「标签 值 标签 值」，三组自动换行成两行。 -->
-                            <WrapPanel Orientation="Horizontal"
-                                       Visibility="{Binding ShowLegacySlotLayoutFields, Converter={StaticResource BoolToVis}}">
-                                <Border Style="{StaticResource CompactGroup}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="工位范围" Style="{StaticResource GroupCaption}"/>
-                                        <TextBlock Text="所需工位" Style="{StaticResource InlineLabel}"/>
-                                        <!-- 这两个框用默认的 LostFocus 回写，不能用 PropertyChanged：
-                                             逐字回写会把输入中间态（想输 129，中途的 "1"→"12"→"129"）当成最终值，
-                                             而 StartIndex 上限 256 一旦被中间态顶到，工位数量会被连带压成 1，
-                                             现场看到的就是「起始工位这块只能填 1」。 -->
-                                        <TextBox Style="{StaticResource InlineNum}" Width="64"
-                                                 Text="{Binding SlotCount}"
-                                                 ToolTip="要测的工位数（1-256）"/>
-                                        <TextBlock Text="起始编号" Style="{StaticResource InlineLabel}"/>
-                                        <TextBox Style="{StaticResource InlineNum}" Width="64"
-                                                 Text="{Binding StartIndex}"
-                                                 ToolTip="第一个工位的编号，例如 1 或 129（1-256）"/>
-                                    </StackPanel>
-                                </Border>
-
-                                <Border Style="{StaticResource CompactGroup}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="板卡映射" Style="{StaticResource GroupCaption}"/>
-                                        <StackPanel Orientation="Horizontal"
-                                                    Visibility="{Binding ShowBoardLayoutFields, Converter={StaticResource BoolToVis}}">
-                                            <TextBlock Text="起始板卡" Style="{StaticResource InlineLabel}"/>
-                                            <TextBox Style="{StaticResource InlineNum}"
-                                                     Text="{Binding StartBoard, UpdateSourceTrigger=PropertyChanged}"/>
-                                            <TextBlock Text="起始板卡工位" Style="{StaticResource InlineLabel}"/>
-                                            <TextBox Style="{StaticResource InlineNum}"
-                                                     Text="{Binding StartBoardSlot, UpdateSourceTrigger=PropertyChanged}"/>
-                                            <TextBlock Text="每块板卡工位数" Style="{StaticResource InlineLabel}"/>
-                                            <TextBox Style="{StaticResource InlineNum}"
-                                                     Text="{Binding BoardSlotCapacity, UpdateSourceTrigger=PropertyChanged}"/>
-                                        </StackPanel>
-                                        <!-- 万用表采集：板卡映射无意义，改显示 973 通道组 -->
-                                        <TextBlock Text="{Binding DmmChannelSummary}" FontSize="11.5"
-                                                   VerticalAlignment="Center" MaxWidth="430" TextWrapping="Wrap"
-                                                   Foreground="{DynamicResource TextBrush}"
-                                                   Visibility="{Binding UseDmmAutoTest, Converter={StaticResource BoolToVis}}"/>
-                                    </StackPanel>
-                                </Border>
-
-                                <Border Style="{StaticResource CompactGroup}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="夹具 / 阀位 / 通道" Style="{StaticResource GroupCaption}"/>
-                                        <!-- 起始阀位是按工位号推导出来的展示值（每 32 工位一个阀），
-                                             手填不会影响生成的阀门列与运行时打开的阀门 —— 标成只读，
-                                             免得操作员改半天发现没用。 -->
-                                        <TextBlock Text="起始阀位（按工位自动）" Style="{StaticResource InlineLabel}"/>
-                                        <TextBox Style="{StaticResource InlineNum}"
-                                                 Text="{Binding StartValve}"
-                                                 IsReadOnly="True"
-                                                 ToolTip="由起始工位推导：每 32 个工位共用一个阀门"/>
-                                        <TextBlock Text="单个夹具工位" Style="{StaticResource InlineLabel}"/>
-                                        <TextBox Style="{StaticResource InlineNum}"
-                                                 Text="{Binding FixtureSlotCapacity}"/>
-                                        <TextBlock Text="夹具数量" Style="{StaticResource InlineLabel}"/>
-                                        <TextBox Style="{StaticResource InlineNum}"
-                                                 Text="{Binding FixtureCount}"/>
-                                        <TextBlock Text="万用表起始通道" Style="{StaticResource InlineLabel}"/>
-                                        <TextBox Style="{StaticResource InlineNum}"
-                                                 Text="{Binding StartChannel}"/>
-                                    </StackPanel>
-                                </Border>
-                            </WrapPanel>
-
-                            <!-- 摘要 + 上限 / 预览并成一行 -->
-                            <Border Background="{DynamicResource AccentLightBrush}"
-                                    BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1"
-                                    Padding="9,4" Margin="0,2,0,0">
-                                <DockPanel>
-                                    <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" FontSize="11.5"
-                                               Foreground="{DynamicResource MutedBrush}"
-                                               Visibility="{Binding ShowLegacySlotLayoutFields, Converter={StaticResource BoolToVis}}">
-                                        <Run Text="工位上限 "/><Run Text="{Binding SlotLimit, Mode=OneWay}"/>
-                                        <Run Text=" · 预览 "/><Run Text="{Binding PreviewCount, Mode=OneWay}"/><Run Text=" 行"/>
-                                    </TextBlock>
-                                    <TextBlock FontSize="11.5" TextTrimming="CharacterEllipsis"
-                                               VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TextBrush}">
-                                        <Run Text="{Binding BoardMappingSummary, Mode=OneWay}"/>
-                                        <Run Text="  ｜  " Foreground="{DynamicResource MutedBrush}"/>
-                                        <Run Text="{Binding ValveRangeHint, Mode=OneWay}" FontWeight="SemiBold"/>
-                                    </TextBlock>
-                                </DockPanel>
-                            </Border>
-
-                            <!-- 选择测试工位（可不连续，例如 1-8 与 10-16 混选） -->
-                            <Rectangle Height="1" Fill="{DynamicResource DividerBrush}" Margin="0,9,0,8"/>
-                            <DockPanel>
-                                <TextBlock DockPanel.Dock="Right" Text="{Binding ChannelHint}" VerticalAlignment="Center"
-                                           Foreground="{DynamicResource MutedBrush}" FontSize="11.5"
-                                           Visibility="{Binding ShowChannelHint, Converter={StaticResource BoolToVis}}"/>
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="选择测试工位" FontWeight="SemiBold" FontSize="12.5"
-                                               Foreground="{DynamicResource AccentBrush}" Margin="0,0,8,0"/>
-                                    <TextBlock Text="可不连续（如 1-8,10-16）；或直接在下面的格子上按住左键拖动 —— 从 1 拖到 9 就选中 1-9"
-                                               Foreground="{DynamicResource MutedBrush}" FontSize="11.5"
-                                               VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </DockPanel>
-                            <Grid Margin="0,6,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBox Style="{StaticResource InputField}"
-                                         Text="{Binding SlotSelectionText, UpdateSourceTrigger=PropertyChanged}"
-                                         ToolTip="例如 1-8,10-16（逗号/顿号/空格都可分隔）"/>
-                                <Button Grid.Column="1" Content="应用" Style="{StaticResource SaveButton}"
-                                        Padding="14,4" Margin="6,0,0,0"
-                                        Command="{Binding ApplySlotSelectionCommand}"/>
-                                <Button Grid.Column="2" Content="恢复连续" Style="{StaticResource GhostButton}"
-                                        Padding="12,4" Margin="6,0,0,0"
-                                        Command="{Binding ClearSlotSelectionCommand}"
-                                        ToolTip="清空选择，回到「起始工位 + 工位数量」的连续模式"/>
-                            </Grid>
-                            <WrapPanel Margin="0,6,0,0">
-                                <Button Content="全选" Style="{StaticResource GhostButton}" Padding="9,2" Margin="0,0,6,4"
-                                        Command="{Binding SelectAllSlotsCommand}"/>
-                                <Button Content="全不选" Style="{StaticResource GhostButton}" Padding="9,2" Margin="0,0,6,4"
-                                        Command="{Binding ClearAllSlotsCommand}"
-                                        ToolTip="取消全部勾选，回到「起始工位 + 所需工位」的连续模式"/>
-                                <ItemsControl ItemsSource="{Binding SlotQuickRanges}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <!-- 分组按钮由 VM 按 8 个一组动态生成，跟着工位数量走 -->
-                                            <Button Content="{Binding}" Style="{StaticResource GhostButton}"
-                                                    Padding="8,1" Margin="0,0,5,3"
-                                                    Command="{Binding DataContext.QuickSlotRangeCommand,
-                                                              RelativeSource={RelativeSource AncestorType=Window}}"
-                                                    CommandParameter="{Binding}"
-                                                    ToolTip="整组加选 / 取消"/>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </WrapPanel>
-
-                            <!-- 勾选格：数量跟「所需工位」走（选了 80 就有 1..80）。
-                                 按住左键拖动 = 连续勾选（1 拖到 9 就是 1-9）；
-                                 高度给到三行左右，太矮了拖起来容易出界。 -->
-                            <ScrollViewer MaxHeight="132" VerticalScrollBarVisibility="Auto"
-                                          HorizontalScrollBarVisibility="Disabled" Margin="0,2,0,0">
-                                <ItemsControl ItemsSource="{Binding SlotToggles}"
-                                              Background="Transparent"
-                                              PreviewMouseLeftButtonDown="OnSlotToggleMouseDown"
-                                              PreviewMouseMove="OnSlotToggleMouseMove"
-                                              PreviewMouseLeftButtonUp="OnSlotToggleMouseUp">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <CheckBox Content="{Binding Text}" MinWidth="34" Margin="0,0,5,2"
-                                                      FontSize="12"
-                                                      Foreground="{DynamicResource TextBrush}"
-                                                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                      ToolTip="勾选要测试的工位"/>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </ScrollViewer>
-                            <TextBlock Text="{Binding SlotSelectionSummary}" Margin="0,4,0,0"
-                                       Foreground="{DynamicResource AccentBrush}" FontSize="11.5"/>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource Card}" Grid.Row="1" Margin="0,10,0,0" Padding="10,8">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="扫码录入:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0"/>
-                            <TextBlock Text="当前工位" VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" Margin="0,0,4,0"/>
-                            <TextBlock x:Name="RunScanSlotLabel" Text="-" VerticalAlignment="Center" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource AccentBrush}" Margin="0,0,12,0"/>
-                            <TextBox x:Name="RunBarcodeInput" Width="260" Padding="6,4"
-                                     AcceptsReturn="False"
-                                     PreviewKeyDown="OnRunBarcodeKeyDown"
-                                     TextChanged="OnRunBarcodeTextChanged"
-                                     InputMethod.IsInputMethodEnabled="False"
-                                     ToolTip="点击此处，然后用扫码枪扫描条码（回车确认并跳到下一工位）"/>
-                            <Button Content="确认" Style="{StaticResource GhostButton}" Padding="10,3" Margin="6,0"
-                                    Click="OnRunBarcodeConfirm"/>
-                            <TextBlock x:Name="RunScanStatusText" Text="" VerticalAlignment="Center"
-                                       Foreground="{DynamicResource SuccessBrush}" Margin="8,0,0,0" FontSize="12.5" FontWeight="SemiBold"/>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- 预览表 -->
-                    <Border Style="{StaticResource Card}" Grid.Row="2" Margin="0,10,0,0" Padding="0">
-                        <DataGrid x:Name="RunSlotGrid" ItemsSource="{Binding PreviewSlots}" BorderThickness="0"
-                                  SelectionMode="Single"
-                                  AutoGenerateColumns="False"
-                                  EnableRowVirtualization="True"
-                                  EnableColumnVirtualization="True"
-                                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                  IsReadOnly="False"
-                                  SelectionChanged="OnRunSlotGridSelectionChanged">
-                            <!-- 与 ConfigView 工位页同一套扫码语义：已录入绿底 / 未录入透明 / 当前待扫行琥珀。
-                                 录入哪一行，哪一行就有底色反馈；不要靠选中色，选中色会盖掉底色。 -->
-                            <DataGrid.RowStyle>
-                                <Style TargetType="DataGridRow">
-                                    <Setter Property="Background" Value="{DynamicResource ScannedRowBrush}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SerialNo}" Value="">
-                                            <Setter Property="Background" Value="Transparent"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding IsNext}" Value="True">
-                                            <Setter Property="Background" Value="{DynamicResource NextRowBrush}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </DataGrid.RowStyle>
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="工位"        Binding="{Binding Slot}"          Width="70"  IsReadOnly="True"/>
-                                <DataGridTextColumn Header="序列号"      Binding="{Binding SerialNo}"      Width="180" IsReadOnly="True"/>
-                                <DataGridTextColumn Header="坐标X"      Binding="{Binding PositionX}"      Width="70"/>
-                                <DataGridTextColumn Header="坐标Y"      Binding="{Binding PositionY}"      Width="70"/>
-                                <DataGridTextColumn Header="板卡位"      Binding="{Binding Board}"         Width="80"  IsReadOnly="True"/>
-                                <DataGridTextColumn Header="板卡工位号"  Binding="{Binding BoardSlotNo}"   Width="90"  IsReadOnly="True"/>
-                                <DataGridTextColumn Header="夹具位"      Binding="{Binding Fixture}"       Width="70"  IsReadOnly="True"/>
-                                <DataGridTextColumn Header="夹具工位号"  Binding="{Binding FixtureSlotNo}" Width="90"  IsReadOnly="True"/>
-                                <DataGridTextColumn Header="阀位"        Binding="{Binding Valve}"         Width="60"  IsReadOnly="True"/>
-                                <DataGridTextColumn Header="阀门"        Binding="{Binding ValveAddr}"     Width="70"  IsReadOnly="True"/>
-                                <DataGridTextColumn Header="压力控制器"  Binding="{Binding PressureController}" Width="90" IsReadOnly="True"/>
-                                <DataGridTextColumn Header="数字万用表"  Binding="{Binding Dmm}"           Width="90"  IsReadOnly="True"/>
-                                <DataGridTextColumn Header="通道"        Binding="{Binding Channel}"       Width="70"  IsReadOnly="True"/>
-                                <DataGridTextColumn Header="层数"        Binding="{Binding Layer}"         Width="60"  IsReadOnly="True"/>
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </Border>
-
-                    <!-- 底部刷新条 -->
-                    <Border Grid.Row="3" Background="{DynamicResource HeaderBgBrush}"
-                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                            CornerRadius="4" Margin="0,10,0,0" Padding="12,8">
-                        <DockPanel>
-                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                                <TextBlock Text="批次号" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"/>
-                                <TextBox Style="{StaticResource InputField}" Text="{Binding BatchNo, UpdateSourceTrigger=PropertyChanged}" Width="180" Margin="6,0,16,0"/>
-                                <TextBlock Text="起始ID" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"/>
-                                <TextBox Style="{StaticResource InputField}" Text="{Binding StartSerial, UpdateSourceTrigger=PropertyChanged}" Width="80" Margin="6,0,16,0"/>
-                                <CheckBox Content="自动编号" IsChecked="{Binding AutoNumber}" VerticalAlignment="Center"/>
-                            </StackPanel>
-                            <Button DockPanel.Dock="Right" Content="🔄 刷新" Style="{StaticResource PrimaryButton}"
-                                    Padding="14,4" Command="{Binding RegenerateCommand}"
-                                    HorizontalAlignment="Right"/>
-                        </DockPanel>
-                    </Border>
-                </Grid>
-            </TabItem>
+            <!-- 工位页签已移除：工位统一在侧边栏「工位表」配置，运行时直接使用。 -->
         </TabControl>
     </DockPanel>
 </Window>

@@ -1,0 +1,32 @@
+<Window x:Class="M30TestApp.Wpf.Views.AppDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="440" SizeToContent="Height"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource SurfaceBrush}"
+        FontSize="12">
+    <!--
+        主题化消息框（替代系统 MessageBox）—— 系统 MessageBox 是旧版 Windows 外观：
+        直角、白底、按钮默认样式，跟整套扁平主题完全不搭，切深色也不跟。
+        对外暴露的签名与 MessageBox.Show 一致（含返回值 MessageBoxResult），
+        所以调用点只要把 MessageBox.Show 换成 AppDialog.Show，其它代码不用改。
+    -->
+    <Border Background="{DynamicResource SurfaceBrush}" Padding="20,18,20,16">
+        <StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <Ellipse x:Name="IconDot" Width="8" Height="8" VerticalAlignment="Center"
+                         Fill="{DynamicResource AccentBrush}" Margin="0,0,8,0"/>
+                <TextBlock x:Name="TitleText" FontSize="13" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center"/>
+            </StackPanel>
+
+            <TextBlock x:Name="MessageText" Margin="16,10,0,0" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextBrush}" LineHeight="19"/>
+
+            <StackPanel x:Name="ButtonBar" Orientation="Horizontal" HorizontalAlignment="Right"
+                        Margin="0,18,0,0"/>
+        </StackPanel>
+    </Border>
+</Window>

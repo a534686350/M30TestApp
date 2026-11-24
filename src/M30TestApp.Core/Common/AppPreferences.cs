@@ -26,7 +26,7 @@ public static class AppPreferences
 
     public static void SetBool(IniFile ini, string key, bool value) => Set(ini, key, value ? "1" : "0");
 
-    public static string Theme(IniFile ini) => Get(ini, "Theme", "Light");
+    public static string Theme(IniFile ini) => Get(ini, "Theme", "Dark");
 
     public static string Language(IniFile ini) => Get(ini, "Language", "zh-CN");
 

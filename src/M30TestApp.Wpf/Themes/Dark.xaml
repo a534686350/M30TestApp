@@ -3,33 +3,35 @@
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
     <!-- ════════════════════════════════════════════════════════════
-         工控上位机 · 深色主题（浅色体系 v2 的深色 counterpart）
-         钢灰底 + 钢蓝强调 + 语义 LED；全扁平直角、高密度
+         工控上位机 · 深色主题 v4（2026-10-28 全项目换肤）
+         深蓝黑底 + 蓝主色 + 琥珀辅助；层次靠明度差，不靠重边框
+         取色依据：ui-ux-pro-max 的 design-system 输出（primary #1E40AF / accent #D97706）
+         深色场景适配：蓝提到 #3B82F6 保证深底可读，实心按钮底压到 #2563EB 保白字 5.2:1
          ════════════════════════════════════════════════════════════ -->
-    <Color x:Key="BgColor">#FF1B222B</Color>
-    <Color x:Key="BgGradientStart">#FF1B222B</Color>
-    <Color x:Key="BgGradientEnd">#FF1B222B</Color>
-    <Color x:Key="SurfaceColor">#FF232C36</Color>
-    <Color x:Key="BorderColor">#FF3D4A58</Color>
-    <Color x:Key="TextColor">#FFE9EEF5</Color>
-    <Color x:Key="MutedColor">#FFB7C3D1</Color>
-    <Color x:Key="AccentColor">#FF4BA6E8</Color>
-    <Color x:Key="AccentColorHover">#FF6BBCF5</Color>
-    <Color x:Key="AccentLight">#FF1A3A55</Color>
-    <Color x:Key="SuccessColor">#FF4AD786</Color>
-    <Color x:Key="WarnColor">#FFF3C24E</Color>
-    <Color x:Key="ErrorColor">#FFFF7B7F</Color>
-    <Color x:Key="HeaderBgColor">#FF2C3744</Color>
-    <Color x:Key="RowAltColor">#FF1F262F</Color>
-    <Color x:Key="SidebarBg">#FF1F262F</Color>
-    <Color x:Key="NavHoverBg">#FF2C3744</Color>
-    <Color x:Key="MenuBarColor">#FF1F262F</Color>
-    <Color x:Key="ToolbarColor">#FF242D38</Color>
-    <Color x:Key="StatusBarColor">#FF1F262F</Color>
-    <Color x:Key="PageHeaderColor">#FF212932</Color>
-    <Color x:Key="SidebarHeaderColor">#FF242D38</Color>
-    <Color x:Key="DeviceStripColor">#FF242D38</Color>
-    <Color x:Key="RunStatusColor">#FF1A3A55</Color>
+    <Color x:Key="BgColor">#FF101828</Color>
+    <Color x:Key="BgGradientStart">#FF101828</Color>
+    <Color x:Key="BgGradientEnd">#FF101828</Color>
+    <Color x:Key="SurfaceColor">#FF17212F</Color>
+    <Color x:Key="BorderColor">#FF26364C</Color>
+    <Color x:Key="TextColor">#FFE8EEF7</Color>
+    <Color x:Key="MutedColor">#FF9BABC2</Color>
+    <Color x:Key="AccentColor">#FF3B82F6</Color>
+    <Color x:Key="AccentColorHover">#FF60A5FA</Color>
+    <Color x:Key="AccentLight">#FF15253D</Color>
+    <Color x:Key="SuccessColor">#FF10B981</Color>
+    <Color x:Key="WarnColor">#FFF59E0B</Color>
+    <Color x:Key="ErrorColor">#FFF87171</Color>
+    <Color x:Key="HeaderBgColor">#FF1B2738</Color>
+    <Color x:Key="RowAltColor">#FF131C29</Color>
+    <Color x:Key="SidebarBg">#FF131C29</Color>
+    <Color x:Key="NavHoverBg">#FF1E2C40</Color>
+    <Color x:Key="MenuBarColor">#FF131C29</Color>
+    <Color x:Key="ToolbarColor">#FF161F2E</Color>
+    <Color x:Key="StatusBarColor">#FF131C29</Color>
+    <Color x:Key="PageHeaderColor">#FF141D2B</Color>
+    <Color x:Key="SidebarHeaderColor">#FF1A2534</Color>
+    <Color x:Key="DeviceStripColor">#FF161F2E</Color>
+    <Color x:Key="RunStatusColor">#FF15253D</Color>
 
     <SolidColorBrush x:Key="BgBrush"          Color="{StaticResource BgColor}"/>
     <SolidColorBrush x:Key="SurfaceBrush"     Color="{StaticResource SurfaceColor}"/>
@@ -53,46 +55,68 @@
     <SolidColorBrush x:Key="SidebarHeaderBrush" Color="{StaticResource SidebarHeaderColor}"/>
     <SolidColorBrush x:Key="DeviceStripBrush" Color="{StaticResource DeviceStripColor}"/>
     <SolidColorBrush x:Key="RunStatusBrush"   Color="{StaticResource RunStatusColor}"/>
+    <!-- 矩阵大表网格线（Excel 式细格）：只在采集矩阵里启用，其它表格仍无竖线 -->
+    <SolidColorBrush x:Key="GridLineBrush"    Color="#FF22314A"/>
+    <!-- 交互反馈：悬停底色（表格单元格 / 行）与按下态 -->
+    <SolidColorBrush x:Key="RowHoverBrush"    Color="#FF18283E"/>
+    <SolidColorBrush x:Key="AccentPressedBrush" Color="#FF0F2C55"/>
+
+    <!-- 实心主色（按钮底）：比 AccentBrush 深一档，保证白字对比度 5.2:1 -->
+    <SolidColorBrush x:Key="AccentSolidBrush" Color="#FF2563EB"/>
+
+    <!-- 卡片底：纵向微渐变，靠明度差拉层次（纯色块在深色下会显得平） -->
+    <LinearGradientBrush x:Key="CardBgBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FF1A2534" Offset="0"/>
+        <GradientStop Color="#FF161F2E" Offset="1"/>
+    </LinearGradientBrush>
 
     <!-- 新增：新外壳专用（横幅/页签/面板头/LED） -->
-    <SolidColorBrush x:Key="TabStripBrush"    Color="#FF1F262F"/>
-    <SolidColorBrush x:Key="TabActiveBrush"   Color="#FF2C3744"/>
-    <SolidColorBrush x:Key="BannerChipBrush"  Color="#FF27313D"/>
-    <SolidColorBrush x:Key="PanelHeaderBrush" Color="#FF2C3744"/>
-    <SolidColorBrush x:Key="PanelBodyBrush"   Color="#FF1F262F"/>
-    <SolidColorBrush x:Key="LedOnBrush"       Color="#FF4AD786"/>
-    <SolidColorBrush x:Key="LedOffBrush"      Color="#FF6E7B88"/>
-    <SolidColorBrush x:Key="LedWarnBrush"     Color="#FFF3C24E"/>
-    <SolidColorBrush x:Key="LedErrorBrush"    Color="#FFFF7B7F"/>
+    <SolidColorBrush x:Key="TabStripBrush"    Color="#FF131C29"/>
+    <SolidColorBrush x:Key="TabActiveBrush"   Color="#FF1E2C40"/>
+    <SolidColorBrush x:Key="BannerChipBrush"  Color="#FF1B2738"/>
+    <SolidColorBrush x:Key="PanelHeaderBrush" Color="#FF1B2738"/>
+    <SolidColorBrush x:Key="PanelBodyBrush"   Color="#FF131C29"/>
+    <SolidColorBrush x:Key="LedOnBrush"       Color="#FF10B981"/>
+    <SolidColorBrush x:Key="LedOffBrush"      Color="#FF64748B"/>
+    <SolidColorBrush x:Key="LedWarnBrush"     Color="#FFF59E0B"/>
+    <SolidColorBrush x:Key="LedErrorBrush"    Color="#FFF87171"/>
     <SolidColorBrush x:Key="BannerAlarmBrush" Color="#FF3A2024"/>
-    <SolidColorBrush x:Key="ScrollThumbBrush"      Color="#FF4C5866"/>
-    <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#FF62707F"/>
-    <SolidColorBrush x:Key="DividerBrush"     Color="#FF3D4A58"/>
+    <SolidColorBrush x:Key="ScrollThumbBrush"      Color="#FF33475F"/>
+    <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#FF4A6180"/>
+    <SolidColorBrush x:Key="DividerBrush"     Color="#FF26364C"/>
 
     <!-- 标题横幅专用文字色 -->
-    <SolidColorBrush x:Key="TitleFgBrush"  Color="#FFF2F6FA"/>
-    <SolidColorBrush x:Key="TitleSubBrush" Color="#FFA8BED4"/>
+    <SolidColorBrush x:Key="TitleFgBrush"  Color="#FFF2F7FC"/>
+    <SolidColorBrush x:Key="TitleSubBrush" Color="#FFA6BCD4"/>
     <!-- 工位表已扫码行高亮 -->
-    <SolidColorBrush x:Key="ScannedRowBrush" Color="#FF1E4A33"/>
-    <SolidColorBrush x:Key="NextRowBrush" Color="#FF4E3C14"/>
+    <SolidColorBrush x:Key="ScannedRowBrush" Color="#FF172820"/>
+    <SolidColorBrush x:Key="NextRowBrush" Color="#FF45320F"/>
+    <!-- 长期稳定性矩阵：温度分组表头的交替底色（必须走主题，否则深色下露出浅蓝块） -->
+    <SolidColorBrush x:Key="GroupHeaderBrushA" Color="#FF1E2C40"/>
+    <SolidColorBrush x:Key="GroupHeaderBrushB" Color="#FF243248"/>
 
     <SolidColorBrush x:Key="BgGradientBrush" Color="{StaticResource BgColor}"/>
-    <!-- 标题栏：钢质纵向渐变横幅 -->
+    <!-- 标题栏：深蓝黑纵向渐变 -->
     <LinearGradientBrush x:Key="TopBarBrush" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#FF2C3846" Offset="0"/>
-        <GradientStop Color="#FF1F262F" Offset="1"/>
+        <GradientStop Color="#FF1B2738" Offset="0"/>
+        <GradientStop Color="#FF101828" Offset="1"/>
     </LinearGradientBrush>
     <DropShadowEffect x:Key="CardShadow" BlurRadius="0" ShadowDepth="0" Opacity="0"/>
     <DropShadowEffect x:Key="CardShadowHover" BlurRadius="0" ShadowDepth="0" Opacity="0"/>
     <DropShadowEffect x:Key="NavShadow" BlurRadius="0" ShadowDepth="0" Opacity="0"/>
 
-    <sys:Double x:Key="FontSizeNormal">12.5</sys:Double>
-    <sys:Double x:Key="FontSizeSmall">11.5</sys:Double>
-    <sys:Double x:Key="FontSizeTitle">14</sys:Double>
+    <!-- ────────── 排版标度（5 档，两主题必须一致） ──────────
+         原来 Dark/Light 各写一套（12.5/11.5/14 vs 13/12/15），切主题字会跳，已统一。
+         Caption 辅助说明 / Small 标签表头 / Normal 正文输入 / Heading 卡片标题 / Title 页面标题 -->
+    <sys:Double x:Key="FontSizeCaption">11</sys:Double>
+    <sys:Double x:Key="FontSizeSmall">12</sys:Double>
+    <sys:Double x:Key="FontSizeNormal">13</sys:Double>
+    <sys:Double x:Key="FontSizeHeading">15</sys:Double>
+    <sys:Double x:Key="FontSizeTitle">17</sys:Double>
 
-    <!-- ────────── 按钮：直角扁平，描边式 ────────── -->
+    <!-- ────────── 按钮：圆角扁平，实心主色 + 描边次级 ────────── -->
     <Style x:Key="PrimaryButton" TargetType="Button">
-        <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource AccentSolidBrush}"/>
         <Setter Property="Foreground" Value="White"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Padding" Value="16,7"/>
@@ -126,7 +150,7 @@
         <Setter Property="Background" Value="{DynamicResource SuccessBrush}"/>
         <Setter Property="Foreground" Value="White"/>
         <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeHeading}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -159,12 +183,15 @@
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <!-- 悬停：底色 + 边框 + 文字一起变主色，和浅色主题一致（原来只换底色，几乎看不出来） -->
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource NavHoverBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentLightBrush}"/>
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentLightBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentPressedBrush}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -178,9 +205,25 @@
         <Setter Property="Padding" Value="11,5"/>
     </Style>
 
-    <!-- ────────── 卡片面板：直角 1px 描边，无阴影 ────────── -->
+    <!-- ────────── 排版语义样式 ──────────
+         这两个原来在 ConfigView / QuickTestView 各写一遍，字号和边距还不一样（12.5/12、5/4）。
+         统一到这里，View 里删掉本地定义，改由主题兜底。 -->
+    <Style x:Key="SectionTitle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeHeading}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        <Setter Property="Margin" Value="0,0,0,8"/>
+    </Style>
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeSmall}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
+        <Setter Property="Margin" Value="0,0,0,4"/>
+    </Style>
+
+    <!-- ────────── 卡片面板：圆角 1px 描边，微渐变底 ────────── -->
     <Style x:Key="Card" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource CardBgBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="8"/>
@@ -190,7 +233,7 @@
 
     <Style x:Key="NavGroupTitle" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
-        <Setter Property="FontSize" Value="10.5"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
     </Style>
@@ -203,7 +246,7 @@
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding" Value="10,5"/>
         <Setter Property="Margin" Value="1,0"/>
-        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeNormal}"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
@@ -287,7 +330,7 @@
     <Style x:Key="MainTab" TargetType="RadioButton">
         <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
         <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="FontSize" Value="12.5"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeNormal}"/>
         <Setter Property="Padding" Value="14,0"/>
         <Setter Property="Height" Value="34"/>
         <Setter Property="Cursor" Value="Hand"/>
@@ -325,7 +368,7 @@
     <Style x:Key="ModeTab" TargetType="RadioButton">
         <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
-        <Setter Property="FontSize" Value="12.5"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeNormal}"/>
         <Setter Property="Padding" Value="14,0"/>
         <Setter Property="Height" Value="28"/>
         <Setter Property="MinWidth" Value="88"/>
@@ -361,7 +404,7 @@
 
     <!-- ────────── 面板：标题栏 + 内容体（页面内部统一） ────────── -->
     <Style x:Key="PanelCard" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource CardBgBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="8"/>
@@ -376,7 +419,7 @@
     </Style>
 
     <Style x:Key="PanelTitleText" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeNormal}"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
@@ -392,13 +435,13 @@
     </Style>
 
     <Style x:Key="PageHeaderCrumb" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="11.5"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeSmall}"/>
         <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
     <Style x:Key="PageHeaderTitle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeHeading}"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
@@ -416,13 +459,18 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <Border Grid.Column="0" VerticalAlignment="Top" Width="160"
+                        <!-- 分组留白加大后总高度会超出窗口，套 ScrollViewer 兜底；
+                             去掉 VerticalAlignment=Top 让 Border 撑满，否则 ScrollViewer 没有可滚高度 -->
+                        <Border Grid.Column="0" Width="160"
                                 Background="{DynamicResource SidebarHeaderBrush}"
                                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
-                            <!-- 同浅色主题：竖排侧栏用 StackPanel，Margin 才能精确生效 -->
-                            <StackPanel IsItemsHost="True" Margin="0,6,0,6"/>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          Padding="0">
+                                <StackPanel IsItemsHost="True" Margin="0,8,0,8"/>
+                            </ScrollViewer>
                         </Border>
-                        <ContentPresenter Grid.Column="1" ContentSource="SelectedContent" Margin="14,0,0,0"/>
+                        <ContentPresenter Grid.Column="1" ContentSource="SelectedContent" Margin="12,0,0,0"/>
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>
@@ -430,11 +478,13 @@
     </Style>
 
     <Style x:Key="SideTabItem" TargetType="TabItem">
-        <Setter Property="Padding" Value="16,0"/>
-        <Setter Property="Height" Value="36"/>
+        <!-- 排版 v2：分组标题留白加大、子项缩进 8px，让「分组 → 子项」的层级看得出来 -->
+        <Setter Property="Padding" Value="24,0"/>
+        <!-- 必须用 MinHeight：固定 Height 会把「分组标题 + 子项」压扁，子项互相重叠 -->
+        <Setter Property="MinHeight" Value="32"/>
         <Setter Property="MinWidth" Value="160"/>
         <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
-        <Setter Property="FontSize" Value="12.5"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeNormal}"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
@@ -443,9 +493,9 @@
                     <StackPanel>
                         <!-- 分组标题：只在设了 Tag 的组首项上出现（Tag 为空则整块折叠） -->
                         <TextBlock x:Name="GrpTitle" Text="{TemplateBinding Tag}"
-                                   FontSize="10.5" FontWeight="SemiBold"
+                                   FontSize="10.5" FontWeight="Bold"
                                    Foreground="{DynamicResource MutedBrush}"
-                                   Margin="19,0,0,5"/>
+                                   Margin="16,8,0,4"/>
                         <Border x:Name="Bd" Background="Transparent"
                                 BorderBrush="Transparent" BorderThickness="3,0,0,0"
                                 Padding="{TemplateBinding Padding}">
@@ -481,12 +531,12 @@
         <Setter Property="Background" Value="{DynamicResource MenuBarBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="FontFamily" Value="{DynamicResource {x:Static SystemFonts.MessageFontFamilyKey}}"/>
-        <Setter Property="FontSize" Value="12.5"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeNormal}"/>
     </Style>
 
     <Style TargetType="MenuItem">
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-        <Setter Property="FontSize" Value="12.5"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeNormal}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="MenuItem">
@@ -499,15 +549,15 @@
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <ContentPresenter Grid.Column="0" ContentSource="Icon" Margin="6,0,2,0"
+                            <ContentPresenter Grid.Column="0" ContentSource="Icon" Margin="8,0,2,0"
                                               VerticalAlignment="Center"/>
-                            <ContentPresenter Grid.Column="1" ContentSource="Header" Margin="6,0,6,0"
+                            <ContentPresenter Grid.Column="1" ContentSource="Header" Margin="8,0,8,0"
                                               VerticalAlignment="Center" RecognizesAccessKey="True"/>
                             <TextBlock Grid.Column="2" Text="{TemplateBinding InputGestureText}"
-                                       Margin="12,0,6,0" VerticalAlignment="Center"
-                                       FontSize="11" Foreground="{DynamicResource MutedBrush}"/>
+                                       Margin="12,0,8,0" VerticalAlignment="Center"
+                                       FontSize="11.5" Foreground="{DynamicResource MutedBrush}"/>
                             <Grid Grid.Column="3">
-                                <Path x:Name="Arrow" VerticalAlignment="Center" Margin="4,0,6,0"
+                                <Path x:Name="Arrow" VerticalAlignment="Center" Margin="4,0,8,0"
                                       Data="M0,0 L4,4 L0,8 Z" Fill="{DynamicResource MutedBrush}"
                                       Visibility="Collapsed"/>
                                 <Popup x:Name="PART_Popup" Placement="Right" IsOpen="{TemplateBinding IsSubmenuOpen}"
@@ -574,7 +624,7 @@
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="HorizontalGridLinesBrush" Value="#FF1F2833"/>
+        <Setter Property="HorizontalGridLinesBrush" Value="#FF1E2A3C"/>
         <Setter Property="VerticalGridLinesBrush" Value="Transparent"/>
         <Setter Property="RowBackground" Value="{DynamicResource SurfaceBrush}"/>
         <!-- 必须显式设文字色：DataGridTextColumn 生成的 TextBlock 会把 Foreground 绑到
@@ -593,23 +643,29 @@
         <Setter Property="FontSize" Value="{StaticResource FontSizeSmall}"/>
     </Style>
 
-    <!-- 表头：青色字 + 深底，仪表读数感 -->
+    <!-- 表头：冷蓝灰字 + 深底，仪表读数感（不用高饱和青色，长时间盯屏会累） -->
     <Style TargetType="DataGridColumnHeader">
         <Setter Property="Background" Value="{DynamicResource HeaderBgBrush}"/>
-        <Setter Property="Foreground" Value="#FF8FDFFF"/>
+        <Setter Property="Foreground" Value="#FFA8C0DC"/>
         <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeSmall}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="0,0,1,1"/>
         <Setter Property="Padding" Value="8,5"/>
         <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource AccentLightBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <!-- 行号栏（RowHeader）：不写这条会用系统默认的白底，深色主题下表格左边露出一条白边 -->
     <Style TargetType="DataGridRowHeader">
         <Setter Property="Background" Value="{DynamicResource HeaderBgBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
-        <Setter Property="FontSize" Value="10.5"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="0,0,1,1"/>
         <Setter Property="HorizontalContentAlignment" Value="Center"/>
@@ -624,16 +680,35 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="DataGridCell">
-                    <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                    <!-- BorderBrush/Thickness 走 TemplateBinding：默认厚度 0（无格线），
+                         只有采集矩阵用 CellStyle 打开 0,0,1,1，做 Excel 式细格。 -->
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}">
                         <ContentPresenter VerticalAlignment="Center"/>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
         <Style.Triggers>
+            <!-- 悬停：淡主色底，指针在哪看得清（写在选中之前，选中态仍优先） -->
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource RowHoverBrush}"/>
+            </Trigger>
             <Trigger Property="IsSelected" Value="True">
                 <Setter Property="Background" Value="{DynamicResource AccentLightBrush}"/>
                 <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- 行悬停：DataGrid 会把 RowBackground/AlternatingRowBackground 写成行的本地值（优先于样式触发器），
+         所以这条只对没有行底色的表格生效；带斑马纹的表格靠单元格悬停反馈。 -->
+    <Style TargetType="DataGridRow">
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource RowHoverBrush}"/>
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -645,11 +720,14 @@
     </Style>
 
     <Style TargetType="TextBox">
-        <Setter Property="Background" Value="#FF171E26"/>
+        <Setter Property="Background" Value="#FF0D1520"/>
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding" Value="7,4"/>
+        <!-- 与下面 ComboBox 的 MinHeight 保持一致：此前 TextBox 由 Padding 算出来只有 26，
+             ComboBox 被 MinHeight 撑到 28，同一排里输入框和下拉框会差 2px 对不齐。 -->
+        <Setter Property="MinHeight" Value="28"/>
         <Setter Property="FontSize" Value="{StaticResource FontSizeNormal}"/>
         <Setter Property="CaretBrush" Value="{DynamicResource TextBrush}"/>
         <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}"/>
@@ -824,7 +902,7 @@
                         </Grid.RowDefinitions>
                         <Border Grid.Row="0" Background="{DynamicResource TabStripBrush}"
                                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                            <TabPanel IsItemsHost="True" Margin="10,0,0,0"/>
+                            <TabPanel IsItemsHost="True" Margin="8,0,0,0"/>
                         </Border>
                         <ContentPresenter Grid.Row="1" ContentSource="SelectedContent"/>
                     </Grid>
@@ -838,7 +916,7 @@
         <Setter Property="Padding" Value="14,0"/>
         <Setter Property="Height" Value="34"/>
         <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
-        <Setter Property="FontSize" Value="12.5"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeNormal}"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
@@ -871,13 +949,78 @@
     </Style>
 
     <!-- ────────── CheckBox ────────── -->
+    <!-- 自带模板（系统默认是方形直角、悬停无反馈，和深色扁平风格不搭）；勾选后填充主色 + 白勾 -->
     <Style TargetType="CheckBox">
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="FontSize" Value="{StaticResource FontSizeNormal}"/>
         <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <StackPanel Orientation="Horizontal" Background="Transparent">
+                        <Border x:Name="Box" Width="15" Height="15" CornerRadius="3"
+                                Background="{DynamicResource SurfaceBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                VerticalAlignment="Center">
+                            <TextBlock x:Name="Tick" Text="✓" FontSize="11" FontWeight="Bold"
+                                       Foreground="White" HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" Visibility="Collapsed"/>
+                        </Border>
+                        <ContentPresenter Margin="6,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Box" Property="Background" Value="{DynamicResource AccentBrush}"/>
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                            <Setter TargetName="Tick" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- ────────── 进度条：方形段码感 ────────── -->
+    <!-- 单选框：与 CheckBox 同一套观感 -->
+    <Style TargetType="RadioButton">
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeNormal}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <StackPanel Orientation="Horizontal" Background="Transparent">
+                        <Grid Width="15" Height="15" VerticalAlignment="Center">
+                            <Ellipse x:Name="Ring" Fill="{DynamicResource SurfaceBrush}"
+                                     Stroke="{DynamicResource BorderBrush}" StrokeThickness="1"/>
+                            <Ellipse x:Name="Dot" Width="7" Height="7" Fill="{DynamicResource AccentBrush}"
+                                     Visibility="Collapsed"/>
+                        </Grid>
+                        <ContentPresenter Margin="6,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource AccentBrush}"/>
+                            <Setter TargetName="Dot" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource AccentBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
     <!-- 提示气泡：系统默认是浅色，深色下很扎眼 -->
     <Style TargetType="ToolTip">
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
@@ -885,7 +1028,7 @@
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding" Value="8,5"/>
-        <Setter Property="FontSize" Value="11.5"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeSmall}"/>
     </Style>
 
     <Style TargetType="ProgressBar">

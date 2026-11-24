@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Input;
 
 namespace M30TestApp.Wpf.Views;
@@ -21,7 +21,7 @@ public partial class SlotCountDialog : Window
     {
         if (!int.TryParse(CountBox.Text, out _))
         {
-            MessageBox.Show("请输入整数。", Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show("请输入整数。", Title, MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         DialogResult = true;

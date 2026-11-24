@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
@@ -13,9 +13,6 @@ namespace M30TestApp.Wpf.Views;
 /// </summary>
 public partial class LongTermMatrixGrid : UserControl
 {
-    private static readonly Brush GroupBrushA = new SolidColorBrush(Color.FromRgb(0xE8, 0xF4, 0xFC));
-    private static readonly Brush GroupBrushB = new SolidColorBrush(Color.FromRgb(0xF3, 0xE8, 0xFC));
-
     private readonly List<MergedTempHeaderCell> _mergedCells = new();
     private ScrollViewer? _gridScrollViewer;
     private bool _syncingScroll;
@@ -148,7 +145,7 @@ public partial class LongTermMatrixGrid : UserControl
 
             var group = columns[groupStart..i];
             var groupIndex = group[0].TempGroupIndex;
-            var bg = groupIndex % 2 == 0 ? GroupBrushA : GroupBrushB;
+            var bg = (Brush)FindResource(groupIndex % 2 == 0 ? "GroupHeaderBrushA" : "GroupHeaderBrushB");
             var border = new Border
             {
                 Background = bg,
@@ -208,7 +205,7 @@ public partial class LongTermMatrixGrid : UserControl
             Text = label,
             HorizontalAlignment = HorizontalAlignment.Center,
             FontSize = 10,
-            Foreground = Brushes.Gray,
+            Foreground = Application.Current?.TryFindResource("MutedBrush") as Brush ?? Brushes.Gray,
             Margin = new Thickness(0, 2, 0, 2),
             ToolTip = label,
         };

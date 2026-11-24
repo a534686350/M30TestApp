@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.Windows;
@@ -52,9 +52,9 @@ public partial class SettingsView : UserControl
         var owner = Window.GetWindow(this);
         const string message = "管理员密码不正确，站点标识保持锁定。";
         if (owner is not null)
-            MessageBox.Show(owner, message, "上报设备 ID", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show(owner, message, "上报设备 ID", MessageBoxButton.OK, MessageBoxImage.Warning);
         else
-            MessageBox.Show(message, "上报设备 ID", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show(message, "上报设备 ID", MessageBoxButton.OK, MessageBoxImage.Warning);
 
         StationPasswordBox.SelectAll();
         StationPasswordBox.Focus();

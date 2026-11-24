@@ -15,7 +15,7 @@ namespace M30TestApp.Wpf.Mvvm;
 /// 避免两处各写一套导致行为漂移。
 ///
 /// 每行 = 一类设备的一个实例。DAQ973A 固定铺满 <see cref="DmmAutoSlotMap.MaxUnits"/> 行，
-/// 由 <see cref="DmmUnitCount"/> 决定实际写回几台 —— 万用表自动测试 48 工位 = 3 台 × 16。
+/// 由 <see cref="DmmUnitCount"/> 决定实际写回几台 —— 万用表自动测试 54 工位 = 3 台 × 18。
 /// </summary>
 public sealed class DeviceConfigSet : ViewModelBase
 {
@@ -54,6 +54,80 @@ public sealed class DeviceConfigSet : ViewModelBase
 
     public string DmmUnitHint =>
         $"共 {_dmmUnitCount} 台 → 最多 {_dmmUnitCount * DmmAutoSlotMap.SlotsPerUnit} 个工位（每台管 {DmmAutoSlotMap.SlotsPerUnit} 工位）";
+
+    private string _gpibScanStatus = "";
+    /// <summary>GPIB 自动扫描结果提示（界面显示）。</summary>
+    public string GpibScanStatus
+    {
+        get => _gpibScanStatus;
+        private set => SetField(ref _gpibScanStatus, value);
+    }
+
+    private void SetScanStatus(string text)
+    {
+        var app = System.Windows.Application.Current;
+        if (app is null) GpibScanStatus = text;
+        else if (app.Dispatcher.CheckAccess()) GpibScanStatus = text;
+        else app.Dispatcher.Invoke(() => GpibScanStatus = text);
+    }
+
+    /// <summary>
+    /// 扫描 GPIB 总线上的 DAQ973A，把找到的地址依次填入前 N 台 DMM 行。
+    /// 扫到几台就填几台，不够的部分保留用户手填值；一台都扫不到时不动任何地址。
+    /// </summary>
+    /// <returns>扫到的地址数量。</returns>
+    public int ScanAndFillDmmAddresses()
+    {
+        IReadOnlyList<string> found;
+        try
+        {
+            found = VisaScanner.FindDmm973();
+        }
+        catch (Exception ex)
+        {
+            SetScanStatus($"扫描失败：{ex.Message}");
+            AppLog.Warn("Config", $"GPIB 扫描失败：{ex.Message}");
+            return 0;
+        }
+
+        if (found.Count == 0)
+        {
+            SetScanStatus("未发现 DAQ973A（可继续手填地址）");
+            return 0;
+        }
+
+        var dmmRows = _rows.Where(r => r.IsDmmUnit).OrderBy(r => r.UnitIndex).ToList();
+        var fills = new List<(DeviceConfigVm Row, string Bus, string Number)>();
+        var targetIdx = 0;
+        foreach (var address in found)
+        {
+            // 只填地址为空的行：现场已手填的地址是权威，自动扫描绝不覆盖。
+            while (targetIdx < dmmRows.Count && dmmRows[targetIdx].IsAddressComplete) targetIdx++;
+            if (targetIdx >= dmmRows.Count) break;
+            var parsed = GpibResource.Parse(address);
+            fills.Add((dmmRows[targetIdx], "GPIB" + parsed.Port, parsed.Address));
+            targetIdx++;
+        }
+
+        var status = fills.Count > 0
+            ? $"自动填入 {fills.Count} 台 DAQ973A（已有地址未覆盖）；共发现 {found.Count} 台"
+            : (dmmRows.All(r => r.IsAddressComplete)
+                ? $"已发现 {found.Count} 台 DAQ973A，现有地址均保留"
+                : $"未发现可用 DAQ973A（可继续手填地址）");
+
+        // 回写 UI 绑定属性必须切回 UI 线程（本方法可能跑在 Task.Run 的后台线程）。
+        System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+        {
+            foreach (var (row, bus, number) in fills)
+            {
+                row.Bus = bus;
+                row.Number = number;
+            }
+            GpibScanStatus = status;
+        });
+        AppLog.Info("Config", status);
+        return fills.Count;
+    }
 
     // ─── 万用表通道分配（现场可单独改：哪组采电压 / 哪组采电阻 / 哪组切电源） ───
 

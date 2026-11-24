@@ -6,6 +6,23 @@
              mc:Ignorable="d">
 
     <UserControl.Resources>
+        <!-- Excel 式细格：竖线由 DataGrid 自己的 GridLinesVisibility 画（已在 Grid 上开 All），
+             横线它这边不画（实测主题下只有竖线），所以在单元格模板里补一条底线。 -->
+        <Style x:Key="MatrixCellStyle" TargetType="DataGridCell"
+               BasedOn="{StaticResource {x:Type DataGridCell}}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{DynamicResource GridLineBrush}"
+                                BorderThickness="0,0,0,1"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="LongTermColumnHeaderStyle" TargetType="DataGridColumnHeader">
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
             <Setter Property="Padding" Value="4,2"/>
@@ -54,6 +71,12 @@
         <DataGrid x:Name="Grid"
                   Grid.Row="1"
                   AutoGenerateColumns="False"
+                  CellStyle="{StaticResource MatrixCellStyle}"
+                  GridLinesVisibility="All"
+                  HorizontalGridLinesBrush="{DynamicResource GridLineBrush}"
+                  VerticalGridLinesBrush="{DynamicResource GridLineBrush}"
+                  SnapsToDevicePixels="True"
+                  UseLayoutRounding="True"
                   FrozenColumnCount="2"
                   IsReadOnly="False"
                   SelectionMode="Extended"

@@ -1,14 +1,16 @@
-using System;
+﻿using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Threading;
+using M30TestApp.Wpf.Views;
 
 namespace M30TestApp.Wpf;
 
 /// <summary>
-/// 主窗口：工控上位机框架（标题栏 / 菜单栏 / 工具栏 / 导航区 / LED 状态栏）。
-/// 交互逻辑仅保留纯视图行为：标题栏时钟、F11 全屏、关于对话框。
+/// 主窗口：工控上位机框架（顶栏 / 工作区 / 右侧图标条 / LED 状态栏）。
+/// 交互逻辑仅保留纯视图行为：标题栏时钟、F11 全屏、系统菜单、关于对话框。
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -52,10 +54,20 @@ public partial class MainWindow : Window
 
     private void ToggleFullscreen_Click(object sender, RoutedEventArgs e) => ToggleFullscreen();
 
+    /// <summary>左键点顶栏图标，把它身上的 ContextMenu 当作下拉菜单弹出来。</summary>
+    private void OpenSystemMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element || element.ContextMenu is null) return;
+
+        element.ContextMenu.PlacementTarget = element;
+        element.ContextMenu.Placement = PlacementMode.Bottom;
+        element.ContextMenu.IsOpen = true;
+    }
+
     private void About_Click(object sender, RoutedEventArgs e)
     {
         var version = ViewModelAssemblyVersion();
-        MessageBox.Show(
+        AppDialog.Show(
             $"M30 压力传感器自动测试系统 V2\n版本 {version}\n\n" +
             "压力 / 温度 / 长期稳定性 自动化测试控制台。\n支持 GPIB 与 RS-232 设备，最多 256 工位。",
             "关于",

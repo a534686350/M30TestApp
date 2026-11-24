@@ -1,0 +1,88 @@
+<UserControl x:Class="M30TestApp.Wpf.Views.BatchSamplePanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="520" d:DesignWidth="1000">
+    <!-- 批量采集面板：主界面与独立窗口共用同一份。表格高度用 * 撑满，根治「只显示两行」。 -->
+    <UserControl.Resources>
+        <Style x:Key="Lbl" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Margin" Value="0,0,0,2"/>
+        </Style>
+        <Style x:Key="Btn" TargetType="Button" BasedOn="{StaticResource GhostButton}">
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="Padding" Value="8,0"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        <Style x:Key="BtnPrimary" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="Padding" Value="8,0"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+    </UserControl.Resources>
+
+    <DockPanel Margin="12,10,12,12">
+        <Grid DockPanel.Dock="Top">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="起始工位" Style="{StaticResource Lbl}"/>
+                <TextBox Text="{Binding BatchStartSlot, UpdateSourceTrigger=PropertyChanged}"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="结束工位" Style="{StaticResource Lbl}"/>
+                <TextBox Text="{Binding BatchEndSlot, UpdateSourceTrigger=PropertyChanged}"/>
+            </StackPanel>
+            <StackPanel Grid.Column="4">
+                <TextBlock Text="采集间隔 (ms)" Style="{StaticResource Lbl}"/>
+                <TextBox Text="{Binding CollectionInterval, UpdateSourceTrigger=PropertyChanged}"/>
+            </StackPanel>
+            <StackPanel Grid.Column="6">
+                <TextBlock Text="标签（列名前缀）" Style="{StaticResource Lbl}"/>
+                <TextBox Text="{Binding ManualLabel, UpdateSourceTrigger=PropertyChanged}"/>
+            </StackPanel>
+        </Grid>
+
+        <Grid DockPanel.Dock="Top" Margin="0,10,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="采集类型" Style="{StaticResource Lbl}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                <CheckBox Content="Usig" IsChecked="{Binding CollectUsig}" Margin="0,0,10,0"/>
+                <CheckBox Content="UT" IsChecked="{Binding CollectUt}" Margin="0,0,10,0"/>
+                <CheckBox Content="Usource" IsChecked="{Binding CollectUsource}" Margin="0,0,10,0"/>
+                <CheckBox Content="Isource" IsChecked="{Binding CollectIsource}"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="开始采集" Style="{StaticResource BtnPrimary}" MinWidth="90" Command="{Binding BatchSampleCommand}" Margin="0,0,8,0"/>
+                <Button Content="停止" Style="{StaticResource Btn}" MinWidth="70" Command="{Binding StopBatchSampleCommand}" Margin="0,0,8,0"/>
+                <Button Content="导出" Style="{StaticResource Btn}" MinWidth="70" Command="{Binding ExportBatchResultsCommand}"/>
+            </StackPanel>
+        </Grid>
+
+        <DataGrid ItemsSource="{Binding BatchResults}" AutoGenerateColumns="False"
+                  GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                  CanUserAddRows="False" CanUserDeleteRows="False" ClipboardCopyMode="IncludeHeader">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="时间" Binding="{Binding Time}" Width="90"/>
+                <DataGridTextColumn Header="工位" Binding="{Binding Slot}" Width="80"/>
+                <DataGridTextColumn Header="Usig" Binding="{Binding UsigValue}" Width="*"/>
+                <DataGridTextColumn Header="UT" Binding="{Binding UtValue}" Width="*"/>
+                <DataGridTextColumn Header="Usource" Binding="{Binding UsourceValue}" Width="*"/>
+                <DataGridTextColumn Header="Isource" Binding="{Binding IsourceValue}" Width="*"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</UserControl>

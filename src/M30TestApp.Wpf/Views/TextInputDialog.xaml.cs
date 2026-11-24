@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Windows;
 using System.Windows.Input;
 
@@ -33,12 +33,12 @@ public partial class TextInputDialog : Window
         var text = InputBox.Text.Trim();
         if (text.Length == 0)
         {
-            MessageBox.Show("名称不能为空。", Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show("名称不能为空。", Title, MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         if (text.Any(c => c is '[' or ']' or '=' or ';'))
         {
-            MessageBox.Show("名称不能包含 [ ] = ; 这些字符。", Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show("名称不能包含 [ ] = ; 这些字符。", Title, MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         DialogResult = true;

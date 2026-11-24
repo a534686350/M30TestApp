@@ -6,18 +6,13 @@
              xmlns:vm="clr-namespace:M30TestApp.Wpf.ViewModels"
              d:DataContext="{d:DesignInstance vm:QuickTestViewModel}"
              mc:Ignorable="d">
+    <!--
+        快速测试页 v2（2026-10-29 重排）—— 与配置页 / 手动页同一套规范：
+        参数条 → 左「控制器与判定指标」+ 右「工位结果表」→ 测试日志 → 说明。
+        原来参数条是一整块直角 Card，字段宽度各异、单位下拉窄到显示成「kP」、
+        左卡 260px 里塞两块内容、日志区高度 140 却常常是空白。
+    -->
     <UserControl.Resources>
-        <Style x:Key="SectionTitle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="12.5"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
-        </Style>
-        <Style x:Key="FieldLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Margin" Value="0,0,0,4"/>
-        </Style>
         <Style x:Key="QuickResultCellStyle" TargetType="DataGridCell">
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -40,211 +35,244 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="QuickBtn" TargetType="Button" BasedOn="{StaticResource GhostButton}">
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="QuickBtnPrimary" TargetType="Button" BasedOn="{StaticResource SaveButton}">
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <!-- 卡片内分组标题：主题里没有这个键（其它页各自定义），本页自己带一份 -->
+        <Style x:Key="GroupTitle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        </Style>
     </UserControl.Resources>
 
-    <Grid Margin="16">
+    <Grid Margin="16,12,16,12">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <!-- 测试日志：内容是一行状态 + 滚动日志，140 足够，多出来的高度让给结果表 -->
-            <RowDefinition Height="140"/>
+            <RowDefinition Height="Auto" MinHeight="80"/>
+            <RowDefinition Height="*" MinHeight="220"/>
+            <RowDefinition Height="140" MinHeight="90"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <Border Style="{StaticResource Card}" Margin="0,0,0,10">
+        <!-- ═══ Row0 参数条：压力点 · 控压参数 · 工位范围 ‖ 状态 + 操作 ═══ -->
+        <Border Style="{StaticResource Card}" Margin="0,0,0,10" Padding="12,10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="1"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="1"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- ① 压力点组 -->
-                <StackPanel Width="104" Margin="0,0,8,0">
-                    <TextBlock Text="P0" Style="{StaticResource FieldLabel}"/>
-                    <TextBox Text="{Binding P0, UpdateSourceTrigger=PropertyChanged}"/>
-                </StackPanel>
-                <StackPanel Grid.Column="1" Width="104" Margin="0,0,8,0">
-                    <TextBlock Text="P50" Style="{StaticResource FieldLabel}"/>
-                    <TextBox Text="{Binding P50, UpdateSourceTrigger=PropertyChanged}"/>
-                </StackPanel>
-                <StackPanel Grid.Column="2" Width="104" Margin="0,0,8,0">
-                    <TextBlock Text="P100" Style="{StaticResource FieldLabel}"/>
-                    <TextBox Text="{Binding P100, UpdateSourceTrigger=PropertyChanged}"/>
-                </StackPanel>
-                <StackPanel Grid.Column="3" Width="88" Margin="0,0,12,0">
-                    <TextBlock Text="单位" Style="{StaticResource FieldLabel}"/>
-                    <ComboBox ItemsSource="{Binding PressureUnits}"
-                              Text="{Binding PressureUnit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                              IsEditable="True"/>
-                </StackPanel>
-
-                <Rectangle Grid.Column="4" Width="1" Fill="{DynamicResource BorderBrush}"
-                           Margin="0,0,12,0" VerticalAlignment="Stretch"/>
-
-                <!-- ② 控压参数组 -->
-                <StackPanel Grid.Column="5" Width="82" Margin="0,0,8,0">
-                    <TextBlock Text="压力精度" Style="{StaticResource FieldLabel}"/>
-                    <TextBox Text="{Binding PressurePrecision, UpdateSourceTrigger=PropertyChanged}"/>
-                </StackPanel>
-                <StackPanel Grid.Column="6" Width="72" Margin="0,0,12,0">
-                    <TextBlock Text="保压(s)" Style="{StaticResource FieldLabel}"/>
-                    <TextBox Text="{Binding HoldSeconds, UpdateSourceTrigger=PropertyChanged}"/>
+                <!-- ① 压力点 -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Bottom">
+                    <StackPanel Width="96" Margin="0,0,8,0">
+                        <TextBlock Text="P0" Style="{StaticResource FieldLabel}"/>
+                        <TextBox Text="{Binding P0, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                    <StackPanel Width="96" Margin="0,0,8,0">
+                        <TextBlock Text="P50" Style="{StaticResource FieldLabel}"/>
+                        <TextBox Text="{Binding P50, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                    <StackPanel Width="96" Margin="0,0,8,0">
+                        <TextBlock Text="P100" Style="{StaticResource FieldLabel}"/>
+                        <TextBox Text="{Binding P100, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                    <StackPanel Width="104">
+                        <TextBlock Text="单位" Style="{StaticResource FieldLabel}"/>
+                        <ComboBox ItemsSource="{Binding PressureUnits}"
+                                  Text="{Binding PressureUnit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  IsEditable="True"/>
+                    </StackPanel>
                 </StackPanel>
 
-                <Rectangle Grid.Column="7" Width="1" Fill="{DynamicResource BorderBrush}"
-                           Margin="0,0,12,0" VerticalAlignment="Stretch"/>
+                <Rectangle Grid.Column="1" Fill="{DynamicResource DividerBrush}" Margin="12,2"/>
 
-                <!-- ③ 工位范围组 -->
-                <StackPanel Grid.Column="8" Orientation="Horizontal" VerticalAlignment="Bottom" Margin="0,0,16,0">
-                    <StackPanel Width="76" Margin="0,0,8,0">
+                <!-- ② 控压参数 -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Bottom" Margin="12,0">
+                    <StackPanel Width="92" Margin="0,0,8,0">
+                        <TextBlock Text="压力精度" Style="{StaticResource FieldLabel}"/>
+                        <TextBox Text="{Binding PressurePrecision, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                    <StackPanel Width="80">
+                        <TextBlock Text="保压 (s)" Style="{StaticResource FieldLabel}"/>
+                        <TextBox Text="{Binding HoldSeconds, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <Rectangle Grid.Column="3" Fill="{DynamicResource DividerBrush}" Margin="12,2"/>
+
+                <!-- ③ 工位范围 -->
+                <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Bottom" Margin="12,0">
+                    <StackPanel Width="84" Margin="0,0,8,0">
                         <TextBlock Text="起始工位" Style="{StaticResource FieldLabel}"/>
                         <TextBox Text="{Binding StartSlot, UpdateSourceTrigger=PropertyChanged}"/>
                     </StackPanel>
-                    <StackPanel Width="76">
+                    <StackPanel Width="84">
                         <TextBlock Text="结束工位" Style="{StaticResource FieldLabel}"/>
                         <TextBox Text="{Binding EndSlot, UpdateSourceTrigger=PropertyChanged}"/>
                     </StackPanel>
                 </StackPanel>
 
                 <!-- ④ 方案 / 状态 -->
-                <StackPanel Grid.Column="9" VerticalAlignment="Bottom">
+                <StackPanel Grid.Column="5" VerticalAlignment="Bottom" Margin="16,0,12,6">
                     <TextBlock Text="{Binding SensorName}" FontWeight="SemiBold"
                                TextTrimming="CharacterEllipsis"/>
                     <TextBlock Text="{Binding Status}" Foreground="{DynamicResource MutedBrush}"
-                               FontSize="12" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
+                               FontSize="{StaticResource FontSizeSmall}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
 
                 <!-- ⑤ 操作 -->
-                <StackPanel Grid.Column="10" Orientation="Horizontal" VerticalAlignment="Bottom">
-                    <Button Content="刷新工位" Style="{StaticResource GhostButton}" Padding="12,6"
-                            Command="{Binding RefreshSlotsCommand}" Margin="0,0,8,0"/>
-                    <Button Content="开始快速测试" Style="{StaticResource SaveButton}" Padding="16,6"
-                            Command="{Binding StartCommand}" Margin="0,0,8,0"/>
-                    <Button Content="停止" Style="{StaticResource GhostButton}" Padding="12,6"
-                            Command="{Binding StopCommand}"/>
+                <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Bottom">
+                    <Button Content="刷新工位" Style="{StaticResource QuickBtn}" MinWidth="84"
+                            Command="{Binding RefreshSlotsCommand}"/>
+                    <Button Content="开始快速测试" Style="{StaticResource QuickBtnPrimary}" MinWidth="112"
+                            Margin="8,0,0,0" Command="{Binding StartCommand}"/>
+                    <Button Content="停止" Style="{StaticResource QuickBtn}" MinWidth="64"
+                            Margin="8,0,0,0" Command="{Binding StopCommand}"/>
                 </StackPanel>
             </Grid>
         </Border>
 
+        <!-- ═══ Row1 左：控制器与判定指标 ｜ 右：工位结果表 ═══ -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="260"/>
+                <ColumnDefinition Width="300"/>
+                <ColumnDefinition Width="10"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <Border Style="{StaticResource Card}" Margin="0,0,10,0">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
-                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <TextBlock Text="压力控制器" Style="{StaticResource SectionTitle}"/>
-                    </StackPanel>
-                    <TextBlock Text="型号" Style="{StaticResource FieldLabel}"/>
-                    <ComboBox ItemsSource="{Binding PressureModels}"
-                              Text="{Binding PressureModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                              IsEditable="True"
-                              Margin="0,0,0,8"/>
-                    <Grid Margin="0,0,0,14">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="8"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel>
-                            <TextBlock Text="端口" Style="{StaticResource FieldLabel}"/>
-                            <ComboBox ItemsSource="{Binding PressurePorts}"
-                                      Text="{Binding PressurePort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+            <Border Style="{StaticResource PanelCard}" Grid.Column="0">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{StaticResource PanelTitleBar}">
+                        <TextBlock Text="压力控制器 / 判定指标" Style="{StaticResource PanelTitleText}"/>
+                    </Border>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="12,10,12,12">
+                            <TextBlock Text="型号" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox ItemsSource="{Binding PressureModels}"
+                                      Text="{Binding PressureModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       IsEditable="True"/>
+
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="端口" Style="{StaticResource FieldLabel}"/>
+                                    <ComboBox ItemsSource="{Binding PressurePorts}"
+                                              Text="{Binding PressurePort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsEditable="True"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="地址" Style="{StaticResource FieldLabel}"/>
+                                    <ComboBox ItemsSource="{Binding PressureAddrs}"
+                                              Text="{Binding PressureAddr, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsEditable="True"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="{DynamicResource DividerBrush}" Margin="0,12"/>
+
+                            <TextBlock Text="判定指标" Style="{StaticResource GroupTitle}" Margin="0,0,0,4"/>
+                            <TextBlock Text="测试前录入，留空表示不限。"
+                                       Foreground="{DynamicResource MutedBrush}" FontSize="{StaticResource FontSizeCaption}"
+                                       TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                            <TextBlock Text="Span Min / Max" Style="{StaticResource FieldLabel}"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="20"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Text="{Binding SpanMin, UpdateSourceTrigger=PropertyChanged}"/>
+                                <TextBlock Grid.Column="1" Text="~" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource MutedBrush}"/>
+                                <TextBox Grid.Column="2" Text="{Binding SpanMax, UpdateSourceTrigger=PropertyChanged}"/>
+                            </Grid>
+
+                            <TextBlock Text="Linearity / NL Min / Max" Style="{StaticResource FieldLabel}" Margin="0,10,0,4"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="20"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Text="{Binding LinearityMin, UpdateSourceTrigger=PropertyChanged}"/>
+                                <TextBlock Grid.Column="1" Text="~" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource MutedBrush}"/>
+                                <TextBox Grid.Column="2" Text="{Binding LinearityMax, UpdateSourceTrigger=PropertyChanged}"/>
+                            </Grid>
                         </StackPanel>
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Text="地址" Style="{StaticResource FieldLabel}"/>
-                            <ComboBox ItemsSource="{Binding PressureAddrs}"
-                                      Text="{Binding PressureAddr, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      IsEditable="True"/>
-                        </StackPanel>
-                    </Grid>
-
-                    <StackPanel Orientation="Horizontal">
-                        <Rectangle Width="3" Height="13" Fill="{DynamicResource AccentBrush}"
-                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <TextBlock Text="判定指标" Style="{StaticResource SectionTitle}"/>
-                    </StackPanel>
-                    <TextBlock Text="测试前录入，留空表示不限。"
-                               Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
-
-                    <TextBlock Text="Span Min / Max" Style="{StaticResource FieldLabel}"/>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="20"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBox Text="{Binding SpanMin, UpdateSourceTrigger=PropertyChanged}"/>
-                        <TextBlock Grid.Column="1" Text="~" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        <TextBox Grid.Column="2" Text="{Binding SpanMax, UpdateSourceTrigger=PropertyChanged}"/>
-                    </Grid>
-
-                    <TextBlock Text="Linearity/NL Min / Max" Style="{StaticResource FieldLabel}" Margin="0,12,0,4"/>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="20"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBox Text="{Binding LinearityMin, UpdateSourceTrigger=PropertyChanged}"/>
-                        <TextBlock Grid.Column="1" Text="~" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        <TextBox Grid.Column="2" Text="{Binding LinearityMax, UpdateSourceTrigger=PropertyChanged}"/>
-                    </Grid>
-                </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
             </Border>
 
-            <Border Grid.Column="1" Style="{StaticResource Card}" Padding="0">
-                <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False" IsReadOnly="True"
-                          HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="工位" Binding="{Binding Slot}" Width="80"/>
-                        <DataGridTextColumn Header="序列号" Binding="{Binding SerialNo}" Width="120"/>
-                        <DataGridTextColumn Header="板卡位" Binding="{Binding Board}" Width="70"/>
-                        <DataGridTextColumn Header="板卡工位号" Binding="{Binding BoardSlotNo}" Width="90"/>
-                        <DataGridTextColumn Header="Usig P0" Binding="{Binding P0}" Width="95"/>
-                        <DataGridTextColumn Header="Usig P50" Binding="{Binding P50}" Width="95"/>
-                        <DataGridTextColumn Header="Usig P100" Binding="{Binding P100}" Width="95"/>
-                        <DataGridTextColumn Header="Span" Binding="{Binding Span}" Width="95"/>
-                        <DataGridTextColumn Header="NL" Binding="{Binding Linearity}" Width="95"/>
-                        <DataGridTextColumn Header="不合格指标" Binding="{Binding FailedMetrics}" Width="120"
-                                            CellStyle="{StaticResource QuickFailedCellStyle}"/>
-                        <DataGridTextColumn Header="TestResult" Binding="{Binding TestResult}" Width="100"
-                                            CellStyle="{StaticResource QuickResultCellStyle}"/>
-                    </DataGrid.Columns>
-                </DataGrid>
+            <Border Style="{StaticResource PanelCard}" Grid.Column="2">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{StaticResource PanelTitleBar}">
+                        <DockPanel LastChildFill="False">
+                            <TextBlock DockPanel.Dock="Left" Text="工位结果" Style="{StaticResource PanelTitleText}"/>
+                            <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource MutedBrush}" FontSize="{StaticResource FontSizeCaption}"
+                                       Text="{Binding Status}"/>
+                        </DockPanel>
+                    </Border>
+                    <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False" IsReadOnly="True"
+                              BorderThickness="0" GridLinesVisibility="Horizontal"
+                              HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="工位" Binding="{Binding Slot}" Width="80"/>
+                            <DataGridTextColumn Header="序列号" Binding="{Binding SerialNo}" Width="130"/>
+                            <DataGridTextColumn Header="板卡位" Binding="{Binding Board}" Width="70"/>
+                            <DataGridTextColumn Header="板卡工位号" Binding="{Binding BoardSlotNo}" Width="90"/>
+                            <DataGridTextColumn Header="Usig P0" Binding="{Binding P0}" Width="95"/>
+                            <DataGridTextColumn Header="Usig P50" Binding="{Binding P50}" Width="95"/>
+                            <DataGridTextColumn Header="Usig P100" Binding="{Binding P100}" Width="95"/>
+                            <DataGridTextColumn Header="Span" Binding="{Binding Span}" Width="90"/>
+                            <DataGridTextColumn Header="NL" Binding="{Binding Linearity}" Width="90"/>
+                            <DataGridTextColumn Header="不合格指标" Binding="{Binding FailedMetrics}" Width="*"
+                                                CellStyle="{StaticResource QuickFailedCellStyle}"/>
+                            <DataGridTextColumn Header="测试结果" Binding="{Binding TestResult}" Width="100"
+                                                CellStyle="{StaticResource QuickResultCellStyle}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
             </Border>
         </Grid>
 
-        <Border Grid.Row="2" Style="{StaticResource Card}" Padding="0" Margin="0,10,0,0">
+        <!-- ═══ Row2 测试日志 ═══ -->
+        <Border Style="{StaticResource PanelCard}" Grid.Row="2" Margin="0,10,0,0">
             <DockPanel>
-                <Border DockPanel.Dock="Top" Background="{DynamicResource HeaderBgBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
-                        Padding="12,6">
-                    <DockPanel>
-                        <TextBlock Text="测试日志" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                        <TextBlock DockPanel.Dock="Right" Text="{Binding Status}"
-                                   Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"/>
+                <Border DockPanel.Dock="Top" Style="{StaticResource PanelTitleBar}">
+                    <DockPanel LastChildFill="False">
+                        <TextBlock DockPanel.Dock="Left" Text="测试日志" Style="{StaticResource PanelTitleText}"/>
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding Status}" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource MutedBrush}" FontSize="{StaticResource FontSizeCaption}"/>
                     </DockPanel>
                 </Border>
                 <TextBox x:Name="QuickLogTextBox"
                          Text="{Binding LogText, Mode=OneWay}"
                          BorderThickness="0"
                          FontFamily="Consolas"
-                         FontSize="12"
+                         FontSize="{StaticResource FontSizeSmall}"
                          Background="{DynamicResource SurfaceBrush}"
                          IsReadOnly="True"
                          AcceptsReturn="True"
@@ -252,12 +280,13 @@
                          TextWrapping="NoWrap"
                          VerticalScrollBarVisibility="Auto"
                          HorizontalScrollBarVisibility="Auto"
-                         Padding="8,4"
+                         Padding="10,4"
                          TextChanged="QuickLogTextBox_TextChanged"/>
             </DockPanel>
         </Border>
 
-        <TextBlock Grid.Row="3" Text="快速测试只控制压力并采集 Usig；不执行烘箱、UT、Usource、Isource 和完整流程。"
-                   Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="4,8,0,0"/>
+        <TextBlock Grid.Row="3" Margin="2,8,0,0" TextWrapping="Wrap"
+                   Foreground="{DynamicResource MutedBrush}" FontSize="{StaticResource FontSizeCaption}"
+                   Text="快速测试只控制压力并采集 Usig；不执行烘箱、UT、Usource、Isource 和完整流程。"/>
     </Grid>
 </UserControl>

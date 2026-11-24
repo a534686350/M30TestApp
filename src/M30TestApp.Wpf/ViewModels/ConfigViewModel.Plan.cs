@@ -1,7 +1,9 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.IO;
 using System.Linq;
+using M30TestApp.Core.Common;
 using M30TestApp.Core.Config;
 using M30TestApp.Wpf.Mvvm;
 
@@ -15,6 +17,30 @@ public sealed partial class ConfigViewModel : ViewModelBase
     public string TaskScript => Plan.TaskScript;
     public ObservableCollection<string> PlanFolders { get; } = new();
     public ObservableCollection<string> SensorModelFiles { get; } = new();
+
+    /// <summary>单一「方案」下拉的候选与当前值（方案/型号已合并）。</summary>
+    public ObservableCollection<string> AllPlans { get; } = new();
+    private IReadOnlyList<PlanEntry> _planEntries = Array.Empty<PlanEntry>();
+    private string _selectedPlanDisplay = "";
+    public string SelectedPlanDisplay
+    {
+        get => _selectedPlanDisplay;
+        set
+        {
+            if (!SetField(ref _selectedPlanDisplay, value)) return;
+            var entry = PlanCatalog.FindByDisplay(value, _planEntries);
+            if (entry is null || string.IsNullOrEmpty(entry.Path) || !File.Exists(entry.Path)) return;
+            var plan = TestPlan.Load(entry.Path);
+            SetPlan(plan);
+            _loadedPlanFolder = entry.Folder;
+            _loadedSensorModelFile = entry.Name;
+            _selectedPlanFolder = entry.Folder;
+            _selectedSensorModelFile = entry.Name;
+            OnPropertyChanged(nameof(SelectedPlanFolder));
+            OnPropertyChanged(nameof(SelectedSensorModelFile));
+            AppLog.Info("Config", $"已切换方案 {entry.Display}");
+        }
+    }
     private string _selectedPlanFolder = "";
     private string _selectedSensorModelFile = "";
     private string _loadedPlanFolder = "";

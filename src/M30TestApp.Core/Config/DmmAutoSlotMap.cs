@@ -6,13 +6,13 @@ namespace M30TestApp.Core.Config;
 /// <summary>
 /// 万用表自动测试的工位 → DAQ973A 通道映射。
 ///
-/// 一台 973 管 <see cref="DmmAutoChannelConfig.SlotsPerUnit"/> 个工位（默认 16），
+/// 一台 973 管 <see cref="DmmAutoChannelConfig.SlotsPerUnit"/> 个工位（默认 18），
 /// 三组通道分工由 <see cref="DmmAutoChannelConfig"/> 指定（现场可改）：
 ///   电压组 / 电阻组 / 工位电源开关组，外加总电源通道。
-/// 默认：电压 101-116、电阻 201-216、工位电源 301-316、总电源 319/320。
+/// 默认：电压 101-118、电阻 201-218、工位电源 301-318、总电源 319/320。
 ///
 /// 最多 <see cref="MaxUnits"/> 台 973，按工位顺序分配：
-///   工位 1-16 → 973-1，17-32 → 973-2，33-48 → 973-3。
+///   工位 1-18 → 973-1，19-36 → 973-2，37-54 → 973-3。
 ///
 /// 注意：这里控制的「电源开关」与电路板测试的「气路阀门」（<c>ValveRelay</c>）是两套
 /// 完全独立的硬件。通道号可能撞车，但语义无关，代码路径不得互相复用。
@@ -23,12 +23,12 @@ namespace M30TestApp.Core.Config;
 public static class DmmAutoSlotMap
 {
     /// <summary>默认单台 973 负责的工位数（未配置时）。</summary>
-    public const int DefaultSlotsPerUnit = 16;
+    public const int DefaultSlotsPerUnit = 18;
 
     /// <summary>最多支持的 973 台数。</summary>
     public const int MaxUnits = 3;
 
-    /// <summary>默认工位总数上限（= 3 台 × 16）。实际上限见 <see cref="MaxSlotCount"/>。</summary>
+    /// <summary>默认工位总数上限（= 3 台 × 18 = 54）。实际上限见 <see cref="MaxSlotCount"/>。</summary>
     public const int MaxSlot = DefaultSlotsPerUnit * MaxUnits;
 
     /// <summary>

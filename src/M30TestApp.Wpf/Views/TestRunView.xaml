@@ -11,197 +11,179 @@
              Loaded="OnViewLoaded"
              SizeChanged="OnViewSizeChanged">
 
+    <!--
+        测试页 v6（2026-11-19）—— 上位机「大表格 + 显眼进度 + 可折叠日志」：
+          ① 顶部独立进度状态带：大号进度数字 + 进度条 + 方案/温度点/状态 + 合格/警告/异常统计；
+             原控制条和右下统计合二为一，不再各占一块。
+          ② 采集矩阵独占整个中间区，尽量放大（MinHeight 240）—— 操作员盯得最多的地方。
+          ③ 实时日志做成可折叠抽屉：收起时只占一行标题，展开时 190px；点标题栏即可折叠，
+             把空间全让给表格。
+    -->
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <conv:InverseBooleanToVisibilityConverter x:Key="BoolToVisInv"/>
-        <Style x:Key="KpiChip" TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Padding" Value="11,6"/>
-            <Setter Property="Margin" Value="0,0,8,0"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Effect" Value="{StaticResource CardShadow}"/>
-        </Style>
-        <Style x:Key="KpiLabel" TargetType="TextBlock">
+
+        <Style x:Key="StatLabel" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
-            <Setter Property="FontSize" Value="10.5"/>
-            <Setter Property="Margin" Value="0,0,6,0"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,2,0,0"/>
         </Style>
-        <Style x:Key="KpiValue" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="14"/>
+        <Style x:Key="StatValue" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="17"/>
             <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="ProgressNumber" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="24"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
         </Style>
     </UserControl.Resources>
 
-    <Grid Margin="12">
+    <Grid Margin="16,12,16,12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*" MinHeight="240"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-<!-- ────────── Row 0: KPI strip ────────── -->
-        <!-- 紧凑横条：色条 + 标签 + 数值，按内容宽度排列。
-             原先是 6 张 * 平分的大卡片，1440 宽下每张 ~230px、内容只占 ~90px，右侧全是留白。 -->
-        <Grid x:Name="KpiRow" Grid.Row="0" Margin="0,0,0,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-
-<Border Style="{StaticResource KpiChip}" Grid.Column="0">
-                <StackPanel Orientation="Horizontal">
-                    <Rectangle Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
-                               Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
-                    <TextBlock Text="工位总数" Style="{StaticResource KpiLabel}"/>
-                    <TextBlock Text="{Binding TotalSlots}" Style="{StaticResource KpiValue}"/>
-                </StackPanel>
-            </Border>
-<Border Style="{StaticResource KpiChip}" Grid.Column="1">
-                <StackPanel Orientation="Horizontal">
-                    <Rectangle Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
-                               Fill="{DynamicResource SuccessBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
-                    <TextBlock Text="合格" Style="{StaticResource KpiLabel}"/>
-                    <TextBlock Text="{Binding OkCount}" Style="{StaticResource KpiValue}" Foreground="{DynamicResource SuccessBrush}"/>
-                </StackPanel>
-            </Border>
-<Border Style="{StaticResource KpiChip}" Grid.Column="2">
-                <StackPanel Orientation="Horizontal">
-                    <Rectangle Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
-                               Fill="{DynamicResource WarnBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
-                    <TextBlock Text="警告" Style="{StaticResource KpiLabel}"/>
-                    <TextBlock Text="{Binding WarnCount}" Style="{StaticResource KpiValue}" Foreground="{DynamicResource WarnBrush}"/>
-                </StackPanel>
-            </Border>
-<Border Style="{StaticResource KpiChip}" Grid.Column="3">
-                <StackPanel Orientation="Horizontal">
-                    <Rectangle Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
-                               Fill="{DynamicResource ErrorBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
-                    <TextBlock Text="异常" Style="{StaticResource KpiLabel}"/>
-                    <TextBlock Text="{Binding ErrCount}" Style="{StaticResource KpiValue}" Foreground="{DynamicResource ErrorBrush}"/>
-                </StackPanel>
-            </Border>
-<Border Style="{StaticResource KpiChip}" Grid.Column="4">
-                <StackPanel Orientation="Horizontal">
-                    <Rectangle Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
-                               Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
-                    <TextBlock Text="温度点" Style="{StaticResource KpiLabel}"/>
-                    <TextBlock Text="{Binding CurrentT}" Style="{StaticResource KpiValue}" Foreground="{DynamicResource AccentBrush}"/>
-                </StackPanel>
-            </Border>
-<Border Style="{StaticResource KpiChip}" Grid.Column="5" Margin="0">
-                <StackPanel Orientation="Horizontal">
-                    <Rectangle Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
-                               Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
-                    <TextBlock Text="压力点" Style="{StaticResource KpiLabel}"/>
-                    <TextBlock Text="{Binding CurrentP}" Style="{StaticResource KpiValue}" Foreground="{DynamicResource AccentBrush}"/>
-                </StackPanel>
-            </Border>
-        </Grid>
-
-        <!-- ────────── Row 1: control bar ────────── -->
-        <Border x:Name="ControlBar" Style="{StaticResource Card}" Grid.Row="1" Margin="0,0,0,10">
+        <!-- ────────── Row 0：独立进度状态带 ────────── -->
+        <Border x:Name="ControlBar" Style="{StaticResource Card}" Grid.Row="0" Margin="0,0,0,10" Padding="14,10">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- 测试类型与当前工步已在顶部命令条显示，这里不再重复，只保留本页特有信息。 -->
-                <StackPanel Orientation="Vertical">
+                <!-- 左：方案 / 状态 / 温度点 / 耗时 -->
+                <StackPanel Orientation="Vertical" VerticalAlignment="Center" MaxWidth="260">
                     <WrapPanel>
-                        <TextBlock Text="测试方案：" Foreground="{DynamicResource MutedBrush}"/>
-                        <TextBlock Text="{Binding PlanName}" FontWeight="SemiBold" Margin="4,0,16,0"/>
-                        <TextBlock Text="状态：" Foreground="{DynamicResource MutedBrush}"/>
-                        <TextBlock Text="{Binding Status}" FontWeight="SemiBold" Margin="4,0,16,0"/>
-                        <TextBlock Text="耗时：" Foreground="{DynamicResource MutedBrush}"/>
-                        <TextBlock Text="{Binding Elapsed}" FontFamily="Consolas" FontWeight="SemiBold" Margin="4,0"/>
+                        <TextBlock Text="方案：" Foreground="{DynamicResource MutedBrush}"
+                                   FontSize="{StaticResource FontSizeCaption}"/>
+                        <TextBlock Text="{Binding PlanName}" FontWeight="SemiBold"
+                                   FontSize="{StaticResource FontSizeNormal}" Margin="4,0,0,0"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="160"/>
                     </WrapPanel>
-                    <TextBlock Text="{Binding LastError}" Foreground="{DynamicResource ErrorBrush}" Margin="0,4,0,0"
-                               TextWrapping="Wrap"/>
+                    <WrapPanel Margin="0,4,0,0">
+                        <TextBlock Text="{Binding Status}" FontWeight="SemiBold"
+                                   FontSize="{StaticResource FontSizeCaption}"
+                                   Foreground="{DynamicResource AccentBrush}"/>
+                        <TextBlock Text="  ·  " Foreground="{DynamicResource MutedBrush}"/>
+                        <TextBlock Text="{Binding TempPointProgressText}" FontSize="{StaticResource FontSizeCaption}"
+                                   Foreground="{DynamicResource MutedBrush}"/>
+                        <TextBlock Text="  ·  " Foreground="{DynamicResource MutedBrush}"/>
+                        <TextBlock Text="{Binding Elapsed}" FontFamily="Consolas" FontSize="{StaticResource FontSizeCaption}"
+                                   Foreground="{DynamicResource MutedBrush}"/>
+                    </WrapPanel>
                 </StackPanel>
 
-                <StackPanel Orientation="Horizontal" Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0">
-                    <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressPercentValue, Mode=OneWay}"
-                                 Width="220" Height="8" Foreground="{DynamicResource AccentBrush}"
-                                 Background="{DynamicResource HeaderBgBrush}" BorderThickness="0"/>
-                    <TextBlock Margin="10,0,0,0" Foreground="{DynamicResource MutedBrush}" FontFamily="Consolas">
-                        <Run Text="{Binding ProgressIndex}"/> / <Run Text="{Binding ProgressTotal}"/>
-                    </TextBlock>
+                <!-- 中：大进度条 + 数字 -->
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="20,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource ProgressNumber}"
+                                   Text="{Binding ProgressPercentValue, Mode=OneWay, StringFormat={}{0}%}"/>
+                        <ProgressBar Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding ProgressPercentValue, Mode=OneWay}"
+                                     Height="14" Margin="14,0" Foreground="{DynamicResource AccentBrush}"
+                                     Background="{DynamicResource HeaderBgBrush}" BorderThickness="0"/>
+                        <TextBlock Grid.Column="2" Style="{StaticResource ProgressNumber}" FontSize="17">
+                            <Run Text="{Binding ProgressIndex, Mode=OneWay}"/><Run Text="/"/><Run Text="{Binding ProgressTotal, Mode=OneWay}"/>
+                        </TextBlock>
+                    </Grid>
+                    <TextBlock Text="{Binding LastError}" Foreground="{DynamicResource ErrorBrush}"
+                               FontSize="{StaticResource FontSizeCaption}" TextTrimming="CharacterEllipsis"
+                               Margin="0,6,0,0" ToolTip="{Binding LastError}"/>
                 </StackPanel>
 
-                <!-- 主操作（开始 / 停止）统一放在顶部命令条，这里只留本页特有的过程控制，
-                     免得同一页出现两组「开始 / 停止」，操作员会犹豫点哪个。 -->
-                <StackPanel Orientation="Horizontal" Grid.Column="2" VerticalAlignment="Center">
+                <!-- 右：统计 + 暂停 -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <StackPanel Width="54">
+                        <TextBlock Text="{Binding OkCount}" Style="{StaticResource StatValue}" Foreground="{DynamicResource SuccessBrush}"/>
+                        <TextBlock Text="合格" Style="{StaticResource StatLabel}"/>
+                    </StackPanel>
+                    <StackPanel Width="54">
+                        <TextBlock Text="{Binding WarnCount}" Style="{StaticResource StatValue}" Foreground="{DynamicResource WarnBrush}"/>
+                        <TextBlock Text="警告" Style="{StaticResource StatLabel}"/>
+                    </StackPanel>
+                    <StackPanel Width="54">
+                        <TextBlock Text="{Binding ErrCount}" Style="{StaticResource StatValue}" Foreground="{DynamicResource ErrorBrush}"/>
+                        <TextBlock Text="异常" Style="{StaticResource StatLabel}"/>
+                    </StackPanel>
+                    <Rectangle Width="1" Height="32" Fill="{DynamicResource DividerBrush}" Margin="8,0"/>
+                    <StackPanel Width="60">
+                        <TextBlock Text="{Binding TotalSlots}" Style="{StaticResource StatValue}" FontSize="15"
+                                   Foreground="{DynamicResource TextBrush}"/>
+                        <TextBlock Text="工位总数" Style="{StaticResource StatLabel}"/>
+                    </StackPanel>
                     <Button Content="{Binding PauseButtonText}" Style="{StaticResource GhostButton}"
-                            Command="{Binding PauseCommand}" MinWidth="76"/>
+                            Command="{Binding PauseCommand}" MinWidth="72" Height="32" Margin="8,0,0,0"/>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- ────────── 工作区：左侧采集矩阵 + 右侧栏（测试统计 / 实时日志） ────────── -->
-        <Grid Grid.Row="2">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition x:Name="RightRailColumn" Width="480"/>
-            </Grid.ColumnDefinitions>
-
-            <Border Style="{StaticResource PanelCard}">
-                <DockPanel>
-                    <Border DockPanel.Dock="Top" Style="{StaticResource PanelTitleBar}">
-                        <StackPanel Orientation="Horizontal">
-                            <Rectangle Width="3" Height="12" Fill="{DynamicResource AccentBrush}"
-                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBlock Text="{Binding MatrixTitle}" Style="{StaticResource PanelTitleText}"/>
-                        </StackPanel>
-                    </Border>
-                    <Grid>
-                        <views:LongTermMatrixGrid Rows="{Binding Rows}"
-                                                  LongTermColumns="{Binding LongTermColumns}"
-                                                  Visibility="{Binding IsLongTermStabilityMode, Converter={StaticResource BoolToVis}}"/>
-                        <views:DataMatrixGrid Rows="{Binding Rows}"
-                                              MatrixColumns="{Binding MatrixColumns}"
-                                              Visibility="{Binding IsLongTermStabilityMode, Converter={StaticResource BoolToVisInv}}"/>
-                    </Grid>
-                </DockPanel>
-            </Border>
-
-            <Grid Grid.Column="1" Margin="10,0,0,0">
-            <!-- ────────── 右栏下：实时日志 ────────── -->
-            <Border x:Name="LiveLogPanel" Style="{StaticResource PanelCard}">
+        <!-- ────────── Row 1：采集矩阵（绝对主体，占满整宽整高） ────────── -->
+        <Border Style="{StaticResource PanelCard}" Grid.Row="1">
             <DockPanel>
                 <Border DockPanel.Dock="Top" Style="{StaticResource PanelTitleBar}">
                     <DockPanel LastChildFill="False">
                         <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
                             <Rectangle Width="3" Height="12" Fill="{DynamicResource AccentBrush}"
                                        VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBlock Text="实时日志" Style="{StaticResource PanelTitleText}"/>
+                            <TextBlock Text="{Binding MatrixTitle}" Style="{StaticResource PanelTitleText}"/>
                         </StackPanel>
-                        <Button DockPanel.Dock="Right" Content="清空显示" Style="{StaticResource GhostButton}"
-                                Padding="10,1" Command="{Binding ClearLogCommand}"/>
+                        <TextBlock DockPanel.Dock="Right" Text="右键可复制选中数据"
+                                   FontSize="{StaticResource FontSizeCaption}" Foreground="{DynamicResource MutedBrush}"
+                                   VerticalAlignment="Center"/>
                     </DockPanel>
                 </Border>
-                <TextBox x:Name="LogTextBox" Text="{Binding Log.Text, Mode=OneWay}" BorderThickness="0"
-                         FontFamily="Consolas" FontSize="12"
-                         Background="{DynamicResource SurfaceBrush}"
-                         IsReadOnly="True" AcceptsReturn="True" AcceptsTab="True"
-                         TextWrapping="NoWrap"
-                         VerticalScrollBarVisibility="Auto"
-                         HorizontalScrollBarVisibility="Auto"
-                         Padding="10,4"/>
+                <Grid>
+                    <views:LongTermMatrixGrid Rows="{Binding Rows}"
+                                              LongTermColumns="{Binding LongTermColumns}"
+                                              Visibility="{Binding IsLongTermStabilityMode, Converter={StaticResource BoolToVis}}"/>
+                    <views:DataMatrixGrid Rows="{Binding Rows}"
+                                          MatrixColumns="{Binding MatrixColumns}"
+                                          Visibility="{Binding IsLongTermStabilityMode, Converter={StaticResource BoolToVisInv}}"/>
+                </Grid>
             </DockPanel>
+        </Border>
+
+        <!-- ────────── Row 2：实时日志抽屉（可折叠，默认收起把空间留表格） ────────── -->
+        <Expander Grid.Row="2" ExpandDirection="Down" IsExpanded="True" Margin="0,8,0,0"
+                  Background="Transparent" BorderThickness="0">
+            <Expander.Header>
+                <Border Style="{StaticResource Card}" Padding="12,6">
+                    <DockPanel LastChildFill="False">
+                        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                            <Rectangle Width="3" Height="12" Fill="{DynamicResource AccentBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="实时日志" Style="{StaticResource PanelTitleText}"/>
+                            <TextBlock Text="（点击展开 / 收起）" FontSize="{StaticResource FontSizeCaption}"
+                                       Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+            </Expander.Header>
+            <Border Style="{StaticResource Card}" Padding="0" Height="190">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{StaticResource PanelTitleBar}">
+                        <Button Content="清空显示" Style="{StaticResource GhostButton}" Padding="10,1"
+                                HorizontalAlignment="Right" Command="{Binding ClearLogCommand}"/>
+                    </Border>
+                    <TextBox x:Name="LogTextBox" Text="{Binding Log.Text, Mode=OneWay}" BorderThickness="0"
+                             FontFamily="Consolas" FontSize="{StaticResource FontSizeSmall}"
+                             Background="{DynamicResource SurfaceBrush}"
+                             IsReadOnly="True" AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
+                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="10,4"/>
+                </DockPanel>
             </Border>
-            </Grid>
-        </Grid>
+        </Expander>
     </Grid>
 </UserControl>

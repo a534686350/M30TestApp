@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
@@ -13,6 +13,7 @@ using M30TestApp.Core.Config;
 using M30TestApp.Core.Data;
 using M30TestApp.Core.Devices;
 using M30TestApp.Wpf.Mvvm;
+using M30TestApp.Wpf.Views;
 
 namespace M30TestApp.Wpf.ViewModels;
 
@@ -353,6 +354,15 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
     public RelayCommand ClearDataIoCommand { get; }
     public RelayCommand ClearHistoryCommand { get; }
 
+    /// <summary>打开独立窗口显示批量采集（表格可拉大）。</summary>
+    public RelayCommand OpenBatchPanelCommand { get; }
+    /// <summary>打开独立窗口显示 1KHz 频率采样。</summary>
+    public RelayCommand OpenFrequencyPanelCommand { get; }
+
+    /// <summary>主界面批量采集卡片的简要提示。</summary>
+    public string BatchSampleHint =>
+        $"工位 {BatchStartSlot}-{BatchEndSlot} · 间隔 {CollectionInterval}ms · 已采 {BatchResults.Count} 条";
+
     public ManualViewModel(TestSession session, DeviceStatusVm? ovenStatus = null, DeviceStatusVm? dacStatus = null)
     {
         _session = session;
@@ -511,7 +521,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
             var ok = await _session.Oven.SetTempAsync(TargetTemp);
             if (!ok)
             {
-                MessageBox.Show(
+                AppDialog.Show(
                     "温度设定失败：设备未返回 OK。\n请检查串口连接、型号是否与 Command.ini 段名一致。",
                     "烘箱", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
@@ -598,6 +608,12 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
 
         ClearDataIoCommand  = new RelayCommand(_ => DataIo.Clear());
         ClearHistoryCommand = new RelayCommand(_ => History.Clear());
+
+        // 大表格卡片改成独立窗口：同一个 VM 实例传进去，采集不中断；表格 * 撑满可拉大。
+        OpenBatchPanelCommand = new RelayCommand(_ =>
+            PanelWindow.ShowPanel("批量采集", new BatchSamplePanel { DataContext = this }, "manual-batch", 1180, 720));
+        OpenFrequencyPanelCommand = new RelayCommand(_ =>
+            PanelWindow.ShowPanel("1KHz 频率测试", new FrequencyPanel { DataContext = this }, "manual-freq", 980, 680));
     }
 
     /// <summary>
@@ -886,7 +902,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
     {
         if (!byte.TryParse(CardAddr, out var card) || !byte.TryParse(ChannelAddr, out var channel))
         {
-            MessageBox.Show("请选择采集卡地址和通道地址", "手动采集", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show("请选择采集卡地址和通道地址", "手动采集", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -944,7 +960,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
 
         if (snapshot.Count == 0)
         {
-            MessageBox.Show("没有可导出的1KHz频率测试数据", "导出", MessageBoxButton.OK, MessageBoxImage.Information);
+            AppDialog.Show("没有可导出的1KHz频率测试数据", "导出", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -973,11 +989,11 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
 
             File.WriteAllText(saveDialog.FileName, csv.ToString(), System.Text.Encoding.UTF8);
             Hist($"1KHz频率测试数据已导出到：{saveDialog.FileName}");
-            MessageBox.Show("导出成功", "导出", MessageBoxButton.OK, MessageBoxImage.Information);
+            AppDialog.Show("导出成功", "导出", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"导出失败：{ex.Message}", "导出", MessageBoxButton.OK, MessageBoxImage.Error);
+            AppDialog.Show($"导出失败：{ex.Message}", "导出", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -986,13 +1002,13 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
         var targetIntervalMs = ParseFrequencyIntervalMs();
         if (targetIntervalMs < 0)
         {
-            MessageBox.Show("采集频率请输入大于0的数字，留空表示不限速", "1KHz频率测试", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show("采集频率请输入大于0的数字，留空表示不限速", "1KHz频率测试", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         var autoStopSeconds = ParseFrequencyAutoStopSeconds();
         if (autoStopSeconds < 0)
         {
-            MessageBox.Show("停止时间请输入大于0的数字，留空表示手动停止", "1KHz频率测试", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show("停止时间请输入大于0的数字，留空表示手动停止", "1KHz频率测试", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -1179,7 +1195,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
     {
         if (BatchResults.Count == 0)
         {
-            MessageBox.Show("没有可导出的数据", "导出", MessageBoxButton.OK, MessageBoxImage.Information);
+            AppDialog.Show("没有可导出的数据", "导出", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -1205,11 +1221,11 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
 
             System.IO.File.WriteAllText(saveDialog.FileName, csv.ToString(), System.Text.Encoding.UTF8);
             Hist($"批量采集结果已导出到：{saveDialog.FileName}");
-            MessageBox.Show("导出成功", "导出", MessageBoxButton.OK, MessageBoxImage.Information);
+            AppDialog.Show("导出成功", "导出", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"导出失败：{ex.Message}", "导出", MessageBoxButton.OK, MessageBoxImage.Error);
+            AppDialog.Show($"导出失败：{ex.Message}", "导出", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -1217,13 +1233,13 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
     {
         if (!TryParseSlotNumber(BatchStartSlot, out var start) || !TryParseSlotNumber(BatchEndSlot, out var end))
         {
-            MessageBox.Show("请输入有效的工位号（如 1 或 Slot1）", "批量采集", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show("请输入有效的工位号（如 1 或 Slot1）", "批量采集", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
         if (start < 1 || end > 256 || start > end)
         {
-            MessageBox.Show("工位范围无效，请输入1-256之间的有效范围", "批量采集", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show("工位范围无效，请输入1-256之间的有效范围", "批量采集", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -1236,7 +1252,7 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
 
         if (selectedMeasures.Count == 0)
         {
-            MessageBox.Show("请至少选择一种采集类型", "批量采集", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show("请至少选择一种采集类型", "批量采集", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -1454,7 +1470,7 @@ public sealed class ValveVm : ViewModelBase
         }
         catch (Exception ex)
         {
-            MessageBox.Show("阀门操作失败：" + ex.Message, Label, MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show("阀门操作失败：" + ex.Message, Label, MessageBoxButton.OK, MessageBoxImage.Warning);
             _updating = true;
             IsOn = !value;
             _updating = false;
