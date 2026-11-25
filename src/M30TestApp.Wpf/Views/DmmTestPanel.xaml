@@ -1,0 +1,184 @@
+<UserControl x:Class="M30TestApp.Wpf.Views.DmmTestPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="700" d:DesignWidth="1200">
+    <!--
+        973 通道直测面板（2026-11-24）—— 单独验硬件用，不跑测试流程：
+          · 电压 VOUT1-18（通道 101-118）
+          · 电阻 R1-18（通道 201-218）
+          · 电源 1-18 + 总电源（301-318 / 319、320），可单路通断
+    -->
+    <UserControl.Resources>
+        <Style x:Key="PanelBtn" TargetType="Button" BasedOn="{StaticResource GhostButton}">
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        <Style x:Key="PanelBtnPrimary" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        <Style x:Key="ValueCell" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </UserControl.Resources>
+
+    <DockPanel Margin="12,10,12,12">
+        <!-- 顶部：选台 + 状态 -->
+        <Border DockPanel.Dock="Top" Style="{StaticResource PanelTitleBar}" Padding="10,6" Margin="0,0,0,10">
+            <DockPanel LastChildFill="False">
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="973 台号" Foreground="{DynamicResource MutedBrush}" FontSize="11"
+                               VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <ComboBox ItemsSource="{Binding DmmUnitOptions}" SelectedIndex="{Binding SelectedDmmUnit}"
+                              Width="96" MinHeight="26" FontSize="11" VerticalAlignment="Center"
+                              VerticalContentAlignment="Center" Padding="6,0"/>
+                </StackPanel>
+                <TextBlock DockPanel.Dock="Right" Text="{Binding DmmPanelStatus}"
+                           Foreground="{DynamicResource MutedBrush}" FontSize="11" VerticalAlignment="Center"/>
+            </DockPanel>
+        </Border>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 电压 -->
+            <Border Style="{StaticResource PanelCard}" Grid.Column="0">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{StaticResource PanelTitleBar}">
+                        <DockPanel LastChildFill="False">
+                            <TextBlock DockPanel.Dock="Left" Text="电压 VOUT (mV)" Style="{StaticResource PanelTitleText}"/>
+                            <Button DockPanel.Dock="Right" Content="读取全部" Style="{StaticResource PanelBtnPrimary}"
+                                    Command="{Binding ReadDmmVoltageCommand}"/>
+                        </DockPanel>
+                    </Border>
+                    <ItemsControl ItemsSource="{Binding DmmVoltageRows}" Margin="6">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Height="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="72"/>
+                                        <ColumnDefinition Width="46"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Label}" VerticalAlignment="Center" FontSize="11"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Channel}" VerticalAlignment="Center"
+                                               FontSize="11" Foreground="{DynamicResource MutedBrush}"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding ValueText}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource ValueCell}">
+                                                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsError}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </DockPanel>
+            </Border>
+
+            <!-- 电阻 -->
+            <Border Style="{StaticResource PanelCard}" Grid.Column="2">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{StaticResource PanelTitleBar}">
+                        <DockPanel LastChildFill="False">
+                            <TextBlock DockPanel.Dock="Left" Text="电阻 R (Ω)" Style="{StaticResource PanelTitleText}"/>
+                            <Button DockPanel.Dock="Right" Content="读取全部" Style="{StaticResource PanelBtnPrimary}"
+                                    Command="{Binding ReadDmmResistanceCommand}"/>
+                        </DockPanel>
+                    </Border>
+                    <ItemsControl ItemsSource="{Binding DmmResistanceRows}" Margin="6">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Height="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="72"/>
+                                        <ColumnDefinition Width="46"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Label}" VerticalAlignment="Center" FontSize="11"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Channel}" VerticalAlignment="Center"
+                                               FontSize="11" Foreground="{DynamicResource MutedBrush}"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding ValueText}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource ValueCell}">
+                                                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsError}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </DockPanel>
+            </Border>
+
+            <!-- 电源 -->
+            <Border Style="{StaticResource PanelCard}" Grid.Column="4">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{StaticResource PanelTitleBar}">
+                        <DockPanel LastChildFill="False">
+                            <TextBlock DockPanel.Dock="Left" Text="电源通断" Style="{StaticResource PanelTitleText}"/>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Content="全部上电" Style="{StaticResource PanelBtnPrimary}" Margin="0,0,6,0"
+                                        Command="{Binding DmmPowerAllOnCommand}"/>
+                                <Button Content="全部断电" Style="{StaticResource PanelBtn}"
+                                        Command="{Binding DmmPowerAllOffCommand}"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding DmmPowerRows}" Margin="6">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Height="24">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="72"/>
+                                            <ColumnDefinition Width="46"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="56"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding Label}" VerticalAlignment="Center" FontSize="11"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Channel}" VerticalAlignment="Center"
+                                                   FontSize="11" Foreground="{DynamicResource MutedBrush}"/>
+                                        <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="11"
+                                                   Text="{Binding StateText}"/>
+                                        <Button Grid.Column="3" Width="46" Height="20" Content="切换"
+                                                Padding="0" FontSize="11"
+                                                Command="{Binding DataContext.ToggleDmmPowerCommand,
+                                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
+</UserControl>

@@ -230,6 +230,8 @@ public sealed class DeviceConfigSet : ViewModelBase
                     BusOptions = IsSerialKind(kind) ? SerialPorts : GpibBuses,
                     // 后端开关按类别共享：ini 里还没有的预留行跟随本类第一行。
                     Enabled = unit is null ? dmmEnabled : unit.Backend == DeviceBackend.Hw,
+                    // 每台独立启用：ini 里有配置的台默认启用；预留行（没配地址）默认关闭。
+                    UnitEnabled = unit is not null,
                     Model = unit?.Model ?? (kind == DeviceKind.Dmm ? "DAQ973A" : ""),
                     Address = unit?.Address ?? "",
                     Baud = unit?.Baud ?? 9600,
@@ -271,8 +273,9 @@ public sealed class DeviceConfigSet : ViewModelBase
             {
                 var section = StationProfile.SectionName(row.Kind, row.UnitIndex);
 
-                // 超出当前台数的 973：整段删除，避免留下指向不存在设备的地址。
-                if (row.IsDmmUnit && row.UnitIndex >= _dmmUnitCount)
+                // 超出当前台数、或该台未启用（每台独立勾选）的 973：整段删除，
+                // 避免留下指向不存在/不参与设备的地址。
+                if (row.IsDmmUnit && (row.UnitIndex >= _dmmUnitCount || !row.UnitEnabled))
                 {
                     ini.RemoveSection(section);
                     continue;

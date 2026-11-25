@@ -580,11 +580,14 @@
                     </Border>
                 </Grid>
 
-                <!-- ═══ 第三段：批量采集 | 1KHz 频率测试 ═══ -->
+                <!-- ═══ 第三段：批量采集 | 1KHz 频率测试 | 973 通道直测 ═══ -->
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="460"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="330"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="330"/>
                     </Grid.ColumnDefinitions>
 
                     <Border Style="{StaticResource PanelCard}" Grid.Column="0" Margin="0,0,8,0">
@@ -610,7 +613,7 @@
                     </Border>
 
 
-                    <Border Style="{StaticResource PanelCard}" Grid.Column="1">
+                    <Border Style="{StaticResource PanelCard}" Grid.Column="2">
                         <DockPanel>
                             <Border DockPanel.Dock="Top" Style="{StaticResource PanelTitleBar}">
                                 <DockPanel LastChildFill="False">
@@ -626,6 +629,27 @@
                                            TextWrapping="Wrap"/>
                                 <TextBlock Text="{Binding FrequencyStatus}" Foreground="{DynamicResource MutedBrush}"
                                            FontSize="{StaticResource FontSizeCaption}" Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- 973 通道直测：单独验电压/电阻/电源，不跑测试流程 -->
+                    <Border Style="{StaticResource PanelCard}" Grid.Column="4">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top" Style="{StaticResource PanelTitleBar}">
+                                <DockPanel LastChildFill="False">
+                                    <TextBlock DockPanel.Dock="Left" Text="973 通道直测" Style="{StaticResource PanelTitleText}"/>
+                                    <Button DockPanel.Dock="Right" Content="打开 ⤢" Style="{StaticResource GhostButton}"
+                                            Padding="8,1" Command="{Binding OpenDmmPanelCommand}"
+                                            ToolTip="独立窗口：电压 VOUT1-18 / 电阻 R1-18 / 电源通断"/>
+                                </DockPanel>
+                            </Border>
+                            <StackPanel Margin="12,10" VerticalAlignment="Center">
+                                <TextBlock Text="单独测 973 的电压 / 电阻 / 电源通断，验硬件不用跑整轮测试。"
+                                           Foreground="{DynamicResource AccentBrush}" FontSize="{StaticResource FontSizeNormal}"
+                                           TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding DmmPanelStatus}" Foreground="{DynamicResource MutedBrush}"
+                                           FontSize="{StaticResource FontSizeCaption}" Margin="0,8,0,0" TextWrapping="Wrap"/>
                             </StackPanel>
                         </DockPanel>
                     </Border>

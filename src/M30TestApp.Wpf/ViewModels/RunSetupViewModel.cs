@@ -350,16 +350,35 @@ public sealed class RunSetupViewModel : ViewModelBase
             lines.Add($"【{ti + 1}】温度点 {tp.Name} = {tp.Celsius} °C");
             lines.Add($"    设置烘箱 → 等待到达 → 保温 {soak} min");
 
-            foreach (var pp in plan.PressurePoints)
+            // 顺序与 BuiltinActions.RunDmmAutoTestAction 一致：
+            // 断电 → 测电阻 → 上电 → 正向各压力点 → 反向回差 → 断电 → 读温度
+            lines.Add($"    ① 断电：{cfg.PowerSwitchStart}-{swEnd} 与总电源 {cfg.MasterChannels} 全部断开");
+            if (DmmCollectResistance)
+                lines.Add("    ② 逐工位读电阻（无电状态）→ DMM_R");
+            else
+                lines.Add("    ② 跳过电阻采集（未勾选）");
+
+            if (DmmCollectVoltage)
             {
-                lines.Add($"    ── 压力点 {pp.Name} = {pp.Value} {plan.PressureUnit} [{pp.PressureTypeDisplay}]");
-                lines.Add("       设压力 → 稳定 → 保压");
-                lines.Add($"       上电：{cfg.PowerSwitchStart}-{swEnd} + 总电源 {cfg.MasterChannels} 同时闭合 → 逐工位读电压 USG");
-                lines.Add($"       断电：{cfg.PowerSwitchStart}-{swEnd} 与总电源 {cfg.MasterChannels} 全部断开");
+                lines.Add($"    ③ 上电：{cfg.PowerSwitchStart}-{swEnd} + 总电源 {cfg.MasterChannels} 同时闭合");
+                foreach (var pp in plan.PressurePoints)
+                {
+                    lines.Add($"    ── 压力点 {pp.Name} = {pp.Value} {plan.PressureUnit} [{pp.PressureTypeDisplay}]");
+                    lines.Add("       设压力 → 稳定 → 保压 → 逐工位读电压 → USG");
+                }
+                if (plan.PressurePoints.Count >= 2)
+                {
+                    lines.Add("    ── 回差（反向降压）");
+                    lines.Add("       设压力 → 稳定 → 保压 → 逐工位读电压 → USG_R");
+                }
+                lines.Add($"    ④ 断电：{cfg.PowerSwitchStart}-{swEnd} 与总电源 {cfg.MasterChannels} 全部断开");
+            }
+            else
+            {
+                lines.Add("    ③④ 跳过电压采集（未勾选）");
             }
 
-            lines.Add("    逐工位读电阻 → DMM_R");
-            lines.Add("    读取烘箱温度 → OvenTemp（全部工位）");
+            lines.Add("    ⑤ 读取烘箱温度 → OvenTemp（全部工位）");
             lines.Add("");
         }
 

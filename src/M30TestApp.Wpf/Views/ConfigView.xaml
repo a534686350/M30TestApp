@@ -934,10 +934,18 @@
                                     <DataGridTemplateColumn Header="启用" Width="52">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <CheckBox HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                          IsChecked="{Binding Enabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                          Visibility="{Binding IsKindFirst, Converter={StaticResource BoolToVis}}"
-                                                          ToolTip="同类设备共用后端开关：勾选=接真实硬件，取消=走模拟"/>
+                                                <!-- DAQ973A：每台独立启用（勾了才写入配置、参与采集）；
+                                                     其它设备：同类共用一个 HW/SIM 后端开关（只在第一行显示）。 -->
+                                                <Grid>
+                                                    <CheckBox HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                              IsChecked="{Binding UnitEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              Visibility="{Binding IsDmmUnit, Converter={StaticResource BoolToVis}}"
+                                                              ToolTip="该台 973 是否启用：取消勾选则这一台不写入配置、不参与采集"/>
+                                                    <CheckBox HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                              IsChecked="{Binding Enabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              Visibility="{Binding IsNonDmmKindFirst, Converter={StaticResource BoolToVis}}"
+                                                              ToolTip="同类设备共用后端开关：勾选=接真实硬件，取消=走模拟"/>
+                                                </Grid>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
@@ -1227,7 +1235,7 @@
                                         <DataGridTextColumn Header="阀位"        Binding="{Binding Valve}"         Width="60"/>
                                         <DataGridTextColumn Header="阀门"        Binding="{Binding ValveAddr}"     Width="70"/>
                                         <DataGridTextColumn Header="压力控制器"  Binding="{Binding PressureController}" Width="90"/>
-                                        <DataGridTextColumn Header="数字万用表"  Binding="{Binding Dmm}"           Width="90"/>
+                                        <DataGridTextColumn Header="973 台号"     Binding="{Binding Dmm}"           Width="90"/>
                                         <DataGridTextColumn Header="通道"        Binding="{Binding Channel}"       Width="70"/>
                                         <DataGridTextColumn Header="层数"        Binding="{Binding Layer}"         Width="60"/>
                                     </DataGrid.Columns>

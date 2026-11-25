@@ -114,7 +114,18 @@ public sealed class SlotTable
             if (string.IsNullOrWhiteSpace(line)) continue;
             var c = line.Split(',');
             string F(int i) => i < c.Length ? c[i].Trim() : "";
-            list.Add(new SlotEntry(F(0), F(1), F(2), F(3), F(4), F(5), F(6), F(7), F(8), F(9), F(10), F(11), F(12), F(13), F(14)));
+            var entry = new SlotEntry(F(0), F(1), F(2), F(3), F(4), F(5), F(6), F(7), F(8), F(9), F(10), F(11), F(12), F(13), F(14));
+
+            // 自适应旧配置：早期 CSV 没有 973 台号（值是空或 "-"），
+            // 按工位号补上 973-1/973-2/973-3，工位页才能看出每个工位归哪台 973。
+            if (string.IsNullOrWhiteSpace(entry.Dmm) || entry.Dmm.Trim() == "-")
+            {
+                var slotNo = SlotDacAddress.ParseSlotIndex(entry.Slot);
+                if (slotNo > 0)
+                    entry = entry with { Dmm = $"973-{DmmAutoSlotMap.UnitIndexForSlot(slotNo) + 1}" };
+            }
+
+            list.Add(entry);
         }
         return new SlotTable(list);
     }

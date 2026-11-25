@@ -151,7 +151,8 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     /// 顶部模块页签的选中态。与 XAML 里每个页签的 Tag 对应，用 NavKeyIsConverter 双向绑定。
     /// 只影响高亮与页面头文案，不参与任何业务流程。
     /// </summary>
-    private string _selectedNavKey = "Test";
+    // 启动落在工位表（测试任务是独立窗口，主窗不再默认停在测试页）
+    private string _selectedNavKey = "Slots";
     public string SelectedNavKey
     {
         get => _selectedNavKey;
@@ -289,7 +290,9 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         }
         Reporter.Apply(stationConfig);
 
-        _currentView = TestRun;
+        // 启动落在「工位表」主界面：测试任务已改成独立窗口（点左侧导航才开），
+        // 不能再默认显示自动测试页 —— 那样主窗里既是任务页又是主界面，语义混乱。
+        _currentView = Slots;
 
         TestRun.PropertyChanged += OnRunPagePropertyChanged;
         LongTermStability.PropertyChanged += OnRunPagePropertyChanged;
@@ -586,6 +589,11 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     private void StartActiveTest()
     {
         if (SelectedNavKey != "Test") return;
+
+        // 开始前先做一轮设备连通性预检（压力控制器 / 烘箱 / 本轮用到的 973 / 电路板 / DAC）。
+        // 有失败项时窗口会给「仍然开始」选项，不硬拦 —— 现场有时要先跑起来再查线。
+        if (!RunPreflight()) return;
+
         if (TestMode == "Quick")
         {
             if (QuickTest.StartCommand.CanExecute(null)) QuickTest.StartCommand.Execute(null);
@@ -593,6 +601,28 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         }
 
         if (ActiveRunVm.RunCommand.CanExecute(null)) ActiveRunVm.RunCommand.Execute(null);
+    }
+
+    /// <summary>弹设备预检窗口；返回 true 表示用户确认继续。</summary>
+    private bool RunPreflight()
+    {
+        try
+        {
+            var owner = System.Windows.Application.Current.Windows
+                .OfType<System.Windows.Window>()
+                .FirstOrDefault(w => w.IsActive)
+                ?? System.Windows.Application.Current.MainWindow;
+
+            var win = new Views.PreflightWindow(Session, Session.Context.Settings) { Owner = owner };
+            var result = win.ShowDialog();
+            return result == true && win.Proceed;
+        }
+        catch (Exception ex)
+        {
+            // 预检窗口自身出问题不能挡住开工
+            AppLog.Warn("Run", $"设备预检窗口异常，跳过预检直接开始：{ex.Message}");
+            return true;
+        }
     }
 
     private bool CanStopActiveTest() => SelectedNavKey == "Test"

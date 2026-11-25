@@ -366,7 +366,16 @@ public sealed partial class ConfigViewModel : ViewModelBase
         DeleteCommandModelCommand = new RelayCommand(_ => DeleteCommandModel(), _ => SelectedModelCommand is not null);
         AddPressureModelCommand = new RelayCommand(_ => AddPressureModel());
         DeletePressureModelCommand = new RelayCommand(_ => DeletePressureModel(), _ => !string.IsNullOrWhiteSpace(PressureModelName));
+
+        // 初始化完成，之后工位表任何变化都允许落盘（构造期间的重建不写盘）。
+        _slotPersistReady = true;
     }
+
+    /// <summary>
+    /// 构造期间为 false：此时 RegenerateSlots 只是把 ini/CSV 的内容铺到界面上，不能反写。
+    /// 构造完成后置 true，之后改工位数量/布局就自动保存，避免「界面 54 个、跑测试还是 10 个」。
+    /// </summary>
+    private bool _slotPersistReady;
 
     private void NewPlan()
     {
@@ -786,6 +795,22 @@ public sealed partial class ConfigViewModel : ViewModelBase
         Slots.Clear();
         foreach (var s in generated) Slots.Add(s);
         OnPropertyChanged(nameof(PreviewCount));
+        NotifyDmmUnitInfo();   // 973 台数需求随工位数变化
+
+        // 重建后立刻落盘并同步到会话 —— 否则现场「工位表显示 54 个，跑测试还是 10 个」。
+        // 启动期（_slotPersistReady=false）不写，避免把 ini 原样覆盖一遍。
+        if (!_slotPersistReady) return;
+        try
+        {
+            SaveSlotLayoutToIni();
+            SaveSlotsToDefaultCsv();
+            _settingIni.Save(AppPaths.SettingIni);
+            AppLog.Info("Config", $"工位表已保存：{Slots.Count} 个工位（{_slotCount} 设定）");
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("Config", $"工位表自动保存失败: {ex.Message}");
+        }
     }
 
     private void LoadSlotLayoutFromIni()
@@ -1047,11 +1072,33 @@ public sealed partial class ConfigViewModel : ViewModelBase
             Plan.EnabledMetrics[m.Code] = m.Enabled;
     }
 
+    /// <summary>
+    /// 工位表在界面上被直接编辑（改序列号 / 批量粘贴）后调用：只落盘工位表，不碰其它配置。
+    /// 不落盘的话关掉程序就白改了，现场也不会有人记得再点一次保存。
+    /// </summary>
+    public void PersistSlotsAfterEdit()
+    {
+        try
+        {
+            SaveSlotsToDefaultCsv();
+            SaveSlotLayoutToIni();
+            _settingIni.Save(AppPaths.SettingIni);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("Config", $"工位表编辑后保存失败: {ex.Message}");
+        }
+    }
+
     private void SaveSlotsToDefaultCsv()
     {
         try
         {
-            var list = SlotLayoutHelper.TrimTrailingPlaceholders(Slots.ToList());
+            // 严格按用户设定的工位数量裁剪：防止残留的旧序列号行（真序列号不会被
+            // TrimTrailingPlaceholders 识别为占位）让实际运行工位比设定的多。
+            var list = SlotLayoutHelper.TrimTrailingPlaceholders(Slots.ToList())
+                .Take(Math.Clamp(_slotCount, 1, MaxSlotCountFromStart))
+                .ToList();
             var table = new SlotTable(list);
             table.Save(AppPaths.SlotCsv);
             _session.ApplyRunConfig(Plan, table);

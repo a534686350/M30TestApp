@@ -1643,13 +1643,14 @@ public sealed class RunPerformanceTestAction : IAction
 ///   工位 1-18 → 973-1，19-36 → 973-2，37-54 → 973-3（每台独立的通道组）
 ///   电压通道 101-118、电阻通道 201-218、工位电源开关 301-318、总电源 319/320
 ///
-/// 每个温度点的采集顺序：
-///   1. 上电：每台 973 闭合本台 301-318 + 319/320（总电源同时闭合）
-///   2. 逐压力点（正向）：设压力 → 稳定 → 保压 → 逐工位读电压 mV → {Tn}{Pm}_USG
-///   3. 下行回差（压力点 ≥2）：反向再走一遍 → {Tn}{Pm}_USG_R
-///   4. 断电：每台 973 断开 301-320
-///   5. 逐工位读电阻 Ω → {Tn}_DMM_R
-///   6. 读烘箱温度 → {Tn}_OvenTemp
+/// 每个温度点的采集顺序（2026-11-24 现场要求调整）：
+///   1. 先断电：每台 973 断开本台 301-318 + 总电源 319/320（幂等，确保电阻在无电状态测）
+///   2. 逐工位读电阻 Ω → {Tn}_DMM_R
+///   3. 上电：闭合 301-318 + 319/320
+///   4. 逐压力点（正向）：设压力 → 稳定 → 保压 → 逐工位读电压 mV → {Tn}{Pm}_USG
+///   5. 下行回差（压力点 ≥2）：反向再走一遍 → {Tn}{Pm}_USG_R
+///   6. 断电：每台 973 断开 301-320
+///   7. 读烘箱温度 → {Tn}_OvenTemp
 ///
 /// 控制对象是传感器电源开关；全程不触碰气路阀门（<see cref="ValveRelay"/>）——那是电路板测试的东西。
 /// </summary>
@@ -1678,7 +1679,7 @@ public sealed class RunDmmAutoTestAction : IAction
             $"开始万用表自动测试：方案={ctx.Plan.Name}，工位={ctx.Slots.Entries.Count}，DAQ973A×{units.Count}，" +
             $"控制对象=传感器电源开关（不控制气路阀门）");
 
-        await OpenDmmsAsync(ctx, ct);
+        await OpenDmmsAsync(ctx, units, ct);
 
         // 探漏会关总阀 + 各阀组保压，属于电路板测试的气路逻辑。
         // 万用表模式只控传感器电源开关、不控任何气路阀门，因此一律不跑探漏：
@@ -1708,7 +1709,17 @@ public sealed class RunDmmAutoTestAction : IAction
                     AppLog.Info("Run", "烘箱未连接或未启用，跳过温度设置和保温");
                 }
 
-                // 电压：需要上电 → 逐压力点采集 → 断电
+                // 电阻：先显式断电，再在断电状态下采集（老板现场要求）。
+                // 顺序必须是「断电 → 测 R → 上电 → 测各压力点电压」，
+                // 这样日志里 R 值出现在上电之前，操作员能直接核对测量条件。
+                // 首温度点时电源状态未知，故这里无条件断一次（PowerOff 发 ROUT:OPEN，幂等无害）。
+                await PowerOffAsync(ctx, tp, powerMap, ct);
+                if (!ctx.SkipDmmResistance)
+                    await ReadResistanceAsync(ctx, tp, ct);
+                else
+                    AppLog.Info("Run", $"跳过 {tp.Name} 电阻采集（用户选择）");
+
+                // 电压：上电 → 逐压力点采集 → 断电
                 if (!ctx.SkipDmmVoltage)
                 {
                     await PowerOnAsync(ctx, tp, powerMap, ct);
@@ -1729,12 +1740,6 @@ public sealed class RunDmmAutoTestAction : IAction
                 {
                     AppLog.Info("Run", $"跳过 {tp.Name} 电压采集（用户选择）");
                 }
-
-                // 电阻：断电状态下采集
-                if (!ctx.SkipDmmResistance)
-                    await ReadResistanceAsync(ctx, tp, ct);
-                else
-                    AppLog.Info("Run", $"跳过 {tp.Name} 电阻采集（用户选择）");
 
                 await RunPerformanceTestAction.ReadOvenTempForAllSlots(ctx, tp, ct);
             }
@@ -1788,19 +1793,40 @@ public sealed class RunDmmAutoTestAction : IAction
         var names = string.Join("、", missing.Select(u => $"973-{u + 1}"));
         var limit = connected * DmmAutoSlotMap.SlotsPerUnit;
         AppLog.Error("Run",
-            $"工位表需要 {names}，但只连接了 {connected} 台 DAQ973A（本轮上限 {limit} 个工位），已中止");
+            $"工位表需要 {names}，但只配置了 {connected} 台 DAQ973A（本轮上限 {limit} 个工位），已中止");
         throw new InvalidOperationException(
-            $"工位表超出已连接的 DAQ973A 台数：工位表需要 {names}，实际只有 {connected} 台。" +
-            $"请到「配置 → 设备」把 DAQ973A 台数调大，或减少工位数 / 调整起始工位（本轮上限 {limit} 个工位）。");
+            $"工位表超出已配置的 DAQ973A 台数：本轮需要 {names}，当前只启用 {connected} 台。" +
+            $"请到「配置 → 设备」勾选并填写对应台数的地址，或把工位数降到 {limit} 以内（每台 18 个工位）。");
     }
 
-    /// <summary>电压通道：优先用工位表「通道」列，缺省按工位号推导。</summary>
+    /// <summary>
+    /// 电压通道：优先用工位表「通道」列，缺省按工位号推导。
+    ///
+    /// **自适应填错**：工位表「通道」列本来是电路板采集的 DAC 通道（会随工位数连续递增，
+    /// 54 工位能到 107-160）。万用表采集每台 973 只有 101-118，超出范围的值一定是配错的，
+    /// 这时回退到按工位号推导（101-118 循环），并记一次告警，绝不拿错通道去读。
+    /// </summary>
     private static string VoltageChannel(SlotEntry slot)
     {
-        if (!string.IsNullOrWhiteSpace(slot.Channel) && slot.Channel.Trim() != "-")
-            return slot.Channel.Trim();
         var n = SlotDacAddress.ParseSlotIndex(slot.Slot);
-        return DmmAutoSlotMap.VoltageChannelForSlot(n).ToString(CultureInfo.InvariantCulture);
+        var derived = DmmAutoSlotMap.VoltageChannelForSlot(n);
+        var cfg = DmmAutoSlotMap.Current;
+        var lo = cfg.VoltageStart;
+        var hi = cfg.VoltageStart + Math.Max(1, cfg.SlotsPerUnit) - 1;
+
+        var raw = slot.Channel?.Trim();
+        if (!string.IsNullOrWhiteSpace(raw) && raw != "-")
+        {
+            if (int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ch)
+                && ch >= lo && ch <= hi)
+                return raw;
+
+            AppLog.Warn("Dmm",
+                $"{slot.Slot} 通道列填的 {raw} 超出 973 电压通道范围 {lo}-{hi}，"
+                + $"已自动改用 {derived}（工位表「通道」是电路板 DAC 通道，万用表请留空）");
+        }
+
+        return derived.ToString(CultureInfo.InvariantCulture);
     }
 
     /// <summary>电阻通道：优先用工位表推导值（表里没有独立列），按工位号算（默认 201-218）。</summary>
@@ -1825,15 +1851,22 @@ public sealed class RunDmmAutoTestAction : IAction
 
     // ─── 设备初始化 ─────────────────────────────────────────────────────────
 
-    private static async Task OpenDmmsAsync(TaskContext ctx, CancellationToken ct)
+    /// <summary>
+    /// 只打开**本轮工位表实际用到**的 973（18 工位只用 1 台，就不去碰 2/3 台）。
+    /// 配置了 3 台但现场只接了 2 台时，跑 36 个工位依然能正常开工；
+    /// 用到的台连不上则直接中止并报出地址，不会拿未连接的设备去读。
+    /// </summary>
+    private static async Task OpenDmmsAsync(TaskContext ctx, IReadOnlyList<int> requiredUnits, CancellationToken ct)
     {
-        for (var i = 0; i < ctx.Dmms.Count; i++)
+        foreach (var u in requiredUnits.Distinct().OrderBy(x => x))
         {
-            var dmm = ctx.Dmms[i];
+            if (u < 0 || u >= ctx.Dmms.Count) continue;   // EnsureUnitsAvailable 已拦过，这里只防御
+            var dmm = ctx.Dmms[u];
             await dmm.OpenAsync(ct);
             if (dmm.State != ConnectionState.Connected)
-                throw new InvalidOperationException($"DAQ973A #{i + 1} 连接失败（{dmm.Address}）");
-            AppLog.Info("Init", $"DAQ973A #{i + 1} {dmm.Model} 已连接（{dmm.Address}）");
+                throw new InvalidOperationException(
+                    $"DAQ973A #{u + 1} 连接失败（{dmm.Address}）—— 本轮工位表用到这一台，请检查接线/地址");
+            AppLog.Info("Init", $"DAQ973A #{u + 1} {dmm.Model} 已连接（{dmm.Address}）");
         }
     }
 
@@ -1965,8 +1998,19 @@ public sealed class RunDmmAutoTestAction : IAction
                 {
                     var dmm = ctx.DmmAt(unit) ?? throw new InvalidOperationException($"973-{unit + 1} 未连接");
                     var value = await dmm.ReadVoltageAsync(channel, ct) * 1000.0;   // V → mV
-                    ctx.Matrix.Set(slot.Slot, column, value, double.IsNaN(value) ? CellStatus.Error : CellStatus.Ok);
-                    AppLog.Info("Read", $"{slot.Slot} {column}={value:G6} (973-{unit + 1} V{channel})");
+
+                    // 973 超量程返回 9.9E+37，乘 1000 后是天文数字，不能当有效电压。
+                    if (double.IsNaN(value) || Math.Abs(value) >= 1e30)
+                    {
+                        ctx.Matrix.Set(slot.Slot, column, double.NaN, CellStatus.Error);
+                        AppLog.Warn("Read",
+                            $"{slot.Slot} {column} 超量程/开路（原始值 {value:G6}，973-{unit + 1} V{channel}）");
+                    }
+                    else
+                    {
+                        ctx.Matrix.Set(slot.Slot, column, value, CellStatus.Ok);
+                        AppLog.Info("Read", $"{slot.Slot} {column}={value:G6} (973-{unit + 1} V{channel})");
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -1996,8 +2040,20 @@ public sealed class RunDmmAutoTestAction : IAction
             {
                 var dmm = ctx.DmmAt(unit) ?? throw new InvalidOperationException($"973-{unit + 1} 未连接");
                 var value = await dmm.ReadResistanceAsync(channel, ct);
-                ctx.Matrix.Set(slot.Slot, column, value, double.IsNaN(value) ? CellStatus.Error : CellStatus.Ok);
-                AppLog.Info("Read", $"{slot.Slot} {column}={value:G6} (973-{unit + 1} R{channel})");
+
+                // 973 超量程/开路会返回 9.9E+37（或类似天文数字）。这种值不是电阻，
+                // 必须当无效处理，否则会当成几千万欧姆写进报表和 TCR 计算。
+                if (double.IsNaN(value) || Math.Abs(value) >= 1e30)
+                {
+                    ctx.Matrix.Set(slot.Slot, column, double.NaN, CellStatus.Error);
+                    AppLog.Warn("Read",
+                        $"{slot.Slot} {column} 超量程/开路（原始值 {value:G6}，973-{unit + 1} R{channel}）——请检查接线或工位是否上件");
+                }
+                else
+                {
+                    ctx.Matrix.Set(slot.Slot, column, value, CellStatus.Ok);
+                    AppLog.Info("Read", $"{slot.Slot} {column}={value:G6} (973-{unit + 1} R{channel})");
+                }
             }
             catch (Exception ex)
             {

@@ -63,9 +63,12 @@
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="工位数量" Style="{StaticResource ToolLabel}"/>
+                    <!-- 不能用 PropertyChanged：SlotCount setter 带 Math.Clamp，
+                         逐字回写会把输入中间态当终值（想输 9 时中间态被夹回 10），
+                         现场就是因此「侧边栏改 9、实际跑 10」。改完失焦或点「生成工位表」才生效。 -->
                     <TextBox Style="{StaticResource NumBox}"
-                             Text="{Binding Config.SlotCount, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="改数量会立即按当前布局参数重新生成工位表"/>
+                             Text="{Binding Config.SlotCount}"
+                             ToolTip="改数量后按回车 / 点「生成工位表」生效；别用逐字输入触发 Clamp"/>
                     <!-- 用 PrimaryButton（与配置页的「刷新工位表」同一个蓝），
                          不用 SaveButton —— 绿色在这个界面是「保存」的语义，出现在这排会误导。 -->
                     <Button Content="生成工位表" Style="{StaticResource PrimaryButton}"
@@ -106,15 +109,40 @@
                         </TextBlock>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock Text="工位明细" Style="{StaticResource PanelTitleText}"/>
+                            <!-- 973 台数自动判读：1-18 → 1 台，19-36 → 2 台，37-54 → 3 台；
+                                 配置不足时变红提醒去「配置 → 设备」启用 -->
                             <TextBlock VerticalAlignment="Center" Margin="12,0,0,0"
-                                       Foreground="{DynamicResource MutedBrush}" FontSize="{StaticResource FontSizeSmall}"
-                                       Text="自动测试 / 长期稳定性 / 快速测试共用这一份工位表"/>
+                                       FontSize="{StaticResource FontSizeSmall}"
+                                       Text="{Binding Config.DmmUnitHint}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Config.DmmUnitShortage}" Value="True">
+                                                <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <!-- 粘贴/编辑反馈（如「已粘贴 5 个序列号」） -->
+                            <TextBlock VerticalAlignment="Center" Margin="16,0,0,0"
+                                       FontSize="{StaticResource FontSizeSmall}"
+                                       Foreground="{DynamicResource AccentBrush}"
+                                       Text="{Binding Config.StatusMessage}"/>
                         </StackPanel>
                     </DockPanel>
                 </Border>
 
+                <!-- IsReadOnly 必须显式关掉：主题里全局 DataGrid 样式默认只读。
+                     只有「序列号」列开放编辑（其余列是布局参数，改了会和布局公式打架）。
+                     支持从 Excel 复制一列序列号后 Ctrl+V 批量粘贴（见 code-behind）。 -->
                 <DataGrid x:Name="SlotGrid" ItemsSource="{Binding Config.Slots}" BorderThickness="0"
                           SelectionMode="Single"
+                          IsReadOnly="False"
+                          PreviewKeyDown="SlotGrid_PreviewKeyDown"
+                          CellEditEnding="SlotGrid_CellEditEnding"
                           AutoGenerateColumns="False"
                           EnableRowVirtualization="True"
                           EnableColumnVirtualization="True"
@@ -130,18 +158,18 @@
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="工位"        Binding="{Binding Slot}"          Width="76"  IsReadOnly="True"/>
                         <DataGridTextColumn Header="序列号"      Binding="{Binding SerialNo}"      Width="220"/>
-                        <DataGridTextColumn Header="坐标X"      Binding="{Binding PositionX}"      Width="70"/>
-                        <DataGridTextColumn Header="坐标Y"      Binding="{Binding PositionY}"      Width="70"/>
-                        <DataGridTextColumn Header="板卡位"      Binding="{Binding Board}"         Width="80"/>
-                        <DataGridTextColumn Header="板卡工位号"  Binding="{Binding BoardSlotNo}"   Width="90"/>
-                        <DataGridTextColumn Header="夹具位"      Binding="{Binding Fixture}"       Width="70"/>
-                        <DataGridTextColumn Header="夹具工位号"  Binding="{Binding FixtureSlotNo}" Width="90"/>
-                        <DataGridTextColumn Header="阀位"        Binding="{Binding Valve}"         Width="60"/>
-                        <DataGridTextColumn Header="阀门"        Binding="{Binding ValveAddr}"     Width="70"/>
-                        <DataGridTextColumn Header="压力控制器"  Binding="{Binding PressureController}" Width="90"/>
-                        <DataGridTextColumn Header="数字万用表"  Binding="{Binding Dmm}"           Width="90"/>
-                        <DataGridTextColumn Header="通道"        Binding="{Binding Channel}"       Width="70"/>
-                        <DataGridTextColumn Header="层数"        Binding="{Binding Layer}"         Width="60"/>
+                        <DataGridTextColumn Header="坐标X"      Binding="{Binding PositionX}"      Width="70"  IsReadOnly="True"/>
+                        <DataGridTextColumn Header="坐标Y"      Binding="{Binding PositionY}"      Width="70"  IsReadOnly="True"/>
+                        <DataGridTextColumn Header="板卡位"      Binding="{Binding Board}"         Width="80"  IsReadOnly="True"/>
+                        <DataGridTextColumn Header="板卡工位号"  Binding="{Binding BoardSlotNo}"   Width="90"  IsReadOnly="True"/>
+                        <DataGridTextColumn Header="夹具位"      Binding="{Binding Fixture}"       Width="70"  IsReadOnly="True"/>
+                        <DataGridTextColumn Header="夹具工位号"  Binding="{Binding FixtureSlotNo}" Width="90"  IsReadOnly="True"/>
+                        <DataGridTextColumn Header="阀位"        Binding="{Binding Valve}"         Width="60"  IsReadOnly="True"/>
+                        <DataGridTextColumn Header="阀门"        Binding="{Binding ValveAddr}"     Width="70"  IsReadOnly="True"/>
+                        <DataGridTextColumn Header="压力控制器"  Binding="{Binding PressureController}" Width="90" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="973 台号"     Binding="{Binding Dmm}"           Width="90"  IsReadOnly="True"/>
+                        <DataGridTextColumn Header="通道"        Binding="{Binding Channel}"       Width="70"  IsReadOnly="True"/>
+                        <DataGridTextColumn Header="层数"        Binding="{Binding Layer}"         Width="60"  IsReadOnly="True"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </DockPanel>

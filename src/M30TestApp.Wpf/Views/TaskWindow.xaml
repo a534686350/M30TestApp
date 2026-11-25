@@ -33,6 +33,10 @@
                     <Button Content="■ 停止" Style="{StaticResource GhostButton}"
                             Height="32" Padding="14,0" Margin="0,0,8,0"
                             Command="{Binding StopSelectedRunCommand}"/>
+                    <!-- 运行中主窗被隐藏、工位表锁定，这里给个只读核对入口 -->
+                    <Button Content="本轮工位" Style="{StaticResource GhostButton}"
+                            Height="32" Padding="12,0" Margin="0,0,8,0"
+                            Click="ShowSlots_Click" ToolTip="只读查看本轮测试用了哪些工位"/>
                     <Button Content="返回主界面" Style="{StaticResource GhostButton}"
                             Height="32" Padding="12,0" Click="Close_Click"/>
                 </StackPanel>

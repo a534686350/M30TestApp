@@ -344,17 +344,56 @@ public partial class App : Application
 
         if (e.Args.Contains("--shot-matrix"))
         {
+            // 万用表自动测试的现场报表格式：R(Ω) | Usig0 | Usig50 | Usig100 | Usig50 | Usig0 | Temp
             var run = mainVm.TestRun;
             for (var i = 1; i <= 16; i++)
                 run.Rows.Add(new M30TestApp.Wpf.ViewModels.MatrixRowVm($"Slot{i}", $"260826_01#{i}"));
-            for (var t = 1; t <= 3; t++)
-                for (var p = 0; p <= 5; p++)
-                    run.MatrixColumns.Add(new M30TestApp.Wpf.ViewModels.MatrixColumnVm(
-                        $"T{t}P{p}USG", $"T{t}P{p}USG"));
+
+            var points = session.Plan.PressurePoints;
+            var keys = new[] { "T1_DMM_R", "T1P1_USG", "T1P2_USG", "T1P3_USG", "T1P2_USG_R", "T1P1_USG_R", "T1_OvenTemp" };
+            foreach (var key in keys)
+                run.MatrixColumns.Add(new M30TestApp.Wpf.ViewModels.MatrixColumnVm(
+                    key, M30TestApp.Wpf.ViewModels.TestRunViewModel.FriendlyColumnHeader(key, points)));
+
+            // 造几种状态验证配色：正常 / 警告 / 异常（红）/ 超量程
+            var demoStatuses = new (int Row, int Col, M30TestApp.Core.Data.CellStatus St)[]
+            {
+                (1, 1, M30TestApp.Core.Data.CellStatus.Ok),
+                (2, 2, M30TestApp.Core.Data.CellStatus.Warn),
+                (3, 3, M30TestApp.Core.Data.CellStatus.Error),
+                (4, 4, M30TestApp.Core.Data.CellStatus.Error),
+                (5, 0, M30TestApp.Core.Data.CellStatus.Error),
+                (6, 6, M30TestApp.Core.Data.CellStatus.Ok),
+            };
+            foreach (var (rowIdx, colIdx, st) in demoStatuses)
+            {
+                if (rowIdx >= run.Rows.Count) continue;
+                var row = run.Rows[rowIdx];
+                var key = keys[colIdx];
+                row.Cells[key] = new M30TestApp.Core.Data.Cell
+                {
+                    Key = key,
+                    Value = st == M30TestApp.Core.Data.CellStatus.Error ? "OL" : (1000 + rowIdx * 7).ToString("G6"),
+                    RawValue = st == M30TestApp.Core.Data.CellStatus.Error ? double.NaN : 1000 + rowIdx * 7,
+                    Status = st,
+                };
+            }
+            foreach (var row in run.Rows) row.Cells.NotifyChanged();
 
             win.Dispatcher.BeginInvoke(new Action(() => mainVm.ShowTestCenterCommand.Execute(null)),
                 System.Windows.Threading.DispatcherPriority.Loaded);
-            ShotAndExit(win, "shot-matrix.png");
+
+            // 任务已改成独立窗口，截任务窗
+            var matrixTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(7) };
+            matrixTimer.Tick += (_, _) =>
+            {
+                matrixTimer.Stop();
+                var task = Application.Current.Windows.OfType<Views.TaskWindow>().FirstOrDefault();
+                if (task is not null)
+                    CaptureWindow(task, Path.Combine(AppPaths.BaseDir, "shot-matrix.png"));
+                Application.Current.Shutdown();
+            };
+            matrixTimer.Start();
         }
 
         if (e.Args.Contains("--shot-slots"))
@@ -467,6 +506,45 @@ public partial class App : Application
                 ShotAndExit(win, $"shot-view-{viewKey}.png");
         }
 
+        // 设备预检窗口自检：--shot-preflight
+        if (e.Args.Contains("--shot-preflight"))
+        {
+            win.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                var w = new Views.PreflightWindow(session, session.Context.Settings) { Owner = win };
+                w.Show();
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+
+            var pfTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(9) };
+            pfTimer.Tick += (_, _) =>
+            {
+                pfTimer.Stop();
+                var target = Application.Current.Windows.OfType<Views.PreflightWindow>().FirstOrDefault();
+                if (target is not null)
+                    CaptureWindow(target, Path.Combine(AppPaths.BaseDir, "shot-preflight.png"));
+                Application.Current.Shutdown();
+            };
+            pfTimer.Start();
+        }
+
+        // 工位数量自动落盘自检：--regen-slots=54
+        // 设数量 → SlotCount setter → RegenerateSlots → 自动保存 CSV/ini/session。
+        foreach (var a in e.Args)
+        {
+            if (a.StartsWith("--regen-slots=", StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(a["--regen-slots=".Length..], out var slotCount))
+            {
+                win.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    mainVm.Config.SlotCount = slotCount;
+                    AppLog.Info("SelfTest",
+                        $"regen-slots={slotCount}：UI={mainVm.Config.Slots.Count}，"
+                        + $"session={session.Slots.Entries.Count}");
+                }), System.Windows.Threading.DispatcherPriority.Loaded);
+                ShotAndExit(win, $"shot-regen-slots-{slotCount}.png");
+            }
+        }
+
         // 独立面板窗口自检：--shot-panel=batch / freq
         string? panelKey = null;
         foreach (var a in e.Args)
@@ -485,6 +563,10 @@ public partial class App : Application
                     mainVm.Manual.OpenBatchPanelCommand.Execute(null);
                 else if (panelKey == "freq")
                     mainVm.Manual.OpenFrequencyPanelCommand.Execute(null);
+                else if (panelKey == "dmm")
+                    mainVm.Manual.OpenDmmPanelCommand.Execute(null);
+                else if (panelKey == "runslots")
+                    new Views.RunSlotsPreviewWindow(session.Slots.Entries).Show();
             }), System.Windows.Threading.DispatcherPriority.Loaded);
 
             // PanelWindow.Show() 是非模态，ShotAndExit 需要指向新窗口：
@@ -493,12 +575,14 @@ public partial class App : Application
             timer.Tick += (_, _) =>
             {
                 timer.Stop();
-                var panel = Application.Current.Windows
+                System.Windows.Window? target = Application.Current.Windows
                     .OfType<Views.PanelWindow>().FirstOrDefault();
-                if (panel is not null)
+                target ??= Application.Current.Windows
+                    .OfType<Views.RunSlotsPreviewWindow>().FirstOrDefault();
+                if (target is not null)
                 {
                     var name = Path.Combine(AppPaths.BaseDir, $"shot-panel-{panelKey}.png");
-                    CaptureWindow(panel, name);
+                    CaptureWindow(target, name);
                 }
                 Application.Current.Shutdown();
             };

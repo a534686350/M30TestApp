@@ -15,6 +15,72 @@ public sealed partial class ConfigViewModel : ViewModelBase
     public ObservableCollection<SlotEntry> Slots { get; } = new();
     public int PreviewCount => Slots.Count;
 
+    // ── 973 台数自动判读 ────────────────────────────────────────────────
+    // 每台 973 管 18 个工位：1-18 → 1 台，19-36 → 2 台，37-54 → 3 台。
+    // 工位页直接写清楚，配错时红字提示，避免「54 个工位却只启用了 1 台 973」。
+
+    /// <summary>本工位表实际需要的 973 台数（按最大工位号推导）。</summary>
+    public int RequiredDmmUnits
+    {
+        get
+        {
+            var maxSlotNo = 0;
+            foreach (var s in Slots)
+            {
+                var n = SlotDacAddress.ParseSlotIndex(s.Slot);
+                if (n > maxSlotNo) maxSlotNo = n;
+            }
+            return maxSlotNo == 0 ? 0 : DmmAutoSlotMap.UnitIndexForSlot(maxSlotNo) + 1;
+        }
+    }
+
+    /// <summary>当前设备配置里实际启用的 973 台数。</summary>
+    public int ConfiguredDmmUnits => _session.Dmms.Count;
+
+    /// <summary>配置台数不足（工位数超出已启用 973 的覆盖范围）。</summary>
+    public bool DmmUnitShortage => RequiredDmmUnits > ConfiguredDmmUnits;
+
+    /// <summary>工位页顶部的 973 台数说明。</summary>
+    public string DmmUnitHint
+    {
+        get
+        {
+            var per = Math.Max(1, DmmAutoSlotMap.SlotsPerUnit);
+            if (Slots.Count == 0) return $"每台 DAQ973A 管 {per} 个工位";
+
+            var need = RequiredDmmUnits;
+            var have = ConfiguredDmmUnits;
+            var text = $"{Slots.Count} 个工位需要 {need} 台 DAQ973A（每台 {per} 个），当前已启用 {have} 台";
+            return DmmUnitShortage
+                ? text + $" —— 不足 {need - have} 台，请到「配置 → 设备」勾选并填地址"
+                : text;
+        }
+    }
+
+    private string _slotEditStatus = "";
+    /// <summary>工位表就地编辑/批量粘贴后的操作反馈（显示在工位页标题栏）。</summary>
+    public string StatusMessage
+    {
+        get => _slotEditStatus;
+        set => SetField(ref _slotEditStatus, value);
+    }
+
+    /// <summary>工位表里每个工位对应的 973 台号文本，如 "973-1"。供列显示/校验用。</summary>
+    public static string DmmUnitLabelForSlot(string slotName)
+    {
+        var n = SlotDacAddress.ParseSlotIndex(slotName);
+        if (n <= 0) return "-";
+        return $"973-{DmmAutoSlotMap.UnitIndexForSlot(n) + 1}";
+    }
+
+    private void NotifyDmmUnitInfo()
+    {
+        OnPropertyChanged(nameof(RequiredDmmUnits));
+        OnPropertyChanged(nameof(ConfiguredDmmUnits));
+        OnPropertyChanged(nameof(DmmUnitShortage));
+        OnPropertyChanged(nameof(DmmUnitHint));
+    }
+
     private int _slotCount = 16;
     public int SlotCount
     {

@@ -164,7 +164,10 @@ public static class SlotLayoutHelper
                 Fixture: fixture.ToString(),
                 FixtureSlotNo: fixtureSlot.ToString(),
                 PressureController: "1",
-                Dmm: "-",
+                // 973 台号按工位号推导：1-18 → 973-1，19-36 → 973-2，37-54 → 973-3。
+                // 只作显示与校验用（采集侧仍用 DmmAutoSlotMap.UnitIndexForSlot 推导）；
+                // Channel 列仍是电路板 DAC 通道，别混。
+                Dmm: $"973-{DmmAutoSlotMap.UnitIndexForSlot(slotNo) + 1}",
                 Channel: channel.ToString(),
                 ValveAddr: "-"));
 

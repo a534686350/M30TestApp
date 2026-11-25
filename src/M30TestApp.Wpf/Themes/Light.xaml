@@ -1044,8 +1044,10 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ProgressBar">
                     <Border Background="{TemplateBinding Background}" CornerRadius="3">
+                        <Grid x:Name="PART_Track">
                         <Border x:Name="PART_Indicator" Background="{TemplateBinding Foreground}"
                                 CornerRadius="3" HorizontalAlignment="Left"/>
+                        </Grid>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>

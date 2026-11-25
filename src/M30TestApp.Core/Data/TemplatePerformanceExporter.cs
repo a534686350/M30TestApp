@@ -323,9 +323,19 @@ public static class TemplatePerformanceExporter
             WriteText(row, column, value);
     }
 
-    /// <summary>R(Ω) = Usource / Isource。</summary>
+    /// <summary>
+    /// R(Ω)：万用表自动测试模式优先用 973 直接测的 {Tn}_DMM_R；
+    /// 电路板采集模式没有这个 key，回退到 Usource / Isource 计算（原逻辑）。
+    /// </summary>
     private static void WriteResistance(XElement row, string column, TaskContext ctx, SlotEntry slot, TempPoint temp)
     {
+        var direct = Read(ctx, slot.Slot, $"{temp.Name}_DMM_R");
+        if (!double.IsNaN(direct))
+        {
+            WriteNumber(row, column, direct);
+            return;
+        }
+
         var usource = Read(ctx, slot.Slot, $"{temp.Name}_USC");
         var isource = Read(ctx, slot.Slot, $"{temp.Name}_ISC");
         if (double.IsNaN(usource) || double.IsNaN(isource) || isource == 0)

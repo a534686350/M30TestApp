@@ -8,6 +8,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
+using M30TestApp.Core.Data;
 using M30TestApp.Wpf.ViewModels;
 
 namespace M30TestApp.Wpf.Views;
@@ -128,8 +129,42 @@ public partial class DataMatrixGrid : UserControl
                 FallbackValue = "",
                 TargetNullValue = "",
             },
+            ElementStyle = BuildCellStyle(columnKey),
         };
         Grid.Columns.Add(col);
+    }
+
+    /// <summary>
+    /// 单元格状态配色：异常红（加粗）、警告橙。
+    /// 绑 Cells[key].Status —— 采集侧每批写完调 Cells.NotifyChanged() 触发 "Item[]"，
+    /// 绑定时会整行重估，所以状态变化能立刻反映到颜色上。
+    /// </summary>
+    private static Style BuildCellStyle(string columnKey)
+    {
+        var style = new Style(typeof(TextBlock));
+        style.Setters.Add(new Setter(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center));
+        style.Setters.Add(new Setter(TextBlock.PaddingProperty, new Thickness(4, 0, 4, 0)));
+
+        var errorTrigger = new DataTrigger
+        {
+            Binding = new Binding($"Cells[{columnKey}].Status"),
+            Value = CellStatus.Error,
+        };
+        errorTrigger.Setters.Add(new Setter(TextBlock.ForegroundProperty,
+            new DynamicResourceExtension("ErrorBrush")));
+        errorTrigger.Setters.Add(new Setter(TextBlock.FontWeightProperty, FontWeights.Bold));
+        style.Triggers.Add(errorTrigger);
+
+        var warnTrigger = new DataTrigger
+        {
+            Binding = new Binding($"Cells[{columnKey}].Status"),
+            Value = CellStatus.Warn,
+        };
+        warnTrigger.Setters.Add(new Setter(TextBlock.ForegroundProperty,
+            new DynamicResourceExtension("WarnBrush")));
+        style.Triggers.Add(warnTrigger);
+
+        return style;
     }
 
     // ─── 顶部横向滚动条与 DataGrid 同步 ─────────────────────────────────────

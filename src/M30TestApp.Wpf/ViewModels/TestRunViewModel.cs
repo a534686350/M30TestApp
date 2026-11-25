@@ -199,9 +199,30 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         return false;
     }
 
+    /// <summary>
+    /// 需要原样进界面实时日志的关键步骤（否则只有 Slot 数据行能看到，操作员看不到压力/电阻/电源状态）。
+    /// 日志文件里都有，但界面日志此前被 TryExtractDataLine 过滤掉了。
+    /// </summary>
+    private static bool IsKeyStepLine(LogEvent e)
+    {
+        if (e.Source != "Run" && e.Source != "Dmm") return false;
+        var m = e.Message;
+        return m.Contains("压力点")
+            || m.Contains("断电状态下采集电阻")
+            || m.Contains("上电：")
+            || m.Contains("断电：")
+            || m.Contains("开始万用表自动测试")
+            || m.Contains("采集完成");
+    }
+
     private void OnAppLogLogged(object? sender, LogEvent e)
     {
         if (!IsActiveRunPage) return;
+        if (IsKeyStepLine(e))
+        {
+            QueueLogLine($"{e.Time:HH:mm:ss.fff}  {e.Message}");
+            return;
+        }
         if (!TryExtractDataLine(e, out var data)) return;
         QueueLogLine($"{e.Time:HH:mm:ss.fff}  {data}");
     }
@@ -409,11 +430,40 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(MatrixTitle));
     }
 
+    /// <summary>
+    /// 万用表自动测试的列头友好化（老板现场要求的报表格式）：
+    ///   R(Ω) | Usig0(mV) | Usig50(mV) | Usig100(mV) | Usig50(mV) | Usig0(mV) | Temp(℃)
+    /// 列名来自 BuiltinActions 写的 key：T{n}_DMM_R / T{n}P{m}_USG[_R] / T{n}_OvenTemp。
+    /// 压力值取方案 PressurePoints，反压列带 _R 后缀但显示同样的压力数字。
+    /// </summary>
+    private string FriendlyColumnHeader(string key) =>
+        FriendlyColumnHeader(key, _session.Plan.PressurePoints);
+
+    /// <summary>纯函数版（截图钩子/自检也用同一套，避免两处逻辑分叉）。</summary>
+    internal static string FriendlyColumnHeader(string key, IReadOnlyList<PressurePoint> points)
+    {
+        var m = Regex.Match(key, @"^T\d+_DMM_R$");
+        if (m.Success) return "R(Ω)";
+
+        m = Regex.Match(key, @"^T\d+_OvenTemp$");
+        if (m.Success) return "Temp(℃)";
+
+        // T1P2_USG / T1P2_USG_R
+        m = Regex.Match(key, @"^T\d+P(\d+)_USG(_R)?$");
+        if (m.Success && int.TryParse(m.Groups[1].Value, out var pIdx))
+        {
+            var value = pIdx >= 1 && pIdx <= points.Count ? points[pIdx - 1].Value : pIdx;
+            return $"Usig{value:0.#}(mV)";
+        }
+
+        return key;  // 其它列（电路板 UT/USC 等）保持原 key
+    }
+
     private void EnsureMatrixColumn(string columnKey)
     {
         if (_isLongTermStabilityMode) return;
         if (!_matrixColumnKeys.Add(columnKey)) return; // HashSet 判重，替代 Any() 线性扫描
-        MatrixColumns.Add(new MatrixColumnVm(columnKey, columnKey));
+        MatrixColumns.Add(new MatrixColumnVm(columnKey, FriendlyColumnHeader(columnKey)));
     }
 
     private void ClearLog()

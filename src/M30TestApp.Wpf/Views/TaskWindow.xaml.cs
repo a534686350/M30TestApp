@@ -78,4 +78,13 @@ public sealed partial class TaskWindow : Window
     public static bool IsOpen => s_active is not null;
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
+
+    /// <summary>只读预览本轮工位（运行中也能看，不参与编辑）。</summary>
+    private void ShowSlots_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm) return;
+
+        var preview = new RunSlotsPreviewWindow(vm.Session.Slots.Entries) { Owner = this };
+        preview.Show();
+    }
 }

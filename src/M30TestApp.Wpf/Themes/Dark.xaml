@@ -1042,8 +1042,12 @@
                     <Border Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"
                             CornerRadius="3">
-                        <Border x:Name="PART_Indicator" Background="{TemplateBinding Foreground}"
-                                CornerRadius="3" HorizontalAlignment="Left" Margin="1"/>
+                        <!-- PART_Track 不能少：WPF 的 ProgressBar 靠它算 PART_Indicator 的宽度，
+                             缺了 Track 指示条宽度永远是 0（进度条看着像空的）。 -->
+                        <Grid x:Name="PART_Track">
+                            <Border x:Name="PART_Indicator" Background="{TemplateBinding Foreground}"
+                                    CornerRadius="3" HorizontalAlignment="Left" Margin="1"/>
+                        </Grid>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>

@@ -33,6 +33,9 @@ public sealed class DeviceConfigVm : ViewModelBase
     /// <summary>是否属于可增删的 DAQ973A 组（1-3 台）。</summary>
     public bool IsDmmUnit => Kind == DeviceKind.Dmm;
 
+    /// <summary>非 973 的同类第一行 —— 只有这一行显示「HW/SIM 后端」勾选框。</summary>
+    public bool IsNonDmmKindFirst => !IsDmmUnit && IsKindFirst;
+
     private bool _isActive = true;
 
     /// <summary>
@@ -47,6 +50,17 @@ public sealed class DeviceConfigVm : ViewModelBase
 
     private bool _enabled = true;
     public bool Enabled { get => _enabled; set => SetField(ref _enabled, value); }
+
+    private bool _unitEnabled = true;
+    /// <summary>
+    /// 该台设备是否启用（**每台独立**，只用于 DAQ973A 这类多台设备）。
+    /// false = 不写入 ini 的设备段、不参与采集；和 <see cref="Enabled"/>（同类共用 HW/SIM 后端开关）不是一回事。
+    /// </summary>
+    public bool UnitEnabled
+    {
+        get => _unitEnabled;
+        set => SetField(ref _unitEnabled, value);
+    }
 
     private string _model = "";
     public string Model { get => _model; set => SetField(ref _model, value); }

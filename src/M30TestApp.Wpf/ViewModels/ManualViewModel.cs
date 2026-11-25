@@ -301,6 +301,33 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
     /// <summary>1KHz 频率测试结果表格。UI 只保留最近 MaxFrequencyRows 条，完整数据在内存中用于导出。</summary>
     public ObservableCollection<FrequencySampleResult> FrequencyResults { get; } = new();
 
+    // ─── 973 通道直测面板 ────────────────────────────────────────────────
+    // 单独验硬件用：电压 VOUT1-18（101-118）、电阻 R1-18（201-218）、电源 1-18 + 总电源（301-318/319,320）。
+    // 只读/单路开关，不跑测试流程。
+    public ObservableCollection<string> DmmUnitOptions { get; } = new();
+    public ObservableCollection<DmmChannelRowVm> DmmVoltageRows { get; } = new();
+    public ObservableCollection<DmmChannelRowVm> DmmResistanceRows { get; } = new();
+    public ObservableCollection<DmmChannelRowVm> DmmPowerRows { get; } = new();
+
+    private int _selectedDmmUnit;
+    public int SelectedDmmUnit
+    {
+        get => _selectedDmmUnit;
+        // 集合 Clear 时 ComboBox 会回写 -1，钳到 0 避免下游索引越界。
+        set
+        {
+            if (!SetField(ref _selectedDmmUnit, Math.Max(0, value))) return;
+            RebuildDmmRows();
+        }
+    }
+
+    private string _dmmPanelStatus = "";
+    public string DmmPanelStatus
+    {
+        get => _dmmPanelStatus;
+        set => SetField(ref _dmmPanelStatus, value);
+    }
+
     private bool _ioShowTx = true, _ioShowRx = true, _ioShowInfo = false, _ioAutoScroll = true;
     public bool IoShowTx     { get => _ioShowTx;     set => SetField(ref _ioShowTx,     value); }
     public bool IoShowRx     { get => _ioShowRx;     set => SetField(ref _ioShowRx,     value); }
@@ -358,6 +385,14 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
     public RelayCommand OpenBatchPanelCommand { get; }
     /// <summary>打开独立窗口显示 1KHz 频率采样。</summary>
     public RelayCommand OpenFrequencyPanelCommand { get; }
+    /// <summary>打开 973 通道直测面板（电压/电阻/电源）。</summary>
+    public RelayCommand OpenDmmPanelCommand { get; }
+    public AsyncRelayCommand ReadDmmVoltageCommand { get; }
+    public AsyncRelayCommand ReadDmmResistanceCommand { get; }
+    public AsyncRelayCommand DmmPowerAllOnCommand { get; }
+    public AsyncRelayCommand DmmPowerAllOffCommand { get; }
+    /// <summary>单路电源切换（参数为 DmmChannelRowVm）。</summary>
+    public RelayCommand ToggleDmmPowerCommand { get; }
 
     /// <summary>主界面批量采集卡片的简要提示。</summary>
     public string BatchSampleHint =>
@@ -614,12 +649,194 @@ public sealed class ManualViewModel : ViewModelBase, IDisposable
             PanelWindow.ShowPanel("批量采集", new BatchSamplePanel { DataContext = this }, "manual-batch", 1180, 720));
         OpenFrequencyPanelCommand = new RelayCommand(_ =>
             PanelWindow.ShowPanel("1KHz 频率测试", new FrequencyPanel { DataContext = this }, "manual-freq", 980, 680));
+        OpenDmmPanelCommand = new RelayCommand(_ =>
+        {
+            // 每次打开都按当前设备配置重建台选项 —— 现场常见「先开程序、后加 973 并保存」，
+            // 只在构造时初始化会一直只显示 973-1。
+            InitDmmPanel();
+            PanelWindow.ShowPanel("973 通道直测", new DmmTestPanel { DataContext = this }, "manual-dmm", 1240, 720);
+        });
+
+        ReadDmmVoltageCommand = Wrap("973 读电压", ReadDmmVoltageAllAsync);
+        ReadDmmResistanceCommand = Wrap("973 读电阻", ReadDmmResistanceAllAsync);
+        DmmPowerAllOnCommand = Wrap("973 电源全开", () => SetDmmPowerAllAsync(true));
+        DmmPowerAllOffCommand = Wrap("973 电源全断", () => SetDmmPowerAllAsync(false));
+        // 单路切换带参数，AsyncRelayCommand 只支持无参重载，这里用 RelayCommand 包一层
+        // （方法内部已 try-catch，不会丢异常）。
+        ToggleDmmPowerCommand = new RelayCommand(p =>
+        {
+            if (p is DmmChannelRowVm row) _ = ToggleDmmPowerAsync(row);
+        });
+
+        InitDmmPanel();
+
+        // 设备配置保存后会 RebuildDevices，973 台数可能变化 → 面板台选项跟着刷新
+        // （面板可能正开着，所以在 UI 线程上重建集合）。
+        _session.DevicesRebuilt += (_, _) =>
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher is null || dispatcher.CheckAccess()) InitDmmPanel();
+            else dispatcher.BeginInvoke(new Action(InitDmmPanel));
+        };
     }
 
     /// <summary>
     /// Convenience wrapper: creates an AsyncRelayCommand that tags exceptions
     /// with the operation name so the global error dialog shows useful titles.
     /// </summary>
+    // ─── 973 通道直测 ────────────────────────────────────────────────────
+
+    /// <summary>按当前配置的台数填台选项，并生成第一台的 18 行。</summary>
+    private void InitDmmPanel()
+    {
+        DmmUnitOptions.Clear();
+        var count = Math.Max(1, _session.Dmms.Count);
+        for (var i = 0; i < count; i++) DmmUnitOptions.Add($"973-{i + 1}");
+        AppLog.Info("Manual", $"973 直测面板：已加载 {_session.Dmms.Count} 台 DAQ973A"
+            + (_session.Dmms.Count == 0 ? "（未配置，按 1 台显示占位）" : ""));
+        _selectedDmmUnit = Math.Clamp(_selectedDmmUnit, 0, count - 1);
+        OnPropertyChanged(nameof(SelectedDmmUnit));
+        RebuildDmmRows();
+    }
+
+    /// <summary>按当前台重建三组行（通道号来自 DmmAutoChannelConfig，默认 101/201/301）。</summary>
+    private void RebuildDmmRows()
+    {
+        var cfg = DmmAutoSlotMap.Current;
+        var perUnit = DmmAutoSlotMap.SlotsPerUnit;
+
+        DmmVoltageRows.Clear();
+        DmmResistanceRows.Clear();
+        DmmPowerRows.Clear();
+
+        for (var i = 0; i < perUnit; i++)
+        {
+            DmmVoltageRows.Add(new DmmChannelRowVm
+            {
+                Index = i + 1,
+                Label = $"VOUT{i + 1}",
+                Channel = (cfg.VoltageStart + i).ToString(CultureInfo.InvariantCulture),
+            });
+            DmmResistanceRows.Add(new DmmChannelRowVm
+            {
+                Index = i + 1,
+                Label = $"R{i + 1}",
+                Channel = (cfg.ResistanceStart + i).ToString(CultureInfo.InvariantCulture),
+            });
+            DmmPowerRows.Add(new DmmChannelRowVm
+            {
+                Index = i + 1,
+                Label = $"电源{i + 1}",
+                Channel = (cfg.PowerSwitchStart + i).ToString(CultureInfo.InvariantCulture),
+            });
+        }
+
+        // 总电源（默认 319/320）单列出来
+        var masters = DmmAutoSlotMap.MasterPowerChannels();
+        for (var i = 0; i < masters.Count; i++)
+            DmmPowerRows.Add(new DmmChannelRowVm
+            {
+                Index = perUnit + i + 1,
+                Label = $"总电源{i + 1}",
+                Channel = masters[i],
+                IsMaster = true,
+            });
+
+        var unitCount = _session.Dmms.Count;
+        DmmPanelStatus = $"{DmmUnitOptions.ElementAtOrDefault(_selectedDmmUnit) ?? "973-1"}"
+            + $"（已识别 {unitCount} 台）："
+            + $"电压 {cfg.VoltageStart}-{cfg.VoltageStart + perUnit - 1} / "
+            + $"电阻 {cfg.ResistanceStart}-{cfg.ResistanceStart + perUnit - 1} / "
+            + $"电源 {cfg.PowerSwitchStart}-{cfg.PowerSwitchStart + perUnit - 1} + 总电源 {string.Join(",", masters)}";
+    }
+
+    private IDmm CurrentDmm()
+    {
+        if (_session.Dmms.Count == 0) throw new InvalidOperationException("未配置 DAQ973A");
+        return _session.Dmms[Math.Clamp(_selectedDmmUnit, 0, _session.Dmms.Count - 1)];
+    }
+
+    private async Task ReadDmmVoltageAllAsync()
+    {
+        var dmm = CurrentDmm();
+        if (dmm.State != ConnectionState.Connected) await dmm.OpenAsync();
+        foreach (var row in DmmVoltageRows)
+        {
+            try
+            {
+                var v = await dmm.ReadVoltageAsync(row.Channel) * 1000.0;   // V → mV
+                if (Math.Abs(v) >= 1e30) { row.ValueText = "OL"; row.IsError = true; }
+                else { row.ValueText = v.ToString("G6", CultureInfo.InvariantCulture); row.IsError = false; }
+            }
+            catch (Exception ex)
+            {
+                row.ValueText = "ERR"; row.IsError = true;
+                AppLog.Warn("Manual", $"973 电压 {row.Channel} 读取失败: {ex.Message}");
+            }
+        }
+    }
+
+    private async Task ReadDmmResistanceAllAsync()
+    {
+        var dmm = CurrentDmm();
+        if (dmm.State != ConnectionState.Connected) await dmm.OpenAsync();
+        foreach (var row in DmmResistanceRows)
+        {
+            try
+            {
+                var r = await dmm.ReadResistanceAsync(row.Channel);
+                if (Math.Abs(r) >= 1e30) { row.ValueText = "OL"; row.IsError = true; }
+                else { row.ValueText = r.ToString("G6", CultureInfo.InvariantCulture); row.IsError = false; }
+            }
+            catch (Exception ex)
+            {
+                row.ValueText = "ERR"; row.IsError = true;
+                AppLog.Warn("Manual", $"973 电阻 {row.Channel} 读取失败: {ex.Message}");
+            }
+        }
+    }
+
+    private async Task SetDmmPowerAllAsync(bool on)
+    {
+        var dmm = CurrentDmm();
+        if (dmm.State != ConnectionState.Connected) await dmm.OpenAsync();
+        // 上电：先工位电源再总电源；断电：先总电源再工位（与自动测试一致，避免带载切换）。
+        var rows = on ? DmmPowerRows : DmmPowerRows.Reverse();
+        foreach (var row in rows)
+        {
+            try
+            {
+                if (on) await dmm.CloseRelayAsync(row.Channel);
+                else await dmm.OpenRelayAsync(row.Channel);
+                row.IsOn = on;
+                row.IsError = false;
+            }
+            catch (Exception ex)
+            {
+                row.IsError = true;
+                AppLog.Warn("Manual", $"973 电源 {row.Channel} 切换失败: {ex.Message}");
+            }
+        }
+    }
+
+    private async Task ToggleDmmPowerAsync(DmmChannelRowVm row)
+    {
+        var dmm = CurrentDmm();
+        if (dmm.State != ConnectionState.Connected) await dmm.OpenAsync();
+        try
+        {
+            if (row.IsOn) await dmm.OpenRelayAsync(row.Channel);
+            else await dmm.CloseRelayAsync(row.Channel);
+            row.IsOn = !row.IsOn;
+            row.IsError = false;
+        }
+        catch (Exception ex)
+        {
+            row.IsError = true;
+            AppLog.Warn("Manual", $"973 电源 {row.Channel} 切换失败: {ex.Message}");
+        }
+    }
+
     private AsyncRelayCommand Wrap(string source, Func<Task> body) =>
         new(body) { Source = source };
 
