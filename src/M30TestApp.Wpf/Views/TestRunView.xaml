@@ -73,12 +73,15 @@
                                    FontSize="{StaticResource FontSizeCaption}"
                                    Foreground="{DynamicResource AccentBrush}"/>
                         <TextBlock Text="  ·  " Foreground="{DynamicResource MutedBrush}"/>
-                        <TextBlock Text="{Binding TempPointProgressText}" FontSize="{StaticResource FontSizeCaption}"
-                                   Foreground="{DynamicResource MutedBrush}"/>
-                        <TextBlock Text="  ·  " Foreground="{DynamicResource MutedBrush}"/>
                         <TextBlock Text="{Binding Elapsed}" FontFamily="Consolas" FontSize="{StaticResource FontSizeCaption}"
                                    Foreground="{DynamicResource MutedBrush}"/>
                     </WrapPanel>
+                    <!-- 阶段行：保温中 / 加压中 / 保压中 / 采集中 · 温度点 x/y · 压力点 x/y · 保温 35/120 min -->
+                    <TextBlock Text="{Binding StageLine}" Margin="0,4,0,0"
+                               FontSize="{StaticResource FontSizeCaption}" FontWeight="SemiBold"
+                               Foreground="{DynamicResource SuccessBrush}"
+                               TextTrimming="CharacterEllipsis" MaxWidth="260"
+                               ToolTip="{Binding StageLine}"/>
                 </StackPanel>
 
                 <!-- 中：大进度条 + 数字 -->

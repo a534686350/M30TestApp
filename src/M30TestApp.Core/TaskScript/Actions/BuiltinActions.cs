@@ -1214,16 +1214,33 @@ public sealed class RunPerformanceTestAction : IAction
     // ── 保温（1分钟间隔日志，显示已保温/剩余）────────────────────────────
     internal static async Task SoakWithLogAsync(TaskContext ctx, int totalMinutes, string tpName, CancellationToken ct)
     {
+        // 保温日志每 10 分钟记一次（首分钟、末尾各记一次）：
+        // 120 分钟保温刷 120 行日志没意义，现场只要知道"还在保温、还剩多久"。
+        const int LogEveryMinutes = 10;
+
+        ctx.CurrentStage = "保温中";
+        ctx.SoakTotalMinutes = totalMinutes;
+        ctx.SoakElapsedMinutes = 0;
+
         for (var min = 0; min <= totalMinutes; min++)
         {
             ct.ThrowIfCancellationRequested();
             await ctx.WaitIfPausedAsync(ct);
             var remaining = totalMinutes - min;
             ctx.CurrentTemp = $"{tpName} 保温中 {min}/{totalMinutes} min (剩余{remaining}min)";
-            AppLog.Info("Run", $"烘箱已保温 {min} min, 还剩 {remaining} min");
+            ctx.SoakElapsedMinutes = min;
+
+            var isLogPoint = min == 0 || remaining <= 0 || min % LogEveryMinutes == 0;
+            if (isLogPoint)
+                AppLog.Info("Run",
+                    $"保温中：{tpName} 已保温 {min}/{totalMinutes} min，剩余 {remaining} min");
+
             if (min < totalMinutes)
                 await Task.Delay(TimeSpan.FromMinutes(1), ct);
         }
+
+        ctx.CurrentStage = "";
+        AppLog.Info("Run", $"保温结束：{tpName} 保温 {totalMinutes} min 完成，开始采集");
     }
 
     // ── 设置压力并连续确认稳定 ───────────────────────────────────────────
@@ -1234,6 +1251,11 @@ public sealed class RunPerformanceTestAction : IAction
             AppLog.Info("Run", $"跳过压力设置：压力控制器未启用（{pp.Name}={pp.Value}{ctx.Plan.PressureUnit}）");
             return;
         }
+
+        ctx.CurrentStage = "加压中";
+        ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit}";
+        AppLog.Info("Run",
+            $"加压中：{pp.Name} → {pp.Value} {ctx.Plan.PressureUnit} [{pp.PressureTypeDisplay}]，等待稳定");
 
         var tolerance = GetPressureTolerance(ctx);
         var requiredSamples = Math.Max(2, GetIntSetting(ctx, "PressureStableSamples", 5));
@@ -1396,6 +1418,9 @@ public sealed class RunPerformanceTestAction : IAction
         var monitorCount = 0;
         var recoveryCount = 0;
         var started = DateTime.UtcNow;
+
+        ctx.CurrentStage = "保压中";
+        AppLog.Info("Run", $"保压中：{pp.Name} = {pp.Value}{ctx.Plan.PressureUnit}，保持 {holdSec}s");
         AppLog.Info("Pressure",
             $"{pp.Value}{ctx.Plan.PressureUnit} 开始保压 {holdSec}s，" +
             $"监测间隔={monitorMs}ms，允许差值±{tolerance:G6}");
@@ -1978,6 +2003,7 @@ public sealed class RunDmmAutoTestAction : IAction
             ct.ThrowIfCancellationRequested();
 
             ctx.CurrentPressure = $"{pp.Name}: {pp.Value} {ctx.Plan.PressureUnit}";
+            ctx.CurrentStage = reverse ? "采集中（回差）" : "采集中";
             var column = $"{tp.Name}{pp.Name}_{(reverse ? "USG_R" : "USG")}";
             AppLog.Info("Run",
                 $"万用表自动测试：压力点 {tp.Name}-{pp.Name} = {pp.Value}{ctx.Plan.PressureUnit} [{pp.PressureTypeDisplay}] → {column}");
@@ -2027,6 +2053,7 @@ public sealed class RunDmmAutoTestAction : IAction
     {
         var column = $"{tp.Name}_DMM_R";
         if (!ctx.Columns.Contains(column)) ctx.Columns.Add(column);
+        ctx.CurrentStage = "采集中（电阻）";
         AppLog.Info("Run", $"万用表自动测试：{tp.Name} 断电状态下采集电阻 → {column}");
 
         var delayMs = GetSlotDelayMs(ctx);

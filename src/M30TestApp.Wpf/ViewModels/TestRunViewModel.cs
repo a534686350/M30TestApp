@@ -92,6 +92,51 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     private string _currentP = "—";
     public string CurrentP { get => _currentP; set => SetField(ref _currentP, value); }
 
+    private string _currentStage = "待开始";
+    /// <summary>当前阶段：保温中 / 加压中 / 保压中 / 采集中…（顶部进度带显示）</summary>
+    public string CurrentStage
+    {
+        get => _currentStage;
+        set
+        {
+            if (!SetField(ref _currentStage, value)) return;
+            OnPropertyChanged(nameof(StageLine));
+        }
+    }
+
+    private string _pressureProgress = "—";
+    /// <summary>压力点进度，如 "P2 / 3"。</summary>
+    public string PressureProgress
+    {
+        get => _pressureProgress;
+        set
+        {
+            if (!SetField(ref _pressureProgress, value)) return;
+            OnPropertyChanged(nameof(StageLine));
+        }
+    }
+
+    /// <summary>顶部一行讲清楚：阶段 · 温度点 x/y · 压力点 x/y · 保温进度。</summary>
+    public string StageLine
+    {
+        get
+        {
+            var parts = new List<string>();
+            // 「待开始 / 运行中」这种泛阶段没必要占位置，具体阶段（保温中/加压中…）才显示
+            if (CurrentStage != "待开始" && CurrentStage != "运行中" && !string.IsNullOrWhiteSpace(CurrentStage))
+                parts.Add(CurrentStage);
+
+            parts.Add($"温度点 {TempPointProgressText}");
+            if (PressureProgress != "—") parts.Add($"压力点 {PressureProgress}");
+
+            var ctx = _session.Context;
+            if (ctx.CurrentStage == "保温中" && ctx.SoakTotalMinutes > 0)
+                parts.Add($"保温 {ctx.SoakElapsedMinutes}/{ctx.SoakTotalMinutes} min");
+
+            return string.Join("  ·  ", parts);
+        }
+    }
+
     private DateTime? _startedAt;
     private string _elapsed = "00:00:00";
     public string Elapsed { get => _elapsed; set => SetField(ref _elapsed, value); }
@@ -153,6 +198,11 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
                 Elapsed = FormatElapsed(DateTime.Now - t);
                 CurrentT = string.IsNullOrEmpty(_session.Context.CurrentTemp) ? "—" : _session.Context.CurrentTemp;
                 CurrentP = string.IsNullOrEmpty(_session.Context.CurrentPressure) ? "—" : _session.Context.CurrentPressure;
+                CurrentStage = string.IsNullOrEmpty(_session.Context.CurrentStage)
+                    ? (IsRunning ? "运行中" : "待开始")
+                    : _session.Context.CurrentStage;
+                PressureProgress = ResolvePressureProgress();
+                OnPropertyChanged(nameof(StageLine));   // 保温分钟数每秒在走
             }
             RefreshTemperatureProgress();
             System.Windows.Input.CommandManager.InvalidateRequerySuggested();
@@ -212,7 +262,11 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
             || m.Contains("上电：")
             || m.Contains("断电：")
             || m.Contains("开始万用表自动测试")
-            || m.Contains("采集完成");
+            || m.Contains("采集完成")
+            || m.Contains("保温中")        // 每 10 分钟一条：已保温 x/y min
+            || m.Contains("保温结束")
+            || m.Contains("加压中")
+            || m.Contains("保压中");
     }
 
     private void OnAppLogLogged(object? sender, LogEvent e)
@@ -248,6 +302,18 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
     {
         var totalHours = (long)Math.Floor(elapsed.TotalHours);
         return $"{totalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}";
+    }
+
+    /// <summary>从 CurrentPressure（"P2: 50 kPa"）解析出 "P2 / 3"。</summary>
+    private string ResolvePressureProgress()
+    {
+        var cur = _session.Context.CurrentPressure;
+        if (string.IsNullOrWhiteSpace(cur)) return "—";
+
+        var colon = cur.IndexOf(':');
+        var name = (colon > 0 ? cur[..colon] : cur).Trim();
+        var total = _session.Plan.PressurePoints.Count;
+        return total > 0 ? $"{name} / {total}" : name;
     }
 
     private void RefreshTemperatureProgress()

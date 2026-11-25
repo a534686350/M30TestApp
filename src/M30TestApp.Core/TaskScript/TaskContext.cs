@@ -41,6 +41,16 @@ public sealed class TaskContext
     public string CurrentTemp { get; set; } = "";
     /// <summary>Current pressure point name (e.g. "P1").</summary>
     public string CurrentPressure { get; set; } = "";
+
+    /// <summary>
+    /// 当前阶段的中文名，给测试页顶部进度带显示：保温中 / 加压中 / 保压中 / 采集中 / 泄压中…
+    /// 各动作进入阶段时赋值，界面只读展示。
+    /// </summary>
+    public string CurrentStage { get; set; } = "";
+
+    /// <summary>保温总时长（分钟）与已保温分钟，供顶部显示"保温 35/120 min"。</summary>
+    public int SoakTotalMinutes { get; set; }
+    public int SoakElapsedMinutes { get; set; }
     /// <summary>When true, skip the leak check phase.</summary>
     public bool SkipLeakCheck { get; set; }
 
