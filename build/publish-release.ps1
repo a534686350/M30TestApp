@@ -44,8 +44,25 @@ if ([string]::IsNullOrWhiteSpace($ghToken)) {
 
 $giteeToken = $env:GITEE_TOKEN
 
+# 环境变量没设时，回退读仓库里的发版令牌文件（两个文件都在 .gitignore 里，不进版本库）。
+# 以前只认环境变量，每次发版都要先手动 Get-Content 塞进 $env:GH_TOKEN 才能跑，容易忘。
+if ([string]::IsNullOrWhiteSpace($ghToken)) {
+    $ghTokenFile = Join-Path $root "artifacts\.reltok_gh"
+    if (Test-Path -LiteralPath $ghTokenFile) {
+        $ghToken = (Get-Content -LiteralPath $ghTokenFile -Raw).Trim()
+        Write-Host "GH_TOKEN 未设置，已从 artifacts\.reltok_gh 读取"
+    }
+}
+if ([string]::IsNullOrWhiteSpace($giteeToken)) {
+    $giteeTokenFile = Join-Path $root "artifacts\.reltok_gitee"
+    if (Test-Path -LiteralPath $giteeTokenFile) {
+        $giteeToken = (Get-Content -LiteralPath $giteeTokenFile -Raw).Trim()
+        Write-Host "GITEE_TOKEN 未设置，已从 artifacts\.reltok_gitee 读取"
+    }
+}
+
 if ([string]::IsNullOrWhiteSpace($ghToken) -and [string]::IsNullOrWhiteSpace($giteeToken)) {
-    throw "Set GH_TOKEN (or GITHUB_TOKEN) and/or GITEE_TOKEN for release upload."
+    throw "找不到发版令牌：请设置 GH_TOKEN / GITEE_TOKEN 环境变量，或把令牌写入 artifacts\.reltok_gh 与 artifacts\.reltok_gitee。"
 }
 if ([string]::IsNullOrWhiteSpace($ghToken)) {
     Write-Warning "GH_TOKEN not set; skipping GitHub release."
