@@ -366,10 +366,14 @@ public sealed class RunSetupViewModel : ViewModelBase
                     lines.Add($"    ── 压力点 {pp.Name} = {pp.Value} {plan.PressureUnit} [{pp.PressureTypeDisplay}]");
                     lines.Add("       设压力 → 稳定 → 保压 → 逐工位读电压 → USG");
                 }
-                if (plan.PressurePoints.Count >= 2)
+                if (plan.PressurePoints.Count >= 2 && TestHysteresis)
                 {
                     lines.Add("    ── 回差（反向降压）");
                     lines.Add("       设压力 → 稳定 → 保压 → 逐工位读电压 → USG_R");
+                }
+                else if (plan.PressurePoints.Count >= 2)
+                {
+                    lines.Add("    （方案未勾选「测试回差」，只跑正向）");
                 }
                 lines.Add($"    ④ 断电：{cfg.PowerSwitchStart}-{swEnd} 与总电源 {cfg.MasterChannels} 全部断开");
             }
@@ -845,6 +849,35 @@ public sealed class RunSetupViewModel : ViewModelBase
     private bool _dmmCollectVoltage = true;
     public bool DmmCollectVoltage { get => _dmmCollectVoltage; set => SetField(ref _dmmCollectVoltage, value); }
 
+    private bool _testHysteresis = true;
+    /// <summary>
+    /// 是否测试回差（压力回程）。勾选：3 个压力点跑 5 个点（0→50→100→50→0）；
+    /// 不勾：只跑正向 3 个点。值存进方案 ini 的 [Plan] TestHysteresis。
+    /// </summary>
+    public bool TestHysteresis
+    {
+        get => _testHysteresis;
+        set
+        {
+            if (!SetField(ref _testHysteresis, value)) return;
+            OnPropertyChanged(nameof(TestHysteresisHint));
+        }
+    }
+
+    /// <summary>勾选状态下的采集点数说明，现场一眼看出这轮要测几个点。</summary>
+    public string TestHysteresisHint
+    {
+        get
+        {
+            var n = SelectedPlan?.PressurePoints.Count ?? 0;
+            if (n <= 1) return "压力点不足 2 个，回差无意义";
+            var points = TestHysteresis ? n + (n - 1) : n;
+            return TestHysteresis
+                ? $"本轮每个温度点采集 {points} 个点（正向 {n} + 回差 {n - 1}）"
+                : $"本轮每个温度点采集 {points} 个点（仅正向）";
+        }
+    }
+
     private bool _dmmCollectResistance = true;
     public bool DmmCollectResistance { get => _dmmCollectResistance; set => SetField(ref _dmmCollectResistance, value); }
 
@@ -1147,6 +1180,29 @@ public sealed class RunSetupViewModel : ViewModelBase
         }
     }
 
+    /// <summary>把「测试回差」写回方案 ini（只改这一个键，不动其它内容）。</summary>
+    private void TrySavePlanHysteresis(TestPlan plan)
+    {
+        try
+        {
+            var entry = PlanCatalog.FindByDisplay(_selectedPlanDisplay, _planEntries);
+            var path = entry?.Path
+                       ?? (string.IsNullOrWhiteSpace(SelectedPlanFolder)
+                           ? Path.Combine(AppPaths.TestConfigDir, plan.Name + ".ini")
+                           : Path.Combine(AppPaths.TestConfigDir, SelectedPlanFolder, plan.Name + ".ini"));
+            if (!File.Exists(path)) return;
+
+            // 只改这一个键，不整份重写方案（避免把 Load 没解析的键写丢）
+            var ini = IniFile.Load(path);
+            ini.Set("Plan", "TestHysteresis", plan.TestHysteresis.ToString());
+            ini.Save(path);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("RunSetup", $"保存方案回差设置失败: {ex.Message}");
+        }
+    }
+
     private void LoadSelectedPlan()
     {
         if (string.IsNullOrWhiteSpace(SelectedSensorModel)) return;
@@ -1163,6 +1219,9 @@ public sealed class RunSetupViewModel : ViewModelBase
         try
         {
             SelectedPlan = TestPlan.Load(path);
+            // 方案的「测试回差」勾选跟着方案走
+            TestHysteresis = SelectedPlan.TestHysteresis;
+            OnPropertyChanged(nameof(TestHysteresisHint));
         }
         catch (Exception ex)
         {
@@ -1463,6 +1522,11 @@ public sealed class RunSetupViewModel : ViewModelBase
         // 工位统一在侧边栏「工位表」配置并保存，运行时不再重建工位表 ——
         // 原来这里用 PreviewSlots new SlotTable 覆盖 session.Slots，
         // 会和侧边栏工位表打架（后操作覆盖前者）。现在只应用方案，工位沿用已保存的那份。
+        // 回差勾选属于方案本身：先写回方案对象再应用，并持久化到方案 ini，
+        // 否则重启后又会回到默认值。
+        SelectedPlan.TestHysteresis = TestHysteresis;
+        TrySavePlanHysteresis(SelectedPlan);
+
         _session.ApplyRunConfig(SelectedPlan, _session.Slots);
 
         try

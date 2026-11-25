@@ -203,6 +203,15 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
                     : _session.Context.CurrentStage;
                 PressureProgress = ResolvePressureProgress();
                 OnPropertyChanged(nameof(StageLine));   // 保温分钟数每秒在走
+
+                // 进度按业务采集单元走（温度点×压力点），不按任务步骤数
+                // —— 整个测试只有一个 Run:DmmAutoTest 步骤，用步骤数会一直 100%。
+                var ctx = _session.Context;
+                if (ctx.ProgressTotal > 0)
+                {
+                    ProgressTotal = ctx.ProgressTotal;
+                    ProgressIndex = Math.Clamp(ctx.ProgressDone, 0, ctx.ProgressTotal);
+                }
             }
             RefreshTemperatureProgress();
             System.Windows.Input.CommandManager.InvalidateRequerySuggested();
@@ -287,8 +296,13 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         Application.Current.Dispatcher.BeginInvoke(new Action(() =>
         {
             CurrentStep = $"[{e.Index + 1}/{e.Total}] {e.Command}";
-            ProgressIndex = e.Index + 1;
-            ProgressTotal = e.Total;
+            // 有业务进度（温度点×压力点）时以业务进度为准：
+            // 整个测试只有 Run:DmmAutoTest 一个步骤，用步骤数会一直显示 1/1=100%。
+            if (_session.Context.ProgressTotal <= 0)
+            {
+                ProgressIndex = e.Index + 1;
+                ProgressTotal = e.Total;
+            }
             if (e.Phase == "Error")
                 LastError = $"{e.Command}: {e.Error}";
             RefreshTemperatureProgress();
@@ -1003,6 +1017,9 @@ public sealed class TestRunViewModel : ViewModelBase, IDisposable
         }
 
         ClearLog();
+        // 清掉上一轮的业务进度，否则电路板模式（不设 ProgressTotal）会残留上次的值
+        _session.Context.ProgressDone = 0;
+        _session.Context.ProgressTotal = 0;
 
         if (_isLongTermStabilityMode)
         {

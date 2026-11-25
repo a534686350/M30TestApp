@@ -39,6 +39,13 @@ public sealed class TestPlan
     public List<PressurePoint> PressurePoints { get; } = new();
     /// <summary>The task script, pipe-separated commands (ASLab style).</summary>
     public string TaskScript { get; set; } = "";
+
+    /// <summary>
+    /// 是否测试回差（压力回程）：勾选时正向跑完各压力点后再反向降回来测一遍，
+    /// 3 个压力点会变成 5 个采集点（0→50→100→50→0），多出 Usig50_R / Usig0_R 两列。
+    /// 不勾选只跑正向 3 个点。默认开启，兼容旧方案行为。
+    /// </summary>
+    public bool TestHysteresis { get; set; } = true;
     /// <summary>Performance specification limits (Min/Max) for pass/fail judgment.</summary>
     public SpecLimits Specs { get; set; } = new();
 
@@ -65,6 +72,8 @@ public sealed class TestPlan
             Precision = float.TryParse(ini.Get("Plan", "Precision", "0.05"), out var pr) ? pr : 0.05f,
             DefaultPressureType = defaultPt,
             TaskScript = ini.Get("Plan", "TaskScript"),
+            // 旧方案没有这个键 → 默认 true，保持原来的「自动跑回差」行为
+            TestHysteresis = !bool.TryParse(ini.Get("Plan", "TestHysteresis", ""), out var hys) || hys,
         };
 
         foreach (var kv in ini["TempPoints"])
@@ -106,6 +115,7 @@ public sealed class TestPlan
         ini.Set("Plan", "Precision", Precision.ToString(CultureInfo.InvariantCulture));
         ini.Set("Plan", "PressureType", DefaultPressureType.ToString());
         ini.Set("Plan", "TaskScript", TaskScript);
+        ini.Set("Plan", "TestHysteresis", TestHysteresis.ToString());
         foreach (var tp in TempPoints)
         {
             ini.Set("TempPoints", tp.Name, tp.Celsius.ToString(CultureInfo.InvariantCulture));

@@ -503,7 +503,7 @@ public sealed class RunPerformanceTestAction : IAction
             }
 
             // ── 回差测量：下行 P100→P50→P0 ──
-            if (!ctx.SkipUsg && ctx.Plan.PressurePoints.Count >= 2)
+            if (!ctx.SkipUsg && ctx.Plan.PressurePoints.Count >= 2 && ctx.Plan.TestHysteresis)
             {
                 AppLog.Info("Run", $"开始回差测量（下行）：{tp.Name}");
                 for (var pi = ctx.Plan.PressurePoints.Count - 2; pi >= 0; pi--)
@@ -1700,9 +1700,18 @@ public sealed class RunDmmAutoTestAction : IAction
         EnsureUnitsAvailable(ctx, units);
         var powerMap = PowerSwitchMap(ctx);
 
+        // 业务进度：按「温度点 × 每温度点采集点」算，不用任务步骤数
+        // （整个测试只有 Run:DmmAutoTest 一个步骤，用步骤数算永远 100%）。
+        var perTempPoints = ctx.Plan.PressurePoints.Count;
+        if (perTempPoints >= 2 && ctx.Plan.TestHysteresis) perTempPoints += perTempPoints - 1;  // 回差跳过最高点
+        ctx.ProgressTotal = Math.Max(1, ctx.Plan.TempPoints.Count * perTempPoints);
+        ctx.ProgressDone = 0;
+
         AppLog.Info("Run",
             $"开始万用表自动测试：方案={ctx.Plan.Name}，工位={ctx.Slots.Entries.Count}，DAQ973A×{units.Count}，" +
-            $"控制对象=传感器电源开关（不控制气路阀门）");
+            $"温度点×{ctx.Plan.TempPoints.Count}，每温度点 {perTempPoints} 个采集点"
+            + (ctx.Plan.TestHysteresis ? "（含回差）" : "（不含回差）")
+            + "，控制对象=传感器电源开关（不控制气路阀门）");
 
         await OpenDmmsAsync(ctx, units, ct);
 
@@ -1752,8 +1761,10 @@ public sealed class RunDmmAutoTestAction : IAction
                     try
                     {
                         await SweepPressureAsync(ctx, tp, reverse: false, ct);
-                        if (ctx.Plan.PressurePoints.Count >= 2)
+                        if (ctx.Plan.PressurePoints.Count >= 2 && ctx.Plan.TestHysteresis)
                             await SweepPressureAsync(ctx, tp, reverse: true, ct);
+                        else if (ctx.Plan.PressurePoints.Count >= 2)
+                            AppLog.Info("Run", $"跳过回差测试（方案未勾选「测试回差」）");
                     }
                     finally
                     {
@@ -2045,6 +2056,9 @@ public sealed class RunDmmAutoTestAction : IAction
                 }
                 if (delayMs > 0) await Task.Delay(delayMs, ct);
             }
+
+            // 一个压力点采集完 → 业务进度 +1（顶部进度条按这个走）
+            ctx.ProgressDone++;
         }
     }
 

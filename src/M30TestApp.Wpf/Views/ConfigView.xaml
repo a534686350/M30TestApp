@@ -1813,6 +1813,21 @@
                                         </StackPanel>
                                     </Grid>
 
+                                    <!-- 采集方式：一套测试系统只有一种接法，在这里配一次即可。
+                                         运行方案窗口不再让每个方案各选一遍。 -->
+                                    <TextBlock Text="采集方式" Style="{StaticResource FieldLabel}"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                        <RadioButton Content="电路板采集" GroupName="AutoTestMode" Margin="0,0,16,0"
+                                                     IsChecked="{Binding Settings.UseBoardAutoTest}"
+                                                     ToolTip="采集板（DAC）逐工位采集 UT / USC / ISC / USG，工位上限 256"/>
+                                        <RadioButton Content="万用表采集 (DAQ973A)" GroupName="AutoTestMode"
+                                                     IsChecked="{Binding Settings.UseDmmAutoTest}"
+                                                     ToolTip="DAQ973A 逐工位读电压/电阻，每台 18 工位，最多 3 台 54 工位"/>
+                                    </StackPanel>
+                                    <TextBlock Text="本机固定一种采集方式；切换后自动测试按此走，运行方案窗口不再单独选择。"
+                                               Foreground="{DynamicResource MutedBrush}" FontSize="11"
+                                               TextWrapping="Wrap" Margin="21,0,0,10"/>
+
                                     <CheckBox Content="启动时自动加载上次方案" IsChecked="{Binding AutoLoadLastPlan}" Margin="0,4,0,8"/>
                                     <CheckBox Content="测试结束后自动导出 CSV" IsChecked="{Binding AutoExportCsv}" Margin="0,0,0,8"/>
                                     <CheckBox Content="异常退出时保留断点（续测）" IsChecked="{Binding SaveCheckpointOnAbort}" Margin="0,0,0,8"/>

@@ -51,6 +51,13 @@ public sealed class TaskContext
     /// <summary>保温总时长（分钟）与已保温分钟，供顶部显示"保温 35/120 min"。</summary>
     public int SoakTotalMinutes { get; set; }
     public int SoakElapsedMinutes { get; set; }
+
+    /// <summary>
+    /// 业务进度（按采集单元算，不是任务步骤）：温度点数 × 每温度点的采集点（压力点正/反向）。
+    /// 任务脚本只有一个 Run:DmmAutoTest 步骤，用步骤数算进度会永远 100%。
+    /// </summary>
+    public int ProgressDone { get; set; }
+    public int ProgressTotal { get; set; }
     /// <summary>When true, skip the leak check phase.</summary>
     public bool SkipLeakCheck { get; set; }
 

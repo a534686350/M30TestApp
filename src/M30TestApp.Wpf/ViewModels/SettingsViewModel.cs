@@ -158,6 +158,8 @@ public sealed class SettingsViewModel : ViewModelBase
         _language = LanguageHelper.Normalize(AppPreferences.Language(session.Context.Settings));
         _theme = ThemeHelper.Normalize(AppPreferences.Theme(session.Context.Settings));
         _debugMode = AppPreferences.DebugMode(session.Context.Settings);
+        _useDmmAutoTest = session.Context.Settings.Get("Slots", "AutoTestMode", "Board")
+            .Equals("Dmm", StringComparison.OrdinalIgnoreCase);
 
         OpenRepoCommand = new RelayCommand(_ =>
         {
@@ -640,6 +642,40 @@ public sealed class SettingsViewModel : ViewModelBase
         AppPreferences.Set(_session.Context.Settings, "Language", lang);
         try { _session.Context.Settings.Save(AppPaths.SettingIni); } catch { }
         LanguageHelper.Apply(lang);
+    }
+
+    private bool _useDmmAutoTest;
+    /// <summary>
+    /// 本机采集方式：true = 万用表采集（DAQ973A），false = 电路板采集。
+    /// 一套测试系统只会有一种接法，所以在系统设置里配一次，不再每个方案各选一遍。
+    /// 存 `[Slots] AutoTestMode`（Dmm / Board），运行方案窗口只读这份配置。
+    /// </summary>
+    public bool UseDmmAutoTest
+    {
+        get => _useDmmAutoTest;
+        set
+        {
+            if (!SetField(ref _useDmmAutoTest, value)) return;
+            OnPropertyChanged(nameof(UseBoardAutoTest));
+            ApplyAutoTestMode(value);
+        }
+    }
+
+    /// <summary>单选按钮用：与 <see cref="UseDmmAutoTest"/> 互斥。</summary>
+    public bool UseBoardAutoTest
+    {
+        get => !_useDmmAutoTest;
+        set
+        {
+            if (value && _useDmmAutoTest) UseDmmAutoTest = false;
+        }
+    }
+
+    private void ApplyAutoTestMode(bool dmm)
+    {
+        _session.Context.Settings.Set("Slots", "AutoTestMode", dmm ? "Dmm" : "Board");
+        try { _session.Context.Settings.Save(AppPaths.SettingIni); } catch { }
+        AppLog.Info("Settings", $"采集方式已切换为：{(dmm ? "万用表采集（DAQ973A）" : "电路板采集")}");
     }
 
     private void ApplyTheme(string theme)

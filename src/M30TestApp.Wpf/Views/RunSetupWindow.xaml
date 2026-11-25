@@ -129,19 +129,8 @@
                             <Border Grid.Column="2" Background="{DynamicResource HeaderBgBrush}" CornerRadius="6"
                                     Padding="12,8" VerticalAlignment="Top">
                                 <StackPanel>
-                                    <!-- 自动测试的采集方式：电路板（DAC 逐工位）或万用表（DAQ973A 电压/电阻）。
-                                         决定 RunTaskScript 走 Run:PerformanceTest 还是 Run:DmmAutoTest。 -->
-                                    <TextBlock Text="采集方式" Foreground="{DynamicResource MutedBrush}" FontSize="11.5" Margin="0,0,0,4"
-                                               Visibility="{Binding ShowAutoTestModeOptions, Converter={StaticResource BoolToVis}}"/>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8"
-                                                Visibility="{Binding ShowAutoTestModeOptions, Converter={StaticResource BoolToVis}}">
-                                        <RadioButton Content="电路板采集" GroupName="AutoTestMode" Margin="0,0,14,0"
-                                                     IsChecked="{Binding UseBoardAutoTest}"
-                                                     ToolTip="采集板（DAC）逐工位采集 UT / USC / ISC / USG，工位上限 256"/>
-                                        <RadioButton Content="万用表采集 (DAQ973A)" GroupName="AutoTestMode"
-                                                     IsChecked="{Binding UseDmmAutoTest}"
-                                                     ToolTip="{Binding DmmChannelSummary}"/>
-                                    </StackPanel>
+                                    <!-- 采集方式（电路板 / 万用表）已移到「配置 → 系统设置」：
+                                         同一套测试系统只有一种采集方式，不该每个方案各选一次。 -->
                                     <TextBlock Text="设备启用" Foreground="{DynamicResource MutedBrush}" FontSize="11.5" Margin="0,0,0,4"/>
                                     <StackPanel Orientation="Horizontal">
                                         <CheckBox Content="压力控制器" IsChecked="{Binding UsePressure}" Margin="0,0,10,0"/>
@@ -178,6 +167,14 @@
                                         <CheckBox Content="电压" IsChecked="{Binding DmmCollectVoltage}" Margin="0,0,10,0"/>
                                         <CheckBox Content="电阻" IsChecked="{Binding DmmCollectResistance}" Margin="0,0,10,0"/>
                                         <CheckBox Content="烘箱温度" IsChecked="{Binding CollectOvenTemp}"/>
+                                    </StackPanel>
+                                    <!-- 测试回差：3 个压力点 → 5 个采集点（0→50→100→50→0） -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <CheckBox Content="测试回差" IsChecked="{Binding TestHysteresis}"
+                                                  ToolTip="勾选：正向测完后反向降回来再测一遍，3 个压力点变 5 个采集点（多出 Usig50_R / Usig0_R 列）"/>
+                                        <TextBlock Text="{Binding TestHysteresisHint}" Margin="10,0,0,0"
+                                                   VerticalAlignment="Center" FontSize="11"
+                                                   Foreground="{DynamicResource MutedBrush}"/>
                                     </StackPanel>
                                     <CheckBox Content="从断点续测" IsChecked="{Binding ResumeFromCheckpoint}"
                                               Visibility="{Binding CanResumeCheckpoint, Converter={StaticResource BoolToVis}}"
