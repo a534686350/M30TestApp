@@ -16,8 +16,18 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
   </ItemGroup>
   <ItemGroup>
-    <!-- 电子表格引擎（离线打包，不依赖 CDN）：现场断网也能用 -->
-    <Content Include="Web\sheet\**\*.*" Link="Web\sheet\%(RecursiveDir)%(Filename)%(Extension)">
+    <!-- 电子表格引擎（离线打包，不依赖 CDN）：现场断网也能用。
+         必须逐个文件列出：用 Web\sheet\**\*.* 通配时 .js 在单文件发布里会被漏掉
+         （v1.2.49 首次出包实测：publish 目录只有 html 和 css，js 不见了）。 -->
+    <Content Include="Web\sheet\slots.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="Web\sheet\xspreadsheet.css">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="Web\sheet\xspreadsheet.js">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
