@@ -506,6 +506,89 @@ public partial class App : Application
                 ShotAndExit(win, $"shot-view-{viewKey}.png");
         }
 
+        // 电子表格回写自检：--test-sheet-edit（改一格 → 看 C# 是否收到并落盘）
+        if (e.Args.Contains("--test-sheet-edit"))
+        {
+            win.Dispatcher.BeginInvoke(new Action(async () =>
+            {
+                try
+                {
+                    var sheetView = new Views.SlotSheetView();
+                    var probe = new Window
+                    {
+                        Title = "回写自检", Width = 1000, Height = 560,
+                        Content = sheetView,
+                        WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                    };
+                    probe.Show();
+
+                    var received = 0;
+                    string lastSerial = "";
+                    sheetView.RowsChanged += (_, rows) =>
+                    {
+                        received++;
+                        lastSerial = rows.Count > 0 ? rows[0].serialNo : "";
+                    };
+
+                    await Task.Delay(1500);
+                    sheetView.LoadSlots(session.Slots.Entries);
+                    await Task.Delay(1500);
+
+                    var before = session.Slots.Entries[0].SerialNo;
+                    await sheetView.SetCellForTestAsync(0, 1, "TEST123");
+                    await Task.Delay(1200);
+
+                    Console.WriteLine($"SHEET-EDIT: before={before} received={received} lastSerial={lastSerial} ready={sheetView.IsReady}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("SHEET-EDIT ERROR: " + ex.Message);
+                }
+                finally
+                {
+                    Application.Current.Shutdown();
+                }
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+
+        // 电子表格自检：--shot-sheet（WebView2 内容普通截图截不到，用它自己的 CapturePreview）
+        if (e.Args.Contains("--shot-sheet"))
+        {
+            win.Dispatcher.BeginInvoke(new Action(async () =>
+            {
+                try
+                {
+                    // 独立开一个窗口放表格控件，直接验证控件本身（不依赖配置页 Tab 懒加载）
+                    var sheetView = new Views.SlotSheetView();
+                    var probe = new Window
+                    {
+                        Title = "电子表格自检",
+                        Width = 1100,
+                        Height = 620,
+                        Content = sheetView,
+                        WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                        Background = (System.Windows.Media.Brush)Application.Current.FindResource("BgBrush"),
+                    };
+                    probe.Show();
+
+                    await Task.Delay(1500);
+                    sheetView.LoadSlots(session.Slots.Entries);
+                    await Task.Delay(2500);
+
+                    var ok = await sheetView.CaptureAsync(Path.Combine(AppPaths.BaseDir, "shot-sheet.png"));
+                    Console.WriteLine($"SHOT-SHEET: {(ok ? "OK" : "FAIL")} ready={sheetView.IsReady}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("SHOT-SHEET ERROR: " + ex.Message);
+                }
+                finally
+                {
+                    Application.Current.Shutdown();
+                }
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+
         // 设备预检窗口自检：--shot-preflight
         if (e.Args.Contains("--shot-preflight"))
         {

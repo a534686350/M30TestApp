@@ -72,6 +72,90 @@ public sealed record SlotEntry(
         }
     }
 
+    // ── 其余列全部开放就地编辑（老板要求：像 Excel 一样每个单元格都能改）──
+    // 布局参数（板卡/夹具/阀位/通道）平时由「刷新工位表」按参数生成，
+    // 现场偶尔要手工微调某一两行，所以这里也允许直接改；改完立即落盘。
+
+    private string _valve = Valve;
+    public string Valve
+    {
+        get => _valve;
+        set { if (_valve == value) return; _valve = value; Raise(nameof(Valve)); }
+    }
+
+    private string _board = Board;
+    public string Board
+    {
+        get => _board;
+        set { if (_board == value) return; _board = value; Raise(nameof(Board)); }
+    }
+
+    private string _boardSlotNo = BoardSlotNo;
+    public string BoardSlotNo
+    {
+        get => _boardSlotNo;
+        set { if (_boardSlotNo == value) return; _boardSlotNo = value; Raise(nameof(BoardSlotNo)); }
+    }
+
+    private string _layer = Layer;
+    public string Layer
+    {
+        get => _layer;
+        set { if (_layer == value) return; _layer = value; Raise(nameof(Layer)); }
+    }
+
+    private string _fixture = Fixture;
+    public string Fixture
+    {
+        get => _fixture;
+        set { if (_fixture == value) return; _fixture = value; Raise(nameof(Fixture)); }
+    }
+
+    private string _fixtureSlotNo = FixtureSlotNo;
+    public string FixtureSlotNo
+    {
+        get => _fixtureSlotNo;
+        set { if (_fixtureSlotNo == value) return; _fixtureSlotNo = value; Raise(nameof(FixtureSlotNo)); }
+    }
+
+    private string _pressureController = PressureController;
+    public string PressureController
+    {
+        get => _pressureController;
+        set { if (_pressureController == value) return; _pressureController = value; Raise(nameof(PressureController)); }
+    }
+
+    private string _dmm = Dmm;
+    public string Dmm
+    {
+        get => _dmm;
+        set { if (_dmm == value) return; _dmm = value; Raise(nameof(Dmm)); }
+    }
+
+    private string _channel = Channel;
+    public string Channel
+    {
+        get => _channel;
+        set { if (_channel == value) return; _channel = value; Raise(nameof(Channel)); }
+    }
+
+    private string _valveAddr = ValveAddr;
+    public string ValveAddr
+    {
+        get => _valveAddr;
+        set { if (_valveAddr == value) return; _valveAddr = value; Raise(nameof(ValveAddr)); }
+    }
+
+    private string _powerSwitch = PowerSwitch;
+    public string PowerSwitch
+    {
+        get => _powerSwitch;
+        set { if (_powerSwitch == value) return; _powerSwitch = value; Raise(nameof(PowerSwitch)); }
+    }
+
+    private void Raise(string name) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
     private bool _isNext;
 
     /// <summary>UI-only: 当前扫码目标行（待录入）。不参与 CSV 读写。</summary>

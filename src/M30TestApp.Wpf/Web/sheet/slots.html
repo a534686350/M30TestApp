@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>工位表</title>
+<link rel="stylesheet" href="xspreadsheet.css" />
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden;
+               font-family: "Microsoft YaHei", "Segoe UI", sans-serif; }
+  #sheet { position: absolute; inset: 0; }
+  /* 表头一行固定、工位列不让改：靠 x-spreadsheet 的 readonly 选项控制 */
+  .x-spreadsheet { font-size: 13px; }
+  .x-spreadsheet .x-spreadsheet-sheet { border-radius: 0; }
+
+  /* 深色主题：x-spreadsheet 是 canvas 渲染、配色写死成白色，无法换肤。
+     采取和 Excel 深色模式一样的做法——表格区保持浅色（数据对比度最高），
+     但用深色外框 + 圆角把它收成一块"嵌入的表格区"，不再是刺眼的白板。 */
+  body.dark { background: #17212F; padding: 6px; box-sizing: border-box; }
+  body.dark #sheet {
+    border: 1px solid #26364C;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #fff;
+  }
+</style>
+</head>
+<body>
+<div id="sheet"></div>
+<script src="xspreadsheet.js"></script>
+<script>
+// 全局错误捕获：任何 JS 异常都回报给 C#，否则页面内失败是静默的
+window.onerror = function (msg, url, line, col) {
+  try {
+    if (window.chrome && window.chrome.webview) {
+      window.chrome.webview.postMessage({ type: 'error', payload: 'JSERR: ' + msg + ' @line ' + line });
+    }
+  } catch (e) { }
+  return false;
+};
+
+(function () {
+  // ── 列定义：与 C# SlotEntry 的字段一一对应 ────────────────────────────
+  // readonly=true 的列只展示不参与回写（工位号是主键）
+  const COLUMNS = [
+    { key: 'slot',              title: '工位',       width: 70,  readonly: true  },
+    { key: 'serialNo',          title: '序列号',     width: 190, readonly: false },
+    { key: 'positionX',         title: '坐标X',      width: 70,  readonly: false },
+    { key: 'positionY',         title: '坐标Y',      width: 70,  readonly: false },
+    { key: 'board',             title: '板卡位',     width: 70,  readonly: false },
+    { key: 'boardSlotNo',       title: '板卡工位号', width: 90,  readonly: false },
+    { key: 'fixture',           title: '夹具位',     width: 70,  readonly: false },
+    { key: 'fixtureSlotNo',     title: '夹具工位号', width: 90,  readonly: false },
+    { key: 'valve',             title: '阀位',       width: 60,  readonly: false },
+    { key: 'valveAddr',         title: '阀门',       width: 70,  readonly: false },
+    { key: 'pressureController',title: '压力控制器', width: 90,  readonly: false },
+    { key: 'dmm',               title: '973 台号',   width: 80,  readonly: false },
+    { key: 'channel',           title: '通道',       width: 70,  readonly: false },
+    { key: 'layer',             title: '层数',       width: 60,  readonly: false }
+  ];
+
+  let sheet = null;
+  let suppress = false;      // 程序回填时不要触发回传
+  let pendingTimer = null;
+
+  function post(type, payload) {
+    if (window.chrome && window.chrome.webview) {
+      window.chrome.webview.postMessage({ type: type, payload: payload });
+    }
+  }
+
+  function buildStyles() {
+    const styles = {};
+    // 表头：灰底加粗
+    styles[0] = { bgcolor: '#eef2f7', color: '#1f2937', bold: true, align: 'center', border: { bottom: ['thin', '#cbd5e1'] } };
+    // 只读列（工位）浅灰底
+    styles[1] = { bgcolor: '#f8fafc', color: '#475569', align: 'center' };
+    return styles;
+  }
+
+  // 把 C# 传来的工位数组转成 x-spreadsheet 的 rows/data 结构
+  function toSheetData(slots) {
+    const data = [];
+
+    // 表头行
+    data.push(COLUMNS.map(c => c.title));
+
+    for (let r = 0; r < slots.length; r++) {
+      const s = slots[r];
+      data.push(COLUMNS.map(c => s[c.key] == null ? '' : String(s[c.key])));
+    }
+
+    // 列宽
+    const cols = {};
+    for (let c = 0; c < COLUMNS.length; c++) cols[c] = { width: COLUMNS[c].width };
+
+    return {
+      name: '工位表',
+      rows: {},
+      cols: cols,
+      data: data
+    };
+  }
+
+  // 单元格值可能是字符串，也可能是 {text:'...'} 对象（x-spreadsheet 内部结构）
+  function cellValue(v) {
+    if (v == null) return '';
+    if (typeof v === 'object') return v.text == null ? '' : String(v.text);
+    return String(v);
+  }
+
+  // 从表格读回工位数据（只读列也读，但 C# 端不会用它覆盖工位号）
+  function readSheet() {
+    if (!sheet) return [];
+
+    // x-spreadsheet 的取值 API 是 sheet.cell(ri, ci)（cellText 只负责写）。
+    // 它返回 { text, style, ... }，取 .text 就是单元格显示值。
+    const MAX_ROWS = 600;
+    const out = [];
+
+    for (let r = 1; r < MAX_ROWS; r++) {
+      const item = {};
+      let hasValue = false;
+      for (let c = 0; c < COLUMNS.length; c++) {
+        let text = '';
+        try {
+          const cell = sheet.cell(r, c);
+          text = cell && cell.text != null ? String(cell.text) : '';
+        } catch (e) { text = ''; }
+        item[COLUMNS[c].key] = text;
+        if (text !== '') hasValue = true;
+      }
+      if (hasValue) out.push(item);
+      else if (out.length > 0) break;   // 连续空行：数据到头了
+    }
+    return out;
+  }
+
+  function scheduleSync() {
+    if (suppress) return;
+    clearTimeout(pendingTimer);
+    pendingTimer = setTimeout(function () {
+      post('changed', readSheet());
+    }, 350);
+  }
+
+  function init() {
+    // 主题由 C# 通过 URL 参数传进来（?theme=dark）
+    try {
+      const q = new URLSearchParams(location.search);
+      if ((q.get('theme') || '').toLowerCase() === 'dark') {
+        document.body.classList.add('dark');
+      }
+    } catch (e) { }
+
+    sheet = x_spreadsheet('#sheet', {
+      mode: 'edit',
+      showToolbar: false,      // 不要顶部工具栏（我们只要表格）
+      showContextmenu: true,   // 右键菜单：复制/粘贴/插入/删除行
+      showBottomBar: false,
+      view: {
+        height: function () { return document.body.clientHeight; },
+        width: function () { return document.body.clientWidth; }
+      }
+    });
+
+    sheet.on('change', scheduleSync);
+    sheet.on('cell-edited', scheduleSync);
+    post('ready', null);
+  }
+
+  // ── C# → JS 的命令入口 ────────────────────────────────────────────────
+  window.sheetBridge = {
+    // 逐格写入（loadData 的数据结构版本相关，cellText 是稳定 API）
+    load: function (slots) {
+      suppress = true;
+      try {
+        const rowCount = Math.max(slots.length + 1, 60);
+        const colCount = Math.max(COLUMNS.length, 14);
+
+        // 表头
+        for (let c = 0; c < COLUMNS.length; c++) {
+          sheet.cellText(0, c, COLUMNS[c].title);
+        }
+        // 数据行
+        for (let r = 0; r < slots.length; r++) {
+          const s = slots[r];
+          for (let c = 0; c < COLUMNS.length; c++) {
+            const v = s[COLUMNS[c].key];
+            sheet.cellText(r + 1, c, v == null ? '' : String(v));
+          }
+        }
+        // 清掉多余的旧行（表变短时）
+        for (let r = slots.length + 1; r < rowCount; r++) {
+          for (let c = 0; c < colCount; c++) sheet.cellText(r, c, '');
+        }
+        // 列宽（失败不影响数据）
+        try {
+          if (sheet.cols && typeof sheet.cols.setWidth === 'function') {
+            for (let c = 0; c < COLUMNS.length; c++) sheet.cols.setWidth(c, COLUMNS[c].width);
+          }
+        } catch (e) { /* 忽略 */ }
+
+        // 必须无条件重绘：cellText 只改数据模型，canvas 要 reRender 才会画出来。
+        // （之前 reRender 写在「列宽设置成功」的分支里，cols 不存在时数据写了但画面不更新）
+        sheet.reRender();
+      } catch (e) {
+        post('error', String(e && e.message ? e.message : e));
+      } finally {
+        setTimeout(function () { suppress = false; }, 80);
+      }
+    },
+    // 接收 JSON 文本（C# 用 JSON.stringify 再包一层，避免转义破坏脚本）
+    loadJson: function (jsonText) {
+      try {
+        var arr = JSON.parse(jsonText);
+        this.load(arr);
+        post('loaded', arr.length);
+      } catch (e) {
+        post('error', 'loadJson: ' + (e && e.message ? e.message : e));
+      }
+    },
+    getData: function () { return readSheet(); },
+    refit: function () { if (sheet) sheet.reRender(); },
+    // 扫码写入：直接改某个单元格（row 是 0 基的数据行，不含表头）
+    setCell: function (rowIndex, colIndex, value) {
+      if (!sheet) return;
+      suppress = true;
+      try {
+        sheet.cellText(rowIndex + 1, colIndex, value);
+      } finally {
+        setTimeout(function () { suppress = false; }, 60);
+      }
+      post('changed', readSheet());
+    }
+  };
+
+  // C# → 页面：数据推送走 WebMessage（不拼脚本，避免转义/长度问题）
+  if (window.chrome && window.chrome.webview) {
+    window.chrome.webview.addEventListener('message', function (e) {
+      var m = e.data;
+      if (!m || typeof m !== 'object') return;
+      if (m.type === 'load' && window.sheetBridge) {
+        window.sheetBridge.load(m.payload || []);
+      }
+    });
+  }
+
+  // ── 自定义粘贴（capture 阶段抢在 x-spreadsheet 之前）─────────────────
+  // x-spreadsheet 自带的粘贴在从 Excel 复制时经常解析不出内容，
+  // 表现为「粘一片变空白」。这里直接读剪贴板的纯文本，按 Tab 分列、换行分行自己填。
+  document.addEventListener('paste', function (e) {
+    if (!sheet) return;
+
+    // 正在单元格里编辑（input/textarea）时不能抢事件，
+    // 否则编辑器收不到粘贴，表现为「粘不进去」。
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+
+    let text = '';
+    try {
+      const cd = e.clipboardData || window.clipboardData;
+      text = cd ? (cd.getData('text/plain') || '') : '';
+    } catch (err) { text = ''; }
+
+    // 拿不到纯文本就交给 x-spreadsheet 自己处理（内部复制粘贴）
+    if (!text) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    while (lines.length > 0 && lines[lines.length - 1].trim() === '') lines.pop();
+    if (lines.length === 0) return;
+
+    const range = sheet.selector && sheet.selector.range ? sheet.selector.range : null;
+    // 没有选区时默认从第一个数据格开始（不能落到第 0 行，那是表头）
+    const startRow = range ? range.sri : 1;
+    const startCol = range ? range.sci : 1;
+    const endRow = range ? range.eri : startRow;
+    const endCol = range ? range.eci : startCol;
+
+    post('error', 'paste: len=' + text.length + ' range=' + (range ? JSON.stringify([range.sri, range.sci, range.eri, range.eci]) : 'null'));
+
+    const firstCells = lines[0].split('\t');
+    const srcRows = lines.length;
+    const srcCols = firstCells.length;
+    const rangeRows = endRow - startRow + 1;
+    const rangeCols = endCol - startCol + 1;
+
+    suppress = true;
+    try {
+      // Excel 行为：只复制了 1 个值、却选中一片区域 → 把这片区域全部填满
+      if (srcRows === 1 && srcCols === 1 && (rangeRows > 1 || rangeCols > 1)) {
+        const v = firstCells[0].trim();
+        for (let r = startRow; r <= endRow; r++) {
+          for (let c = startCol; c <= endCol; c++) {
+            if (c >= COLUMNS.length) break;
+            if (c === 0) continue;          // 工位列是主键，粘贴时跳过
+            sheet.cellText(r, c, v);
+          }
+        }
+      } else {
+        for (let r = 0; r < srcRows; r++) {
+          const cells = lines[r].split('\t');
+          for (let c = 0; c < cells.length; c++) {
+            const ri = startRow + r;
+            const ci = startCol + c;
+            if (ci >= COLUMNS.length) break;
+            if (ci === 0) continue;
+            sheet.cellText(ri, ci, cells[c].trim());
+          }
+        }
+      }
+    } finally {
+      setTimeout(function () { suppress = false; }, 60);
+    }
+
+    sheet.reRender();
+    post('changed', readSheet());
+    post('error', 'pasted ' + lines.length + ' 行 x ' + (lines[0].split('\t').length) + ' 列');
+  }, true);
+
+  // 值里带数字尾巴时按 Excel 习惯递增：Slot1 → Slot2、25032014_12#1_1 → #1_2
+  function bumpValue(v, offset) {
+    if (!v) return v;
+    const m = /^(.*?)(\d+)$/.exec(v);
+    if (!m) return v;
+    return m[1] + (parseInt(m[2], 10) + offset);
+  }
+
+  // ── Ctrl+D 向下填充 / Ctrl+R 向右填充（Excel 标准快捷键）────────────
+  // x-spreadsheet 的填充柄在 WebView2 里不好拖，用快捷键更稳；
+  // 带数字尾巴的值自动递增，符合 Excel 拖填充柄的直觉。
+  document.addEventListener('keydown', function (e) {
+    if (!sheet) return;
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const key = (e.key || '').toLowerCase();
+    if (key !== 'd' && key !== 'r') return;
+
+    const range = sheet.selector && sheet.selector.range ? sheet.selector.range : null;
+    if (!range) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    suppress = true;
+    try {
+      if (key === 'd') {
+        for (let c = range.sci; c <= range.eci; c++) {
+          if (c === 0) continue;   // 工位列不填
+          const cell = sheet.cell(range.sri, c);
+          const base = cell && cell.text != null ? String(cell.text) : '';
+          if (base === '') continue;
+          for (let r = range.sri + 1; r <= range.eri; r++) {
+            sheet.cellText(r, c, bumpValue(base, r - range.sri));
+          }
+        }
+      } else {
+        for (let r = range.sri; r <= range.eri; r++) {
+          const cell = sheet.cell(r, range.sci);
+          const base = cell && cell.text != null ? String(cell.text) : '';
+          if (base === '') continue;
+          for (let c = range.sci + 1; c <= range.eci; c++) {
+            if (c === 0) continue;
+            sheet.cellText(r, c, bumpValue(base, c - range.sci));
+          }
+        }
+      }
+    } finally {
+      setTimeout(function () { suppress = false; }, 60);
+    }
+
+    sheet.reRender();
+    post('changed', readSheet());
+    post('error', 'fill ' + key + ' done');
+  }, true);
+
+  window.addEventListener('resize', function () {
+    if (sheet) sheet.reRender();
+  });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>

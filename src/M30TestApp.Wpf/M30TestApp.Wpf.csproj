@@ -12,6 +12,15 @@
     <ProjectReference Include="..\M30TestApp.Core\M30TestApp.Core.csproj" />
     <!-- MVVM 工具库：[RelayCommand]/[ObservableProperty] 源生成样板，带 CT 的异步命令 -->
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <!-- 工位表用真正的电子表格控件（x-spreadsheet，MIT）：单元格选择 / 拖动填充 / Excel 复制粘贴 -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- 电子表格引擎（离线打包，不依赖 CDN）：现场断网也能用 -->
+    <Content Include="Web\sheet\**\*.*" Link="Web\sheet\%(RecursiveDir)%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <Resource Include="app.ico" />

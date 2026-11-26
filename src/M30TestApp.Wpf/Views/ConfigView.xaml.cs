@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using M30TestApp.Core.Common;
 using M30TestApp.Core.Config;
 using M30TestApp.Wpf.ViewModels;
 
@@ -15,20 +16,29 @@ public partial class ConfigView : UserControl
 {
     private DateTime _lastApply = DateTime.MinValue;
     private int _scanSlotIndex;
-    private bool _updatingScanSelection;
     private bool _scanPositionInitialized;
+    private bool _syncingFromSheet;
 
     private static readonly Brush StatusOkBrush = new SolidColorBrush(Color.FromRgb(0x16, 0xA3, 0x4A));
     private static readonly Brush StatusWarnBrush = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26));
 
+    private ConfigViewModel? Vm => DataContext as ConfigViewModel;
+    private IReadOnlyList<SlotEntry> SlotList => Vm?.Slots ?? (IReadOnlyList<SlotEntry>)Array.Empty<SlotEntry>();
+
     public ConfigView()
     {
         InitializeComponent();
-        DataGridScrollHelper.EnableDragAndWheelScroll(SlotGrid);
 
-        // 切换 Tab 回来时保留扫码进度；只有行数变化或首次进入才回到当前有效位置。
+        // 电子表格改完（防抖 350ms）→ 回写 SlotEntry + 落盘
+        SlotSheet.RowsChanged += OnSheetRowsChanged;
+
+        // 工位表本身被重建（刷新工位表 / 改工位数量）→ 重新灌进表格
+        DataContextChanged += (_, _) => HookSlotCollection();
+
+        // 切换 Tab 回来时保留扫码进度
         Loaded += (_, _) =>
         {
+            HookSlotCollection();
             if (!_scanPositionInitialized)
             {
                 _scanPositionInitialized = true;
@@ -36,17 +46,109 @@ public partial class ConfigView : UserControl
                 return;
             }
 
-            if (SlotGrid.Items.Count == 0)
-            {
-                _scanSlotIndex = 0;
-            }
-            else if (_scanSlotIndex >= SlotGrid.Items.Count)
-            {
-                _scanSlotIndex = SlotGrid.Items.Count - 1; // 表缩小了：停在最后一行
-            }
-            SyncGridSelectionToScanIndex();
+            var count = SlotList.Count;
+            if (count == 0) _scanSlotIndex = 0;
+            else if (_scanSlotIndex >= count) _scanSlotIndex = count - 1;
+
             UpdateScanStatusLabels();
         };
+    }
+
+    private void HookSlotCollection()
+    {
+        if (Vm is not { } vm) return;
+        vm.Slots.CollectionChanged -= OnSlotsCollectionChanged;
+        vm.Slots.CollectionChanged += OnSlotsCollectionChanged;
+        PushSlotsToSheet();
+    }
+
+    private void OnSlotsCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        => PushSlotsToSheet();
+
+    /// <summary>把 Config.Slots 灌进电子表格（不触发回写）。</summary>
+    private void PushSlotsToSheet()
+    {
+        if (Vm is not { } vm) return;
+        _syncingFromSheet = true;
+        try
+        {
+            SlotSheet.LoadSlots(vm.Slots.ToList());
+        }
+        finally
+        {
+            _syncingFromSheet = false;
+        }
+        UpdateScanStatusLabels();
+    }
+
+    /// <summary>表格改完 → 回写工位对象。工位号是主键，不回写；按工位号匹配而不是按下标（表格可能被排序/留空行）。</summary>
+    private void OnSheetRowsChanged(object? sender, IReadOnlyList<SlotSheetRow> rows)
+    {
+        if (_syncingFromSheet) return;
+        if (Vm is not { } vm) return;
+        if (rows.Count == 0) return;
+
+        // 保护：整批读回来全是空值说明表格没加载好，绝不能拿去覆盖内存数据
+        if (rows.All(r => string.IsNullOrWhiteSpace(r.serialNo)
+                          && string.IsNullOrWhiteSpace(r.board)
+                          && string.IsNullOrWhiteSpace(r.channel)))
+        {
+            AppLog.Warn("UI", "工位表读回全空，已忽略本次回写");
+            return;
+        }
+
+        // 明显错位保护：序列号变成工位号（Slot1/Slot2…）说明表格列被拖乱了，拒绝回写。
+        // 之前就是这类错位把 CSV 里 9 行序列号写成了 "Slot1"。
+        if (rows.Any(r => r.serialNo.StartsWith("Slot", StringComparison.Ordinal)
+                          && r.serialNo.Length > 4 && char.IsDigit(r.serialNo[4])))
+        {
+            AppLog.Warn("UI", "工位表序列号疑似错位（值为工位号），已忽略本次回写");
+            return;
+        }
+
+        // 大面积清空保护：粘贴一个空单元格到 19 行会把序列号整片抹掉（老板踩过）。
+        // 空值比原来多 3 个以上就认为是误操作，拒绝回写并把表格恢复原样。
+        var emptyNow = rows.Count(r => string.IsNullOrWhiteSpace(r.serialNo));
+        var emptyBefore = vm.Slots.Count(s => string.IsNullOrWhiteSpace(s.SerialNo));
+        if (emptyNow > emptyBefore + 3)
+        {
+            AppLog.Warn("UI", $"序列号被大面积清空（{emptyBefore} → {emptyNow} 个空），已拒绝回写");
+            PushSlotsToSheet();
+            if (Vm is { } v0) v0.StatusMessage = "检测到序列号被大面积清空，已撤销（要清空请逐行删）";
+            return;
+        }
+
+        var bySlot = new Dictionary<string, SlotEntry>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in vm.Slots)
+            if (!string.IsNullOrWhiteSpace(s.Slot)) bySlot[s.Slot] = s;
+
+        var changed = 0;
+        foreach (var src in rows)
+        {
+            if (string.IsNullOrWhiteSpace(src.slot)) continue;
+            if (!bySlot.TryGetValue(src.slot, out var dst)) continue;
+
+            if (dst.SerialNo != src.serialNo) { dst.SerialNo = src.serialNo; changed++; }
+            if (dst.PositionX != src.positionX) { dst.PositionX = src.positionX; changed++; }
+            if (dst.PositionY != src.positionY) { dst.PositionY = src.positionY; changed++; }
+            if (dst.Board != src.board) { dst.Board = src.board; changed++; }
+            if (dst.BoardSlotNo != src.boardSlotNo) { dst.BoardSlotNo = src.boardSlotNo; changed++; }
+            if (dst.Fixture != src.fixture) { dst.Fixture = src.fixture; changed++; }
+            if (dst.FixtureSlotNo != src.fixtureSlotNo) { dst.FixtureSlotNo = src.fixtureSlotNo; changed++; }
+            if (dst.Valve != src.valve) { dst.Valve = src.valve; changed++; }
+            if (dst.ValveAddr != src.valveAddr) { dst.ValveAddr = src.valveAddr; changed++; }
+            if (dst.PressureController != src.pressureController) { dst.PressureController = src.pressureController; changed++; }
+            if (dst.Dmm != src.dmm) { dst.Dmm = src.dmm; changed++; }
+            if (dst.Channel != src.channel) { dst.Channel = src.channel; changed++; }
+            if (dst.Layer != src.layer) { dst.Layer = src.layer; changed++; }
+        }
+
+        if (changed == 0) return;
+
+        vm.PersistSlotsAfterEdit();
+        vm.StatusMessage = $"已保存 {changed} 处修改";
+        UpdateScanStatusLabels();
+        AppLog.Info("UI", $"工位表改动已保存（{changed} 处）");
     }
 
     public void EnableSlotsOnlyMode()
@@ -85,82 +187,36 @@ public partial class ConfigView : UserControl
     private void ResetScanSlot()
     {
         _scanSlotIndex = 0;
-        if (SlotGrid.Items.Count > 0)
-            SyncGridSelectionToScanIndex();
         UpdateScanStatusLabels();
     }
 
     /// <summary>更新「下一工位」徽标与「已扫/共」进度。</summary>
     private void UpdateScanStatusLabels()
     {
-        var total = SlotGrid.Items.Count;
+        var list = SlotList;
+        var total = list.Count;
         var scanned = 0;
         for (var i = 0; i < total; i++)
-            if (SlotGrid.Items[i] is SlotEntry s && !string.IsNullOrEmpty(s.SerialNo))
-                scanned++;
+            if (!string.IsNullOrEmpty(list[i].SerialNo)) scanned++;
 
         ScanProgressLabel.Text = total == 0 ? "" : $"已扫 {scanned} / 共 {total}";
 
-        // 三态行底色：待录入行单独高亮（IsNext），已录入绿 / 未录入透明
-        // 注意：重扫预填表时当前行可能带旧序列号，仍需琥珀指示扫描位置
         var nextIndex = total == 0 ? -1 : Math.Min(_scanSlotIndex, total - 1);
         for (var i = 0; i < total; i++)
-            if (SlotGrid.Items[i] is SlotEntry row)
-                row.IsNext = i == nextIndex;
+            list[i].IsNext = i == nextIndex;
 
-        if (total == 0)
-        {
-            ScanSlotLabel.Text = "-";
-        }
-        else if (_scanSlotIndex >= total)
-        {
-            ScanSlotLabel.Text = "已完成";
-        }
-        else if (SlotGrid.Items[_scanSlotIndex] is SlotEntry slot)
-        {
-            ScanSlotLabel.Text = slot.Slot;
-        }
-    }
-
-    private void SyncGridSelectionToScanIndex(int? scrollToIndex = null)
-    {
-        var index = scrollToIndex ?? _scanSlotIndex;
-        if (SlotGrid.Items.Count == 0 || index < 0 || index >= SlotGrid.Items.Count)
-            return;
-
-        _updatingScanSelection = true;
-        try
-        {
-            // 只做最小滚动定位；不设置 SelectedItem/CurrentCell——
-            // 选中行的主题选中视觉会盖掉行底色，导致「待录入」琥珀高亮不可见。
-            SlotGrid.UpdateLayout();
-            var item = SlotGrid.Items[index];
-            SlotGrid.ScrollIntoView(item);
-        }
-        finally
-        {
-            _updatingScanSelection = false;
-        }
+        if (total == 0) ScanSlotLabel.Text = "-";
+        else if (_scanSlotIndex >= total) ScanSlotLabel.Text = "已完成";
+        else ScanSlotLabel.Text = list[_scanSlotIndex].Slot;
     }
 
     private int CurrentVisibleScanIndex()
     {
-        if (SlotGrid.Items.Count == 0) return -1;
-        return Math.Clamp(_scanSlotIndex, 0, SlotGrid.Items.Count - 1);
+        var count = SlotList.Count;
+        if (count == 0) return -1;
+        return Math.Clamp(_scanSlotIndex, 0, count - 1);
     }
 
-    private void OnSlotGridSelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_updatingScanSelection) return;
-
-        if (SlotGrid.SelectedIndex >= 0)
-            _scanSlotIndex = SlotGrid.SelectedIndex;
-
-        UpdateScanStatusLabels();
-    }
-
-    private void OnSlotGridLoadingRow(object sender, DataGridRowEventArgs e)
-        => e.Row.Header = (e.Row.GetIndex() + 1).ToString();
 
     // ─── 上报设备 ID（站点标识）管理员锁 ────────────────────────────────────
     //
@@ -299,38 +355,43 @@ public partial class ConfigView : UserControl
         if (string.IsNullOrEmpty(barcode)) return;
         _lastApply = now;
 
+        if (DataContext is not ConfigViewModel vm) return;
+
         // 扫到表格末尾时按需扩展一行（保持扫码连续，不用先去改数量）。
-        if (DataContext is ConfigViewModel vm && _scanSlotIndex >= SlotGrid.Items.Count)
+        if (_scanSlotIndex >= vm.Slots.Count)
             vm.EnsureSlotCount(_scanSlotIndex + 1);
 
-        _scanSlotIndex = Math.Clamp(_scanSlotIndex, 0, Math.Max(0, SlotGrid.Items.Count - 1));
-        if (SlotGrid.Items.Count == 0 || SlotGrid.Items[_scanSlotIndex] is not SlotEntry slot) return;
+        _scanSlotIndex = Math.Clamp(_scanSlotIndex, 0, Math.Max(0, vm.Slots.Count - 1));
+        if (vm.Slots.Count == 0) return;
+        var slot = vm.Slots[_scanSlotIndex];
 
-        // 重复序列号拦截：同一编号不允许出现在两个工位。
-        for (var i = 0; i < SlotGrid.Items.Count; i++)
+        // 序列号允许重复（同一编号可能出现在多个工位，例如同批传感器复测）。
+        // 重复只提示不拦截 —— 写进去之后仍会照常往后走，避免现场扫到重复就卡住。
+        var duplicateOf = "";
+        for (var i = 0; i < vm.Slots.Count; i++)
         {
             if (i == _scanSlotIndex) continue;
-            if (SlotGrid.Items[i] is SlotEntry other &&
-                string.Equals(other.SerialNo, barcode, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(vm.Slots[i].SerialNo, barcode, StringComparison.OrdinalIgnoreCase))
             {
-                ScanStatusText.Text = $"⚠ 序列号重复：已用于工位 {other.Slot}，未写入";
-                ScanStatusText.Foreground = StatusWarnBrush;
-                BarcodeInput.SelectAll();
-                BarcodeInput.Focus();
-                return;
+                duplicateOf = vm.Slots[i].Slot;
+                break;
             }
         }
 
         slot.SerialNo = barcode;
-        ScanStatusText.Text = $"{slot.Slot} ← {barcode}";
-        ScanStatusText.Foreground = StatusOkBrush;
+        vm.PersistSlotsAfterEdit();
+
+        ScanStatusText.Text = duplicateOf.Length > 0
+            ? $"{slot.Slot} ← {barcode}（与 {duplicateOf} 重复，已允许）"
+            : $"{slot.Slot} ← {barcode}";
+        ScanStatusText.Foreground = duplicateOf.Length > 0 ? StatusWarnBrush : StatusOkBrush;
 
         _scanSlotIndex++;
 
-        // 单一滚动时机：等布局（含可能的表格扩展重建）稳定后，一次定位到新当前行。
+        // 把新值同步进电子表格（扫码是程序改数据，不能触发回写）
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
         {
-            SyncGridSelectionToScanIndex(CurrentVisibleScanIndex());
+            PushSlotsToSheet();
             UpdateScanStatusLabels();
         });
 
