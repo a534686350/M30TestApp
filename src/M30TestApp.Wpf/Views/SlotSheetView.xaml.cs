@@ -44,6 +44,8 @@ public partial class SlotSheetView : UserControl
     private WebView2? _web;
     private bool _ready;
     private string? _pendingJson;
+    private string? _lastJson;          // 最近一次灌入的数据：主题切换重载后用它恢复
+    private string _loadedTheme = "";   // 页面当前用的主题，避免重复重载
 
     /// <summary>用户在表格里改完（防抖 350ms 后）回调，参数是整表数据。</summary>
     public event EventHandler<IReadOnlyList<SlotSheetRow>>? RowsChanged;
@@ -56,6 +58,49 @@ public partial class SlotSheetView : UserControl
         _web = Web;
         LastInstance = this;
         Loaded += OnLoaded;
+        // 主题运行期切换：WPF 资源换掉了，但 WebView2 里的 canvas 不会自己变，
+        // 必须重新加载页面（数据在 _lastJson 里，重载后自动回填）。
+        Themes.ThemeHelper.ThemeChanged += ApplyTheme;
+    }
+
+    /// <summary>当前程序是不是深色主题（看主题背景色亮度，比读 ini 可靠）。</summary>
+    private static bool IsDarkTheme()
+    {
+        try
+        {
+            if (Application.Current.TryFindResource("BgBrush") is System.Windows.Media.SolidColorBrush bg
+                && bg.Color.R < 80 && bg.Color.G < 80)
+                return true;
+        }
+        catch { /* 取不到按浅色 */ }
+        return false;
+    }
+
+    /// <summary>主题切换后重载表格页面，让 canvas 重新按新配色绘制。</summary>
+    private void ApplyTheme()
+    {
+        if (_web?.CoreWebView2 is null || !_ready) return;
+
+        var theme = IsDarkTheme() ? "dark" : "light";
+        if (theme == _loadedTheme) return;
+
+        try
+        {
+            _loadedTheme = theme;
+            _ready = false;
+            _pendingJson = _lastJson;   // 重载后 ready 时回填
+
+            var sheetDir = Path.Combine(AppPaths.BaseDir, "Web", "sheet");
+            _web.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                "m30.sheet", sheetDir, CoreWebView2HostResourceAccessKind.Allow);
+
+            _web.Source = new Uri($"https://m30.sheet/slots.html?theme={theme}&v={DateTime.Now.Ticks}");
+            AppLog.Info("Sheet", $"表格已按 {theme} 主题重载");
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("Sheet", $"表格换肤失败：{ex.Message}");
+        }
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -106,16 +151,9 @@ public partial class SlotSheetView : UserControl
             };
 
             // 带版本参数，避免 WebView2 用缓存的旧页面
-            // 主题跟着程序走：深色时页面用反转配色，避免中间一块白板
-            // 直接看当前主题的背景色亮度判断深浅（比读 ini 可靠：主题可能被运行时切换过）
-            var dark = "light";
-            try
-            {
-                if (Application.Current.TryFindResource("BgBrush") is System.Windows.Media.SolidColorBrush bg
-                    && bg.Color.R < 80 && bg.Color.G < 80)
-                    dark = "dark";
-            }
-            catch { /* 取不到按浅色 */ }
+            // 主题跟着程序走：深浅色都真正换肤（canvas 颜色由页面读 window.XS_THEME 决定）
+            var dark = IsDarkTheme() ? "dark" : "light";
+            _loadedTheme = dark;
             Web.Source = new Uri($"https://m30.sheet/slots.html?theme={dark}&v={DateTime.Now.Ticks}");
             Web.Visibility = Visibility.Visible;
             AppLog.Info("Sheet", $"电子表格控件已初始化（WebView2 {version}）");
@@ -207,6 +245,7 @@ public partial class SlotSheetView : UserControl
         }).ToList();
 
         var json = JsonSerializer.Serialize(rows, JsonOpts);
+        _lastJson = json;
         if (!_ready)
         {
             _pendingJson = json;   // 页面还没 ready，先存着

@@ -10,6 +10,12 @@ public static class ThemeHelper
     public const string Light = "Light";
     public const string Dark = "Dark";
 
+    /// <summary>
+    /// 主题切换完成事件。给非 WPF 资源体系的东西用（例如 WebView2 里的 canvas 表格，
+    /// 换主题后必须整页重载才会重新上色）。
+    /// </summary>
+    public static event Action? ThemeChanged;
+
     public static void Apply(string theme)
     {
         theme = Normalize(theme);
@@ -28,6 +34,8 @@ public static class ThemeHelper
                 if (IsThemeDictionary(merged[i])) merged.RemoveAt(i);
             }
             merged.Insert(0, dict);
+
+            ThemeChanged?.Invoke();
         });
     }
 

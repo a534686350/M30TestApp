@@ -3,7 +3,39 @@
 <head>
 <meta charset="utf-8" />
 <title>工位表</title>
-<link rel="stylesheet" href="xspreadsheet.css" />
+<link rel="stylesheet" href="xspreadsheet.css?v=20261127" />
+<script>
+  // 主题必须在 xspreadsheet.js 之前定好：表格主体是 canvas 绘制，
+  // 颜色由 js 里读 window.XS_THEME 决定（已把硬编码的白色改为读这里）。
+  (function () {
+    var dark = false;
+    try {
+      var q = new URLSearchParams(location.search);
+      dark = (q.get('theme') || '').toLowerCase() === 'dark';
+    } catch (e) { }
+
+    window.XS_IS_DARK = dark;
+    window.XS_THEME = dark ? {
+      bodyBg:   '#101828',
+      cellBg:   '#17212F',
+      cellFg:   '#E6EDF7',
+      headerBg: '#1B2A3D',
+      headerFg: '#A8C0DC',
+      gridBg:   '#17212F',
+      gridLine: '#26364C'
+    } : {
+      bodyBg:   '#FFFFFF',
+      cellBg:   '#FFFFFF',
+      cellFg:   '#0A0A0A',
+      headerBg: '#F4F5F8',
+      headerFg: '#585757',
+      gridBg:   '#FFFFFF',
+      gridLine: '#E6E6E6'
+    };
+
+    if (dark) document.documentElement.classList.add('dark');
+  })();
+</script>
 <style>
   html, body { margin: 0; padding: 0; height: 100%; overflow: hidden;
                font-family: "Microsoft YaHei", "Segoe UI", sans-serif; }
@@ -12,21 +44,50 @@
   .x-spreadsheet { font-size: 13px; }
   .x-spreadsheet .x-spreadsheet-sheet { border-radius: 0; }
 
-  /* 深色主题：x-spreadsheet 是 canvas 渲染、配色写死成白色，无法换肤。
-     采取和 Excel 深色模式一样的做法——表格区保持浅色（数据对比度最高），
-     但用深色外框 + 圆角把它收成一块"嵌入的表格区"，不再是刺眼的白板。 */
-  body.dark { background: #17212F; padding: 6px; box-sizing: border-box; }
-  body.dark #sheet {
+  /* ── 深色主题 ──────────────────────────────────────────────────────
+     canvas 部分（单元格、行列标题、网格线）由 js 读 window.XS_THEME 上色；
+     这里只管 canvas 之外的 DOM：编辑框、右键菜单、选择框描边。 */
+  html.dark, html.dark body { background: #101828; }
+  html.dark .x-spreadsheet { background: #17212F; color: #E6EDF7; }
+
+  html.dark .x-spreadsheet-contextmenu,
+  html.dark .x-spreadsheet-suggest,
+  html.dark .x-spreadsheet-sort-filter {
+    background: #17212F;
     border: 1px solid #26364C;
-    border-radius: 6px;
-    overflow: hidden;
-    background: #fff;
+    box-shadow: 1px 2px 8px 2px rgba(0, 0, 0, .55);
   }
+  html.dark .x-spreadsheet-item { color: #E6EDF7; }
+  html.dark .x-spreadsheet-item:hover,
+  html.dark .x-spreadsheet-item.active { background: rgba(255, 255, 255, .08); }
+  html.dark .x-spreadsheet-item.divider { border-bottom-color: rgba(255, 255, 255, .14); }
+  html.dark .x-spreadsheet-item.state:before { background: rgba(255, 255, 255, .16); }
+
+  html.dark .x-spreadsheet-editor .x-spreadsheet-editor-area textarea {
+    background: #17212F;
+    color: #E6EDF7;
+  }
+  /* 拖动填充柄右下角的小方块，深色下不能用白描边 */
+  html.dark .x-spreadsheet-selector .x-spreadsheet-selector-corner { border-color: #17212F; }
+  html.dark .x-spreadsheet-selector .x-spreadsheet-selector-autofill {
+    border-color: rgba(255, 255, 255, .45);
+  }
+
+  /* 滚动条：x-spreadsheet 自绘的条 + WebView2 原生条都要压成深色，
+     否则表格右边/下边会留一条浅灰色带。 */
+  html.dark .x-spreadsheet-scrollbar { background-color: #1B2A3D; }
+  html.dark .x-spreadsheet-scrollbar.horizontal > div,
+  html.dark .x-spreadsheet-scrollbar.vertical > div { background: #2C3E55; }
+  html.dark ::-webkit-scrollbar { width: 14px; height: 14px; }
+  html.dark ::-webkit-scrollbar-track { background: #101828; }
+  html.dark ::-webkit-scrollbar-thumb { background: #2C3E55; border-radius: 7px; }
+  html.dark ::-webkit-scrollbar-thumb:hover { background: #3A5170; }
+  html.dark ::-webkit-scrollbar-corner { background: #101828; }
 </style>
 </head>
 <body>
 <div id="sheet"></div>
-<script src="xspreadsheet.js"></script>
+<script src="xspreadsheet.js?v=20261127"></script>
 <script>
 // 全局错误捕获：任何 JS 异常都回报给 C#，否则页面内失败是静默的
 window.onerror = function (msg, url, line, col) {
@@ -69,11 +130,12 @@ window.onerror = function (msg, url, line, col) {
   }
 
   function buildStyles() {
+    const t = window.XS_THEME || {};
     const styles = {};
-    // 表头：灰底加粗
-    styles[0] = { bgcolor: '#eef2f7', color: '#1f2937', bold: true, align: 'center', border: { bottom: ['thin', '#cbd5e1'] } };
-    // 只读列（工位）浅灰底
-    styles[1] = { bgcolor: '#f8fafc', color: '#475569', align: 'center' };
+    // 表头：底加粗
+    styles[0] = { bgcolor: t.headerBg || '#eef2f7', color: t.headerFg || '#1f2937', bold: true, align: 'center', border: { bottom: ['thin', t.gridLine || '#cbd5e1'] } };
+    // 只读列（工位）浅一档底
+    styles[1] = { bgcolor: t.cellBg || '#f8fafc', color: t.cellFg || '#475569', align: 'center' };
     return styles;
   }
 
@@ -144,13 +206,8 @@ window.onerror = function (msg, url, line, col) {
   }
 
   function init() {
-    // 主题由 C# 通过 URL 参数传进来（?theme=dark）
-    try {
-      const q = new URLSearchParams(location.search);
-      if ((q.get('theme') || '').toLowerCase() === 'dark') {
-        document.body.classList.add('dark');
-      }
-    } catch (e) { }
+    // 主题已在 head 的内联脚本里按 ?theme= 定好（window.XS_IS_DARK）
+    if (window.XS_IS_DARK) document.body.classList.add('dark');
 
     sheet = x_spreadsheet('#sheet', {
       mode: 'edit',
