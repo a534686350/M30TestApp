@@ -298,14 +298,15 @@
                         <DataTemplate>
                             <ComboBox ItemsSource="{Binding BusOptions}"
                                       SelectedItem="{Binding Bus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      Padding="6,1" ToolTip="GPIB 设备选总线（GPIB0/1/…），串口设备选 COM 口"/>
+                                      Padding="6,1" ToolTip="DAQ973A / 压力控制器：GPIB0-3 或 USB0；串口设备选 COM 口"/>
                         </DataTemplate>
     </DataGridTemplateColumn.CellTemplate>
 </DataGridTemplateColumn>
 <DataGridTextColumn Header="地址号" Width="72"
                                 Binding="{Binding Number, UpdateSourceTrigger=PropertyChanged}"/>
-<DataGridTextColumn Header="完整地址" Binding="{Binding AddressPreview}"
-                                Width="*" IsReadOnly="True"
+<DataGridTextColumn Header="VISA 地址（可直接粘贴）"
+                                Binding="{Binding Address, UpdateSourceTrigger=LostFocus}"
+                                Width="*"
                                 Foreground="{DynamicResource MutedBrush}"/>
                                     <DataGridTextColumn Header="波特率"
                                                         Binding="{Binding Baud, UpdateSourceTrigger=PropertyChanged}"

@@ -29,6 +29,13 @@ public sealed class DeviceConfigSet : ViewModelBase
     /// <summary>GPIB 设备的总线候选（现场常见 0/1，给到 3 够用）。</summary>
     private static readonly string[] GpibBuses = { "GPIB0", "GPIB1", "GPIB2", "GPIB3" };
 
+    /// <summary>
+    /// VISA 仪器的总线候选：GPIB 板卡 + USB。
+    /// DAQ973A 现在有 USB 接口的机型（<c>USB0::0x2A8D::0x8601::MY59018500::0::INSTR</c>），
+    /// 现场两种接法都要能配。
+    /// </summary>
+    private static readonly string[] VisaBuses = { "GPIB0", "GPIB1", "GPIB2", "GPIB3", "USB0" };
+
     /// <summary>串口设备的串口候选。</summary>
     private static readonly string[] SerialPorts = { "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8" };
 
@@ -97,15 +104,15 @@ public sealed class DeviceConfigSet : ViewModelBase
         }
 
         var dmmRows = _rows.Where(r => r.IsDmmUnit).OrderBy(r => r.UnitIndex).ToList();
-        var fills = new List<(DeviceConfigVm Row, string Bus, string Number)>();
+        var fills = new List<(DeviceConfigVm Row, string Address)>();
         var targetIdx = 0;
         foreach (var address in found)
         {
             // 只填地址为空的行：现场已手填的地址是权威，自动扫描绝不覆盖。
             while (targetIdx < dmmRows.Count && dmmRows[targetIdx].IsAddressComplete) targetIdx++;
             if (targetIdx >= dmmRows.Count) break;
-            var parsed = GpibResource.Parse(address);
-            fills.Add((dmmRows[targetIdx], "GPIB" + parsed.Port, parsed.Address));
+            // 整串直接交给 Address：GPIB 会拆成「总线 + 地址号」，USB 保留完整资源串。
+            fills.Add((dmmRows[targetIdx], address));
             targetIdx++;
         }
 
@@ -118,10 +125,9 @@ public sealed class DeviceConfigSet : ViewModelBase
         // 回写 UI 绑定属性必须切回 UI 线程（本方法可能跑在 Task.Run 的后台线程）。
         System.Windows.Application.Current?.Dispatcher.Invoke(() =>
         {
-            foreach (var (row, bus, number) in fills)
+            foreach (var (row, address) in fills)
             {
-                row.Bus = bus;
-                row.Number = number;
+                row.Address = address;
             }
             GpibScanStatus = status;
         });
@@ -227,7 +233,9 @@ public sealed class DeviceConfigSet : ViewModelBase
                         ? $"工位 {DmmAutoSlotMap.UnitSlotRangeText(i)}"
                         : KindHint(kind),
                     IsSerial = IsSerialKind(kind),
-                    BusOptions = IsSerialKind(kind) ? SerialPorts : GpibBuses,
+                    BusOptions = IsSerialKind(kind)
+                        ? SerialPorts
+                        : (IsVisaKind(kind) ? VisaBuses : GpibBuses),
                     // 后端开关按类别共享：ini 里还没有的预留行跟随本类第一行。
                     Enabled = unit is null ? dmmEnabled : unit.Backend == DeviceBackend.Hw,
                     // 每台独立启用：ini 里有配置的台默认启用；预留行（没配地址）默认关闭。
@@ -351,4 +359,11 @@ public sealed class DeviceConfigSet : ViewModelBase
 
     private static bool IsSerialKind(DeviceKind kind) =>
         kind is DeviceKind.Oven or DeviceKind.Dac or DeviceKind.Board;
+
+    /// <summary>
+    /// 可走 USB 的 VISA 仪器。目前只有 DAQ973A —— 现场有 USB 接口机型。
+    /// 压力控制器等仍只给 GPIB：手动调试 / 快速测试页的压力地址是按「GPIB 端口 + 地址」
+    /// 两个字段编辑的，给它开 USB 会让那两页保存时把整串冲掉。
+    /// </summary>
+    private static bool IsVisaKind(DeviceKind kind) => kind is DeviceKind.Dmm;
 }

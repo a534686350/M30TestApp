@@ -846,18 +846,41 @@ public sealed partial class ConfigViewModel : ViewModelBase
 
         var pressure = _session.Station.Get(DeviceKind.Pressure);
         PressureModelName = _settingIni.Get("Device.Pressure", "Model", pressure?.Model ?? PressureModelName);
-        (var pressurePort, var pressureAddress) =
-            GpibResource.Parse(_settingIni.Get("Device.Pressure", "Address", pressure?.Address ?? ""));
-        PressureGpibPort = pressurePort;
-        PressureGpibAddress = pressureAddress;
+        var pressureAddressRaw = _settingIni.Get("Device.Pressure", "Address", pressure?.Address ?? "");
+        if (IsGpibAddress(pressureAddressRaw))
+        {
+            (var pressurePort, var pressureAddress) = GpibResource.Parse(pressureAddressRaw);
+            PressureGpibPort = pressurePort;
+            PressureGpibAddress = pressureAddress;
+        }
+        else
+        {
+            // USB 接法（USB0::0x2A8D::…）：本页的「GPIB 端口 + 地址」不适用，留空，
+            // 避免显示一个 0/0 让人以为配错了。改 USB 地址请到「设备」页。
+            PressureGpibPort = "";
+            PressureGpibAddress = "";
+        }
 
         var dmm = _session.Station.Get(DeviceKind.Dmm);
         DmmModelName = _settingIni.Get("Device.Dmm", "Model", dmm?.Model ?? DmmModelName);
-        (var tempPort, var tempAddress) =
-            GpibResource.Parse(_settingIni.Get("Device.Dmm", "Address", dmm?.Address ?? ""));
-        TempGpibPort = tempPort;
-        TempGpibAddress = tempAddress;
+        var dmmAddressRaw = _settingIni.Get("Device.Dmm", "Address", dmm?.Address ?? "");
+        if (IsGpibAddress(dmmAddressRaw))
+        {
+            (var tempPort, var tempAddress) = GpibResource.Parse(dmmAddressRaw);
+            TempGpibPort = tempPort;
+            TempGpibAddress = tempAddress;
+        }
+        else
+        {
+            TempGpibPort = "";
+            TempGpibAddress = "";
+        }
     }
+
+    /// <summary>空地址或 GPIB 地址才算「能用 GPIB 端口+地址拼装表示」。</summary>
+    private static bool IsGpibAddress(string? address) =>
+        string.IsNullOrWhiteSpace(address)
+        || address.StartsWith("GPIB", StringComparison.OrdinalIgnoreCase);
 
     private void RefreshComPorts()
     {
@@ -1135,9 +1158,24 @@ public sealed partial class ConfigViewModel : ViewModelBase
         _settingIni.Set("Device.Oven", "StopBits", OvenStopBits);
 
         _settingIni.Set("Device.Pressure", "Model", PressureModelName);
-        _settingIni.Set("Device.Pressure", "Address", BuildGpibAddress(PressureGpibPort, PressureGpibAddress));
+        _settingIni.Set("Device.Pressure", "Address",
+            KeepNonGpibOrBuild("Device.Pressure", PressureGpibPort, PressureGpibAddress));
         _settingIni.Set("Device.Dmm", "Model", DmmModelName);
-        _settingIni.Set("Device.Dmm", "Address", BuildGpibAddress(TempGpibPort, TempGpibAddress));
+        _settingIni.Set("Device.Dmm", "Address",
+            KeepNonGpibOrBuild("Device.Dmm", TempGpibPort, TempGpibAddress));
+    }
+
+    /// <summary>
+    /// 本页（接口设置 / 温度采集）只能拼 GPIB 地址。ini 里已经是 USB 等其它 VISA 资源串时，
+    /// 整串保留 —— 否则一次保存就会把 <c>USB0::0x2A8D::…::INSTR</c> 冲成 <c>GPIB0::?::INSTR</c>，
+    /// 现场表现为「配好了却连不上」，且很难看出是哪一步改坏的。
+    /// </summary>
+    private string KeepNonGpibOrBuild(string section, string port, string address)
+    {
+        var existing = _settingIni.Get(section, "Address", "");
+        if (!IsGpibAddress(existing) && !string.IsNullOrWhiteSpace(existing))
+            return existing;
+        return GpibResource.Build(port, address);
     }
 
     private static string NormalizeParity(string value) =>

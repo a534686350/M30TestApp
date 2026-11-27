@@ -83,15 +83,16 @@ public sealed class DeviceConfigVm : ViewModelBase
             SetField(ref _number, SplitNumber(v));
             OnPropertyChanged(nameof(Number));
             OnPropertyChanged(nameof(AddressPreview));
+            OnPropertyChanged(nameof(IsUsb));
         }
     }
 
-    /// <summary>总线 / 串口候选：GPIB 设备给 GPIB0-3，串口设备给 COM1-8。</summary>
+    /// <summary>总线 / 串口候选：GPIB 设备给 GPIB0-3 + USB0，串口设备给 COM1-8。</summary>
     public IReadOnlyList<string> BusOptions { get; init; } = Array.Empty<string>();
 
     private string _bus = "";
 
-    /// <summary>总线号或串口号，如 <c>GPIB1</c> / <c>COM5</c>。</summary>
+    /// <summary>总线号或串口号，如 <c>GPIB1</c> / <c>USB0</c> / <c>COM5</c>。</summary>
     public string Bus
     {
         get => _bus;
@@ -102,12 +103,16 @@ public sealed class DeviceConfigVm : ViewModelBase
             SetField(ref _address, Compose(next, _number));
             OnPropertyChanged(nameof(Address));
             OnPropertyChanged(nameof(AddressPreview));
+            OnPropertyChanged(nameof(IsUsb));
         }
     }
 
     private string _number = "";
 
-    /// <summary>GPIB 地址号（0-30）；串口设备为空。</summary>
+    /// <summary>
+    /// GPIB 地址号（0-30）；USB 设备是 <c>0x2A8D::0x8601::MY59018500::0</c> 这一整段；
+    /// 串口设备为空。
+    /// </summary>
     public string Number
     {
         get => _number;
@@ -124,7 +129,11 @@ public sealed class DeviceConfigVm : ViewModelBase
     /// <summary>按当前「总线 + 地址号」拼出的完整地址，只读回显用。</summary>
     public string AddressPreview => Compose(_bus, _number);
 
-    /// <summary>串口设备只有 COM 口、没有地址号；GPIB 设备形如 <c>GPIB1::9::INSTR</c>。</summary>
+    /// <summary>当前行是不是 USB 设备（USB 资源串整段保存，不按 GPIB 规则重拼）。</summary>
+    public bool IsUsb => IsUsbBus(_bus);
+
+    /// <summary>串口设备只有 COM 口、没有地址号；GPIB 设备形如 <c>GPIB1::9::INSTR</c>；
+    /// USB 设备形如 <c>USB0::0x2A8D::0x8601::MY59018500::0::INSTR</c>。</summary>
     /// <remarks>
     /// 地址号没填时用 <c>?</c> 占位（<c>GPIB2::?::INSTR</c>）而不是拼出 <c>GPIB2::::INSTR</c> ——
     /// 后者看着像配好了，实际设备根本连不上。
@@ -132,14 +141,35 @@ public sealed class DeviceConfigVm : ViewModelBase
     private static string Compose(string bus, string number)
     {
         if (string.IsNullOrWhiteSpace(bus)) return "";
+        var n = (number ?? "").Trim();
+
         if (bus.StartsWith("COM", StringComparison.OrdinalIgnoreCase)) return bus;
-        return $"{bus}::{(string.IsNullOrWhiteSpace(number) ? "?" : number)}::INSTR";
+
+        if (IsUsbBus(bus))
+        {
+            // 用户可能把整串粘进地址号里（USB0::0x2A8D::...::INSTR），那就原样用，别重复加前缀
+            if (n.StartsWith("USB", StringComparison.OrdinalIgnoreCase)) return n;
+            // 从 GPIB 切过来时地址号还是 "9" 这种纯数字，不能拼成 USB0::9 —— 那是残缺地址，
+            // 反而让人以为配好了。留 "USB0::" 提示还得补厂商/序列号段。
+            if (n.Length == 0 || !n.Contains("::", StringComparison.Ordinal)) return bus + "::";
+            return bus + "::" + n;
+        }
+
+        // 反过来：从 USB 切回 GPIB 时地址号是 "0x2A8D::..."，同样不能直接拼。
+        if (n.Length == 0 || n.Contains("::", StringComparison.Ordinal)) return $"{bus}::?::INSTR";
+        return $"{bus}::{n}::INSTR";
     }
 
-    /// <summary>地址是否配完整（总线非空，且 GPIB 设备填了地址号）。</summary>
+    private static bool IsUsbBus(string? bus) =>
+        !string.IsNullOrWhiteSpace(bus) && bus.StartsWith("USB", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>地址是否配完整（总线非空；GPIB 要地址号，USB 要带厂商/序列号段，串口不用）。</summary>
     public bool IsAddressComplete =>
         !string.IsNullOrWhiteSpace(_bus)
-        && (_bus.StartsWith("COM", StringComparison.OrdinalIgnoreCase) || !string.IsNullOrWhiteSpace(_number));
+        && (_bus.StartsWith("COM", StringComparison.OrdinalIgnoreCase)
+            || (IsUsbBus(_bus)
+                ? !string.IsNullOrWhiteSpace(_number) && _number.Contains("::", StringComparison.Ordinal)
+                : !string.IsNullOrWhiteSpace(_number)));
 
     private static string SplitBus(string address)
     {
@@ -155,6 +185,16 @@ public sealed class DeviceConfigVm : ViewModelBase
         var sep = s.IndexOf("::", StringComparison.Ordinal);
         if (sep <= 0) return "";
         var rest = s[(sep + 2)..];
+
+        // USB 资源串是「总线::厂商::型号::序列号::接口::INSTR」，中间全是 ::，
+        // 必须整段保留，不能像 GPIB 那样只取第一段。
+        if (IsUsbBus(s[..sep]))
+        {
+            if (rest.EndsWith("::INSTR", StringComparison.OrdinalIgnoreCase))
+                rest = rest[..^7];
+            return rest.Trim();
+        }
+
         var end = rest.IndexOf("::", StringComparison.Ordinal);
         return (end >= 0 ? rest[..end] : rest).Trim();
     }
