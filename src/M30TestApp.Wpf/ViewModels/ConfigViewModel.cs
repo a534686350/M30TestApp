@@ -392,11 +392,33 @@ public sealed partial class ConfigViewModel : ViewModelBase
         newPlan.PressurePoints.Add(new PressurePoint("P3", 100));
         newPlan.TempPoints.Add(new TempPoint("T1", 25));
 
+        // 必须立刻落盘。自动测试的「方案」下拉是扫磁盘的（PlanCatalog.List），
+        // 以前这里只 SetPlan 到内存，文件根本没生成 —— 新建完去自动测试，下拉里找不到。
+        var folderName = CleanPathName(
+            string.IsNullOrWhiteSpace(_selectedPlanFolder) ? DefaultPlanFolder : _selectedPlanFolder);
+        newPlan.FolderName = folderName;
+        var folder = Path.Combine(AppPaths.TestConfigDir, folderName);
+        Directory.CreateDirectory(folder);
+        var path = Path.Combine(folder, newPlan.Name + ".ini");
+        newPlan.Save(path);
+
         SetPlan(newPlan);
 
+        // 界面状态跟着新文件走，否则「保存」会把旧方案名当来源、改名迁移时找错文件。
+        _selectedPlanFolder = folderName;
+        _loadedPlanFolder = folderName;
+        OnPropertyChanged(nameof(SelectedPlanFolder));
+        _selectedSensorModelFile = newPlan.Name;
+        _loadedSensorModelFile = newPlan.Name;
+        OnPropertyChanged(nameof(SelectedSensorModelFile));
+        RefreshPlanFolders();
+        RefreshSensorModelFiles();
 
-        AppLog.Info("Config", $"已创建新方案 {newPlan.Name}，并写入到 {AppPaths.TestConfigDir}");
+        AppLog.Info("Config", $"已创建新方案 {newPlan.Name}，写入 {path}");
     }
+
+    /// <summary>没有选中方案文件夹时，新方案落到这个子目录（与保存时的默认值一致）。</summary>
+    private const string DefaultPlanFolder = "M30测试";
 
 
     private void NewPlanFolder()
@@ -446,7 +468,10 @@ public sealed partial class ConfigViewModel : ViewModelBase
     {
         var name = Plan.Name;
         if (string.IsNullOrWhiteSpace(name)) return;
-        var path = Path.Combine(AppPaths.TestConfigDir, name + ".ini");
+        // 方案可能在 TestConfig 根目录，也可能在子文件夹里 —— 用扁平索引定位，
+        // 否则子目录方案点删除会报「文件不存在」。
+        var path = PlanCatalog.Find(Plan)?.Path
+                   ?? Path.Combine(AppPaths.TestConfigDir, name + ".ini");
         if (!File.Exists(path))
         {
             AppDialog.Show($"方案文件不存在：{path}", "删除方案", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -668,7 +693,7 @@ public sealed partial class ConfigViewModel : ViewModelBase
         Plan.Name = name;
         Plan.SensorType = name;
 
-        var folderName = CleanPathName(string.IsNullOrWhiteSpace(_selectedPlanFolder) ? "M30测试" : _selectedPlanFolder);
+        var folderName = CleanPathName(string.IsNullOrWhiteSpace(_selectedPlanFolder) ? DefaultPlanFolder : _selectedPlanFolder);
         Plan.FolderName = folderName;
         var folder = Path.Combine(AppPaths.TestConfigDir, folderName);
         Directory.CreateDirectory(folder);
